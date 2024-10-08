@@ -89,15 +89,17 @@ struct PreserveAspectRatio {
     MeetOrSlice meet_or_slice { MeetOrSlice::Meet };
 };
 
-enum class SVGUnits {
-    ObjectBoundingBox,
-    UserSpaceOnUse
+// https://www.w3.org/TR/SVG2/types.html#InterfaceSVGUnitTypes
+enum class SVGUnitTypes : u16 {
+    Unknown = 0,
+    UserSpaceOnUse = 1,
+    ObjectBoundingBox = 2,
 };
 
-using GradientUnits = SVGUnits;
-using MaskUnits = SVGUnits;
-using MaskContentUnits = SVGUnits;
-using ClipPathUnits = SVGUnits;
+using GradientUnits = SVGUnitTypes;
+using MaskUnits = SVGUnitTypes;
+using MaskContentUnits = SVGUnitTypes;
+using ClipPathUnits = SVGUnitTypes;
 
 enum class SpreadMethod {
     Pad,
@@ -157,7 +159,7 @@ public:
     static Vector<PathInstruction> parse_path_data(StringView input);
     static Optional<Vector<Transform>> parse_transform(StringView input);
     static Optional<PreserveAspectRatio> parse_preserve_aspect_ratio(StringView input);
-    static Optional<SVGUnits> parse_units(StringView input);
+    static Optional<SVGUnitTypes> parse_units(StringView input);
     static Optional<SpreadMethod> parse_spread_method(StringView input);
 
 private:

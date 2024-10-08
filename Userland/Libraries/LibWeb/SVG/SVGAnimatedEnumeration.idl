@@ -1,0 +1,6 @@
+// https://www.w3.org/TR/SVG2/types.html#InterfaceSVGAnimatedEnumeration
+[Exposed=Window]
+interface SVGAnimatedEnumeration {
+           attribute unsigned short baseVal;
+  readonly attribute unsigned short animVal;
+};

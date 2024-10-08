@@ -536,15 +536,15 @@ Optional<PreserveAspectRatio> AttributeParser::parse_preserve_aspect_ratio(Strin
 // https://svgwg.org/svg2-draft/pservers.html#LinearGradientElementGradientUnitsAttribute
 // https://drafts.fxtf.org/css-masking/#element-attrdef-mask-maskunits
 // https://drafts.fxtf.org/css-masking/#element-attrdef-mask-maskcontentunits
-Optional<SVGUnits> AttributeParser::parse_units(StringView input)
+Optional<SVGUnitTypes> AttributeParser::parse_units(StringView input)
 {
     GenericLexer lexer { input };
     lexer.ignore_while(whitespace);
     auto gradient_units_string = lexer.consume_until(whitespace);
     if (gradient_units_string == "userSpaceOnUse"sv)
-        return SVGUnits::UserSpaceOnUse;
+        return SVGUnitTypes::UserSpaceOnUse;
     if (gradient_units_string == "objectBoundingBox"sv)
-        return SVGUnits::ObjectBoundingBox;
+        return SVGUnitTypes::ObjectBoundingBox;
     return {};
 }
 

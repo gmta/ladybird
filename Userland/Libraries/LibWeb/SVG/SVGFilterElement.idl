@@ -1,0 +1,16 @@
+#import <SVG/SVGAnimatedEnumeration.idl>
+#import <SVG/SVGAnimatedLength.idl>
+#import <SVG/SVGElement.idl>
+#import <SVG/SVGURIReference.idl>
+
+// https://www.w3.org/TR/filter-effects/#InterfaceSVGFilterElement
+interface SVGFilterElement : SVGElement {
+  readonly attribute SVGAnimatedEnumeration filterUnits;
+  readonly attribute SVGAnimatedEnumeration primitiveUnits;
+  readonly attribute SVGAnimatedLength x;
+  readonly attribute SVGAnimatedLength y;
+  readonly attribute SVGAnimatedLength width;
+  readonly attribute SVGAnimatedLength height;
+};
+
+SVGFilterElement includes SVGURIReference;

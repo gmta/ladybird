@@ -435,7 +435,7 @@ void SVGFormattingContext::layout_image_element(SVGImageBox const& image_box)
 
 void SVGFormattingContext::layout_mask_or_clip(SVGBox const& mask_or_clip)
 {
-    SVG::SVGUnits content_units {};
+    SVG::SVGUnitTypes content_units {};
     if (is<SVGMaskBox>(mask_or_clip))
         content_units = static_cast<SVGMaskBox const&>(mask_or_clip).dom_node().mask_content_units();
     else if (is<SVGClipBox>(mask_or_clip))
@@ -445,7 +445,7 @@ void SVGFormattingContext::layout_mask_or_clip(SVGBox const& mask_or_clip)
     // FIXME: Somehow limit <clipPath> contents to: shape elements, <text>, and <use>.
     auto& layout_state = m_state.get_mutable(mask_or_clip);
     auto parent_viewbox_transform = m_current_viewbox_transform;
-    if (content_units == SVG::SVGUnits::ObjectBoundingBox) {
+    if (content_units == SVG::SVGUnitTypes::ObjectBoundingBox) {
         auto* parent_node = mask_or_clip.parent();
         auto& parent_node_state = m_state.get(*parent_node);
         layout_state.set_content_width(parent_node_state.content_width());
