@@ -90,14 +90,12 @@ public:
 
     void initialize_web_interfaces(Badge<WorkerEnvironmentSettingsObject>) { initialize_web_interfaces_impl(); }
 
-    Web::Page* page() { return m_page.ptr(); }
-
     PolicyContainer policy_container() const { return m_policy_container; }
 
     bool is_closing() const { return m_closing; }
 
 protected:
-    explicit WorkerGlobalScope(JS::Realm&, GC::Ref<Web::Page>);
+    explicit WorkerGlobalScope(JS::Realm&);
 
     virtual void initialize_web_interfaces_impl();
 
@@ -112,8 +110,6 @@ private:
 
     GC::Ptr<WorkerLocation> m_location;
     GC::Ptr<WorkerNavigator> m_navigator;
-
-    GC::Ref<Web::Page> m_page;
 
     // FIXME: Add all these internal slots
 

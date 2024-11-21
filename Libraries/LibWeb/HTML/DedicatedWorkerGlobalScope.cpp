@@ -8,7 +8,6 @@
 #include <LibWeb/Bindings/DedicatedWorkerGlobalScopePrototype.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/HTML/DedicatedWorkerGlobalScope.h>
-#include <LibWeb/HTML/EventHandler.h>
 #include <LibWeb/HTML/EventNames.h>
 #include <LibWeb/HTML/MessageEvent.h>
 #include <LibWeb/HTML/MessagePort.h>
@@ -17,8 +16,8 @@ namespace Web::HTML {
 
 GC_DEFINE_ALLOCATOR(DedicatedWorkerGlobalScope);
 
-DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope(JS::Realm& realm, GC::Ref<Web::Page> page)
-    : WorkerGlobalScope(realm, page)
+DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope(JS::Realm& realm)
+    : WorkerGlobalScope(realm)
 {
     m_legacy_platform_object_flags = LegacyPlatformObjectFlags { .has_global_interface_extended_attribute = true };
 }

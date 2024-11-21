@@ -43,13 +43,13 @@ void DedicatedWorkerHost::run(GC::Ref<Web::Page> page, Web::HTML::TransferDataHo
     // 7. Let realm execution context be the result of creating a new JavaScript realm given agent and the following customizations:
     auto realm_execution_context = Web::Bindings::create_a_new_javascript_realm(
         Web::Bindings::main_thread_vm(),
-        [page](JS::Realm& realm) -> JS::Object* {
+        [](JS::Realm& realm) -> JS::Object* {
             //      7a. For the global object, if is shared is true, create a new SharedWorkerGlobalScope object.
             //      7b. Otherwise, create a new DedicatedWorkerGlobalScope object.
             // FIXME: Proper support for both SharedWorkerGlobalScope and DedicatedWorkerGlobalScope
             if (is_shared)
                 TODO();
-            return Web::Bindings::main_thread_vm().heap().allocate<Web::HTML::DedicatedWorkerGlobalScope>(realm, page);
+            return Web::Bindings::main_thread_vm().heap().allocate<Web::HTML::DedicatedWorkerGlobalScope>(realm);
         },
         nullptr);
 

@@ -43,7 +43,7 @@ public:
     virtual void finalize() override;
 
 private:
-    DedicatedWorkerGlobalScope(JS::Realm&, GC::Ref<Web::Page>);
+    explicit DedicatedWorkerGlobalScope(JS::Realm&);
 
     virtual void initialize_web_interfaces_impl() override;
 

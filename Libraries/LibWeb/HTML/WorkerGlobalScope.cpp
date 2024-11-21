@@ -23,9 +23,8 @@ namespace Web::HTML {
 
 GC_DEFINE_ALLOCATOR(WorkerGlobalScope);
 
-WorkerGlobalScope::WorkerGlobalScope(JS::Realm& realm, GC::Ref<Web::Page> page)
+WorkerGlobalScope::WorkerGlobalScope(JS::Realm& realm)
     : DOM::EventTarget(realm)
-    , m_page(page)
 {
 }
 
@@ -50,7 +49,6 @@ void WorkerGlobalScope::visit_edges(Cell::Visitor& visitor)
     visitor.visit(m_location);
     visitor.visit(m_navigator);
     visitor.visit(m_internal_port);
-    visitor.visit(m_page);
     visitor.visit(m_fonts);
 }
 
