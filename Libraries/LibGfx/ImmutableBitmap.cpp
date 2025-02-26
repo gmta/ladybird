@@ -41,11 +41,6 @@ IntSize ImmutableBitmap::size() const
     return { width(), height() };
 }
 
-Gfx::AlphaType ImmutableBitmap::alpha_type() const
-{
-    return m_impl->sk_image->alphaType() == kPremul_SkAlphaType ? Gfx::AlphaType::Premultiplied : Gfx::AlphaType::Unpremultiplied;
-}
-
 SkImage const* ImmutableBitmap::sk_image() const
 {
     return m_impl->sk_image.get();

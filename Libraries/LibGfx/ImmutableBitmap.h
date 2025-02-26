@@ -32,8 +32,6 @@ public:
     IntRect rect() const;
     IntSize size() const;
 
-    Gfx::AlphaType alpha_type() const;
-
     SkImage const* sk_image() const;
 
     Color get_pixel(int x, int y) const;
