@@ -985,7 +985,7 @@ void DisplayListPlayerSkia::paint_nested_display_list(PaintNestedDisplayList con
 {
     auto& canvas = surface().canvas();
     canvas.translate(command.rect.x(), command.rect.y());
-    execute_impl(*command.display_list, {});
+    execute_impl(*command.display_list, surface());
 }
 
 void DisplayListPlayerSkia::paint_scrollbar(PaintScrollBar const& command)

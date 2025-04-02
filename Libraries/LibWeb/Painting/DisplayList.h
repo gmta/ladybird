@@ -12,8 +12,6 @@
 #include <AK/SegmentedVector.h>
 #include <LibGfx/Color.h>
 #include <LibGfx/Forward.h>
-#include <LibGfx/ImmutableBitmap.h>
-#include <LibGfx/PaintStyle.h>
 #include <LibWeb/CSS/Enums.h>
 #include <LibWeb/Painting/Command.h>
 #include <LibWeb/Painting/ScrollState.h>
@@ -26,11 +24,11 @@ class DisplayListPlayer {
 public:
     virtual ~DisplayListPlayer() = default;
 
-    void execute(DisplayList&, RefPtr<Gfx::PaintingSurface>);
+    void execute(DisplayList&, NonnullRefPtr<Gfx::PaintingSurface>);
 
 protected:
-    Gfx::PaintingSurface& surface() const { return m_surfaces.last(); }
-    void execute_impl(DisplayList&, RefPtr<Gfx::PaintingSurface>);
+    Gfx::PaintingSurface& surface() const { return *m_surface; }
+    void execute_impl(DisplayList&, NonnullRefPtr<Gfx::PaintingSurface>);
 
 private:
     virtual void flush() = 0;
@@ -74,7 +72,7 @@ private:
     virtual void apply_mask_bitmap(ApplyMaskBitmap const&) = 0;
     virtual bool would_be_fully_clipped_by_painter(Gfx::IntRect) const = 0;
 
-    Vector<NonnullRefPtr<Gfx::PaintingSurface>, 1> m_surfaces;
+    RefPtr<Gfx::PaintingSurface> m_surface;
 };
 
 class DisplayList : public AtomicRefCounted<DisplayList> {
