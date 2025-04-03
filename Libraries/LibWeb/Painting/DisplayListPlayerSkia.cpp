@@ -970,9 +970,13 @@ void DisplayListPlayerSkia::add_mask(AddMask const& command)
     if (rect.is_empty())
         return;
 
+    dbgln("add_mask: {}", rect);
+
     auto mask_surface = Gfx::PaintingSurface::create_with_size(m_context, rect.size(), Gfx::BitmapFormat::BGRA8888, Gfx::AlphaType::Premultiplied);
 
+    dbgln("--- BEGIN ---");
     execute_impl(*command.display_list, mask_surface);
+    dbgln("--- END ---");
 
     SkMatrix mask_matrix;
     mask_matrix.setTranslate(rect.x(), rect.y());

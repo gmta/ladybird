@@ -54,6 +54,9 @@ void DisplayListPlayer::execute_impl(DisplayList& display_list, NonnullRefPtr<Gf
     auto const& scroll_state = display_list.scroll_state();
     auto device_pixels_per_css_pixel = display_list.device_pixels_per_css_pixel();
 
+    Optional<int> last_scroll_frame_id;
+    Gfx::IntPoint last_scroll_frame_offset;
+
     for (size_t command_index = 0; command_index < commands.size(); command_index++) {
         auto scroll_frame_id = commands[command_index].scroll_frame_id;
         auto command = commands[command_index].command;
@@ -70,29 +73,42 @@ void DisplayListPlayer::execute_impl(DisplayList& display_list, NonnullRefPtr<Gf
             }
         }
 
+        auto scroll_rect = surface->rect();
+        Gfx::IntPoint scroll_offset;
         if (scroll_frame_id.has_value()) {
             auto cumulative_offset = scroll_state.cumulative_offset_for_frame_with_id(scroll_frame_id.value());
-            auto scroll_offset = cumulative_offset.to_type<double>().scaled(device_pixels_per_css_pixel).to_type<int>();
-            command.visit(
-                [&](auto& command) {
-                    if constexpr (requires { command.translate_by(scroll_offset); }) {
-                        command.translate_by(scroll_offset);
-                    }
-                });
+            scroll_offset = cumulative_offset.to_type<double>().scaled(device_pixels_per_css_pixel).to_type<int>();
+            scroll_rect.translate_by(-scroll_offset);
         }
 
         auto bounding_rect = command_bounding_rectangle(command);
-        if (bounding_rect.has_value() && (bounding_rect->is_empty() || would_be_fully_clipped_by_painter(*bounding_rect))) {
+        if (bounding_rect.has_value() && !bounding_rect->intersects(scroll_rect)) {
+            dbgln("relevant! scroll_rect {} bounding_rect {}", scroll_rect, bounding_rect);
             // Any clip or mask that's located outside of the visible region is equivalent to a simple clip-rect,
             // so replace it with one to avoid doing unnecessary work.
             if (command_is_clip_or_mask(command)) {
-                if (command.has<AddClipRect>()) {
-                    add_clip_rect(command.get<AddClipRect>());
-                } else {
-                    add_clip_rect({ bounding_rect.release_value() });
-                }
+            //     if (command.has<AddClipRect>()) {
+            //         add_clip_rect(command.get<AddClipRect>());
+            //     } else {
+            //         add_clip_rect({ bounding_rect.release_value() });
+            //     }
+            // } else {
+            //     continue;
             }
-            continue;
+            if (command.has<AddMask>())
+                add_clip_rect({ bounding_rect.release_value() });
+            else
+                continue;
+        }
+
+        // Apply scroll offset when scroll frame ID changes
+        if (last_scroll_frame_id != scroll_frame_id) {
+            if (last_scroll_frame_id.has_value())
+                translate({ -last_scroll_frame_offset });
+            translate({ scroll_offset });
+
+            last_scroll_frame_id = scroll_frame_id;
+            last_scroll_frame_offset = scroll_offset;
         }
 
 #define HANDLE_COMMAND(command_type, executor_method) \
