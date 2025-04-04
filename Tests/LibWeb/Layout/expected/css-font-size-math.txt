@@ -1,31 +1,31 @@
 Viewport <#document> at (0,0) content-size 800x600 children: not-inline
   BlockContainer <html> at (0,0) content-size 800x600 [BFC] children: not-inline
-    BlockContainer <body> at (8,8) content-size 784x79 children: inline
+    BlockContainer <body> at (8,8) content-size 784x94.796875 children: inline
       InlineNode <span>
-        frag 0 from TextNode start: 0, length: 1, rect: [8,25 39.09375x56] baseline: 43.328125
+        frag 0 from TextNode start: 0, length: 1, rect: [8,28 39.09375x67.203125] baseline: 48.921875
             "H"
         TextNode <#text>
         InlineNode <span>
-          frag 0 from TextNode start: 0, length: 1, rect: [47.09375,38 19.78125x40] baseline: 30.875
+          frag 0 from TextNode start: 0, length: 1, rect: [47.09375,42 19.78125x48] baseline: 34.875
               "e"
           TextNode <#text>
           InlineNode <span>
-            frag 0 from TextNode start: 0, length: 1, rect: [66.875,47 6.8125x28] baseline: 21.71875
+            frag 0 from TextNode start: 0, length: 1, rect: [66.875,52 6.8125x33.59375] baseline: 24.515625
                 "l"
             TextNode <#text>
             InlineNode <span>
-              frag 0 from TextNode start: 0, length: 1, rect: [73.6875,53 4.84375x20] baseline: 15.484375
+              frag 0 from TextNode start: 0, length: 1, rect: [73.6875,59 4.84375x24] baseline: 17.484375
                   "l"
               TextNode <#text>
               InlineNode <span>
-                frag 0 from TextNode start: 0, length: 1, rect: [78.53125,58 8.40625x14] baseline: 10.890625
+                frag 0 from TextNode start: 0, length: 1, rect: [78.53125,64 8.40625x16.796875] baseline: 12.296875
                     "o"
                 TextNode <#text>
       TextNode <#text>
 
 ViewportPaintable (Viewport<#document>) [0,0 800x600]
   PaintableWithLines (BlockContainer<HTML>) [0,0 800x600]
-    PaintableWithLines (BlockContainer<BODY>) [8,8 784x79]
+    PaintableWithLines (BlockContainer<BODY>) [8,8 784x94.796875]
       PaintableWithLines (InlineNode<SPAN>)
         TextPaintable (TextNode<#text>)
         PaintableWithLines (InlineNode<SPAN>)
