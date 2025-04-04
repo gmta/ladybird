@@ -137,7 +137,7 @@ struct PushStackingContext {
         source_paintable_rect.translate_by(offset);
         transform.origin.translate_by(offset.to_type<float>());
         if (clip_path.has_value()) {
-            clip_path.value().transform(Gfx::AffineTransform().translate(offset.to_type<float>()));
+            clip_path.value().transform(Gfx::FloatAffineTransform().translate(offset.to_type<float>()));
         }
     }
 };

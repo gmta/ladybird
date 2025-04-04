@@ -9,7 +9,7 @@
 
 namespace Gfx {
 
-ErrorOr<NonnullRefPtr<Gfx::Bitmap>> VectorGraphic::bitmap(IntSize size, AffineTransform transform) const
+ErrorOr<NonnullRefPtr<Gfx::Bitmap>> VectorGraphic::bitmap(IntSize size, FloatAffineTransform transform) const
 {
     auto bitmap = TRY(Bitmap::create(Gfx::BitmapFormat::BGRA8888, size));
     auto painter = PainterSkia::create(bitmap);
@@ -19,10 +19,10 @@ ErrorOr<NonnullRefPtr<Gfx::Bitmap>> VectorGraphic::bitmap(IntSize size, AffineTr
     auto transformed_rect = transform.map(FloatRect { {}, this->size() });
     auto scale = min(float(size.width()) / transformed_rect.width(), float(size.height()) / transformed_rect.height());
     auto centered = FloatRect { {}, transformed_rect.size().scaled(scale) }.centered_within(IntRect { {}, size }.to_type<float>());
-    auto view_transform = AffineTransform {}
+    auto view_transform = FloatAffineTransform {}
                               .translate(centered.location())
-                              .multiply(AffineTransform {}.scale(scale, scale))
-                              .multiply(AffineTransform {}.translate(-transformed_rect.location()))
+                              .multiply(FloatAffineTransform {}.scale(scale, scale))
+                              .multiply(FloatAffineTransform {}.translate(-transformed_rect.location()))
                               .multiply(transform);
 
     painter->set_transform(view_transform);

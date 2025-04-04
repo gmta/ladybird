@@ -38,7 +38,7 @@ public:
     GC::Ptr<SVGElement> instance_root() const;
     GC::Ptr<SVGElement> animated_instance_root() const;
 
-    virtual Gfx::AffineTransform element_transform() const override;
+    virtual Gfx::FloatAffineTransform element_transform() const override;
 
 private:
     SVGUseElement(DOM::Document&, DOM::QualifiedName);

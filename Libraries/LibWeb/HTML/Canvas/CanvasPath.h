@@ -46,7 +46,7 @@ protected:
     }
 
 private:
-    Gfx::AffineTransform active_transform() const;
+    Gfx::FloatAffineTransform active_transform() const;
 
     void ensure_subpath(float x, float y);
 

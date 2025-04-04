@@ -17,7 +17,7 @@ namespace Web::Layout {
 
 class SVGFormattingContext : public FormattingContext {
 public:
-    explicit SVGFormattingContext(LayoutState&, LayoutMode, Box const&, FormattingContext* parent, Gfx::AffineTransform parent_viewbox_transform = {});
+    explicit SVGFormattingContext(LayoutState&, LayoutMode, Box const&, FormattingContext* parent, Gfx::FloatAffineTransform parent_viewbox_transform = {});
     ~SVGFormattingContext();
 
     virtual void run(AvailableSpace const&) override;
@@ -36,10 +36,10 @@ private:
     [[nodiscard]] Gfx::Path compute_path_for_text(SVGTextBox const&);
     [[nodiscard]] Gfx::Path compute_path_for_text_path(SVGTextPathBox const&);
 
-    Gfx::AffineTransform m_parent_viewbox_transform {};
+    Gfx::FloatAffineTransform m_parent_viewbox_transform {};
 
     Optional<AvailableSpace> m_available_space {};
-    Gfx::AffineTransform m_current_viewbox_transform {};
+    Gfx::FloatAffineTransform m_current_viewbox_transform {};
     CSSPixelSize m_viewport_size {};
     CSSPixelPoint m_svg_offset {};
 };

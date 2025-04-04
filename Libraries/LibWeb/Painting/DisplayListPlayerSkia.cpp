@@ -53,7 +53,7 @@ static SkRRect to_skia_rrect(auto const& rect, CornerRadii const& corner_radii)
     return rrect;
 }
 
-static SkMatrix to_skia_matrix(Gfx::AffineTransform const& affine_transform)
+static SkMatrix to_skia_matrix(Gfx::FloatAffineTransform const& affine_transform)
 {
     SkScalar affine[6];
     affine[0] = affine_transform.a();
@@ -200,7 +200,7 @@ void DisplayListPlayerSkia::push_stacking_context(PushStackingContext const& com
     auto& canvas = surface().canvas();
 
     auto affine_transform = Gfx::extract_2d_affine_transform(command.transform.matrix);
-    auto new_transform = Gfx::AffineTransform {}
+    auto new_transform = Gfx::FloatAffineTransform {}
                              .translate(command.transform.origin)
                              .multiply(affine_transform)
                              .translate(-command.transform.origin);
@@ -1052,10 +1052,11 @@ void DisplayListPlayerSkia::apply_filters(ApplyFilters const& command)
 void DisplayListPlayerSkia::apply_transform(ApplyTransform const& command)
 {
     auto affine_transform = Gfx::extract_2d_affine_transform(command.matrix);
-    auto new_transform = Gfx::AffineTransform {}
+    auto new_transform = Gfx::FloatAffineTransform {}
                              .translate(command.origin)
                              .multiply(affine_transform)
                              .translate(-command.origin);
+    dbgln("new_transform: {}", new_transform);
     auto matrix = to_skia_matrix(new_transform);
     surface().canvas().concat(matrix);
 }

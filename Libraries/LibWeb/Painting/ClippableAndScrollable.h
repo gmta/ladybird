@@ -36,15 +36,15 @@ public:
     void apply_clip(PaintContext&) const;
     void restore_clip(PaintContext&) const;
 
-    Gfx::AffineTransform const& combined_css_transform() const { return m_combined_css_transform; }
-    void set_combined_css_transform(Gfx::AffineTransform const& transform) { m_combined_css_transform = transform; }
+    Gfx::FloatAffineTransform const& combined_css_transform() const { return m_combined_css_transform; }
+    void set_combined_css_transform(Gfx::FloatAffineTransform const& transform) { m_combined_css_transform = transform; }
 
 private:
     RefPtr<ScrollFrame const> m_enclosing_scroll_frame;
     RefPtr<ScrollFrame const> m_own_scroll_frame;
     RefPtr<ClipFrame const> m_enclosing_clip_frame;
 
-    Gfx::AffineTransform m_combined_css_transform;
+    Gfx::FloatAffineTransform m_combined_css_transform;
 };
 
 }

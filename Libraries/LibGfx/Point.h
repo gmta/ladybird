@@ -68,7 +68,8 @@ public:
     ALWAYS_INLINE void scale_by(T dboth) { scale_by(dboth, dboth); }
     ALWAYS_INLINE void scale_by(Point<T> const& delta) { scale_by(delta.x(), delta.y()); }
 
-    void transform_by(AffineTransform const& transform) { *this = transform.map(*this); }
+    template<FloatingPoint U>
+    void transform_by(AffineTransform<U> const& transform) { *this = transform.map(*this); }
 
     [[nodiscard]] Point<T> translated(Point<T> const& delta) const
     {
@@ -112,7 +113,8 @@ public:
         return point;
     }
 
-    [[nodiscard]] Point<T> transformed(AffineTransform const& transform) const
+    template<FloatingPoint U>
+    [[nodiscard]] Point<T> transformed(AffineTransform<U> const& transform) const
     {
         Point<T> point = *this;
         point.transform_by(transform);
@@ -267,8 +269,10 @@ private:
     T m_x { 0 };
     T m_y { 0 };
 };
+
 using IntPoint = Point<int>;
 using FloatPoint = Point<float>;
+using DoublePoint = Point<double>;
 
 template<typename T>
 inline Point<T> linear_interpolate(Point<T> const& p1, Point<T> const& p2, float t)

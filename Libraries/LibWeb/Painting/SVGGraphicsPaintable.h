@@ -20,7 +20,7 @@ class SVGGraphicsPaintable : public SVGPaintable
 public:
     class ComputedTransforms {
     public:
-        ComputedTransforms(Gfx::AffineTransform svg_to_viewbox_transform, Gfx::AffineTransform svg_transform)
+        ComputedTransforms(Gfx::FloatAffineTransform svg_to_viewbox_transform, Gfx::FloatAffineTransform svg_transform)
             : m_svg_to_viewbox_transform(svg_to_viewbox_transform)
             , m_svg_transform(svg_transform)
         {
@@ -28,24 +28,24 @@ public:
 
         ComputedTransforms() = default;
 
-        Gfx::AffineTransform const& svg_to_viewbox_transform() const { return m_svg_to_viewbox_transform; }
-        Gfx::AffineTransform const& svg_transform() const { return m_svg_transform; }
+        Gfx::FloatAffineTransform const& svg_to_viewbox_transform() const { return m_svg_to_viewbox_transform; }
+        Gfx::FloatAffineTransform const& svg_transform() const { return m_svg_transform; }
 
-        Gfx::AffineTransform svg_to_css_pixels_transform(
-            Optional<Gfx::AffineTransform const&> additional_svg_transform = {}) const
+        Gfx::FloatAffineTransform svg_to_css_pixels_transform(
+            Optional<Gfx::FloatAffineTransform const&> additional_svg_transform = {}) const
         {
-            return Gfx::AffineTransform {}.multiply(svg_to_viewbox_transform()).multiply(additional_svg_transform.value_or(Gfx::AffineTransform {})).multiply(svg_transform());
+            return Gfx::FloatAffineTransform {}.multiply(svg_to_viewbox_transform()).multiply(additional_svg_transform.value_or(Gfx::FloatAffineTransform {})).multiply(svg_transform());
         }
 
-        Gfx::AffineTransform svg_to_device_pixels_transform(PaintContext const& context) const
+        Gfx::FloatAffineTransform svg_to_device_pixels_transform(PaintContext const& context) const
         {
             auto css_scale = context.device_pixels_per_css_pixel();
-            return Gfx::AffineTransform {}.scale({ css_scale, css_scale }).multiply(svg_to_css_pixels_transform(context.svg_transform()));
+            return Gfx::FloatAffineTransform {}.scale({ css_scale, css_scale }).multiply(svg_to_css_pixels_transform(context.svg_transform()));
         }
 
     private:
-        Gfx::AffineTransform m_svg_to_viewbox_transform {};
-        Gfx::AffineTransform m_svg_transform {};
+        Gfx::FloatAffineTransform m_svg_to_viewbox_transform {};
+        Gfx::FloatAffineTransform m_svg_transform {};
     };
 
     static GC::Ref<SVGGraphicsPaintable> create(Layout::SVGGraphicsBox const&);

@@ -32,7 +32,7 @@ static Gfx::Path check_mark_path(Gfx::IntRect checkbox_rect)
 
     float const checkmark_width = 100;
     float const checkmark_height = 100;
-    Gfx::AffineTransform scale_checkmark_to_fit;
+    Gfx::FloatAffineTransform scale_checkmark_to_fit;
     scale_checkmark_to_fit.scale(checkbox_rect.width() / checkmark_width, checkbox_rect.height() / checkmark_height);
     return path.copy_transformed(scale_checkmark_to_fit);
 }

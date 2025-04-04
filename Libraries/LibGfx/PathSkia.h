@@ -39,7 +39,7 @@ public:
     virtual void set_fill_type(Gfx::WindingRule winding_rule) override;
 
     virtual NonnullOwnPtr<PathImpl> clone() const override;
-    virtual NonnullOwnPtr<PathImpl> copy_transformed(Gfx::AffineTransform const&) const override;
+    virtual NonnullOwnPtr<PathImpl> copy_transformed(Gfx::FloatAffineTransform const&) const override;
     virtual NonnullOwnPtr<PathImpl> place_text_along(Utf8View text, Font const&) const override;
 
     SkPath const& sk_path() const { return *m_path; }

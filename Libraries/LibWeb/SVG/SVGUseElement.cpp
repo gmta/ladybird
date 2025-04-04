@@ -94,7 +94,7 @@ bool SVGUseElement::is_referrenced_element_same_document() const
     return m_href->equals(document().url(), URL::ExcludeFragment::Yes);
 }
 
-Gfx::AffineTransform SVGUseElement::element_transform() const
+Gfx::FloatAffineTransform SVGUseElement::element_transform() const
 {
     // The x and y properties define an additional transformation (translate(x,y), where x and y represent the computed value of the corresponding property)
     // to be applied to the ‘use’ element, after any transformations specified with other properties

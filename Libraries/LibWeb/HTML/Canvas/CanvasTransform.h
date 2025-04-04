@@ -31,7 +31,7 @@ public:
             return;
         my_drawing_state().transform.scale(sx, sy);
         flush_transform();
-        mutable_path().transform(Gfx::AffineTransform().scale(1.0 / sx, 1.0 / sy));
+        mutable_path().transform(Gfx::FloatAffineTransform().scale(1.0 / sx, 1.0 / sy));
     }
 
     void translate(float tx, float ty)
@@ -41,7 +41,7 @@ public:
             return;
         my_drawing_state().transform.translate(tx, ty);
         flush_transform();
-        mutable_path().transform(Gfx::AffineTransform().translate(-tx, -ty));
+        mutable_path().transform(Gfx::FloatAffineTransform().translate(-tx, -ty));
     }
 
     void rotate(float radians)
@@ -51,7 +51,7 @@ public:
             return;
         my_drawing_state().transform.rotate_radians(radians);
         flush_transform();
-        mutable_path().transform(Gfx::AffineTransform().rotate_radians(-radians));
+        mutable_path().transform(Gfx::FloatAffineTransform().rotate_radians(-radians));
     }
 
     // https://html.spec.whatwg.org/multipage/canvas.html#dom-context-2d-transform
@@ -65,7 +65,7 @@ public:
         //    a c e
         //    b d f
         //    0 0 1
-        auto transform = Gfx::AffineTransform(a, b, c, d, e, f);
+        auto transform = Gfx::FloatAffineTransform(a, b, c, d, e, f);
         my_drawing_state().transform.multiply(transform);
 
         if (auto inverse = transform.inverse(); inverse.has_value()) {

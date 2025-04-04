@@ -143,7 +143,7 @@ public:
     SelectionState selection_state() const { return m_selection_state; }
     void set_selection_state(SelectionState state) { m_selection_state = state; }
 
-    Gfx::AffineTransform compute_combined_css_transform() const;
+    Gfx::FloatAffineTransform compute_combined_css_transform() const;
 
     virtual void resolve_paint_properties() { }
 

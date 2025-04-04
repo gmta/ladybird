@@ -31,7 +31,7 @@
 
 namespace Web::Layout {
 
-SVGFormattingContext::SVGFormattingContext(LayoutState& state, LayoutMode layout_mode, Box const& box, FormattingContext* parent, Gfx::AffineTransform parent_viewbox_transform)
+SVGFormattingContext::SVGFormattingContext(LayoutState& state, LayoutMode layout_mode, Box const& box, FormattingContext* parent, Gfx::FloatAffineTransform parent_viewbox_transform)
     : FormattingContext(Type::SVG, layout_mode, state, box, parent)
     , m_parent_viewbox_transform(parent_viewbox_transform)
 {
@@ -225,7 +225,7 @@ void SVGFormattingContext::run(AvailableSpace const& available_space)
         auto viewbox_offset_and_scale = scale_and_align_viewbox_content(preserve_aspect_ratio, *viewbox, { scale_width, scale_height }, svg_box_state);
 
         CSSPixelPoint offset = viewbox_offset_and_scale.offset;
-        m_current_viewbox_transform = Gfx::AffineTransform { m_current_viewbox_transform }.multiply(Gfx::AffineTransform {}
+        m_current_viewbox_transform = Gfx::AffineTransform { m_current_viewbox_transform }.multiply(Gfx::FloatAffineTransform {}
                 .translate(offset.to_type<float>())
                 .scale(viewbox_offset_and_scale.scale_factor_x, viewbox_offset_and_scale.scale_factor_y)
                 .translate({ -viewbox->min_x, -viewbox->min_y }));
@@ -377,7 +377,7 @@ void SVGFormattingContext::layout_path_like_element(SVGGraphicsBox const& graphi
     auto& graphics_box_state = m_state.get_mutable(graphics_box);
     VERIFY(graphics_box_state.computed_svg_transforms().has_value());
 
-    auto to_css_pixels_transform = Gfx::AffineTransform {}
+    auto to_css_pixels_transform = Gfx::FloatAffineTransform {}
                                        .multiply(m_current_viewbox_transform)
                                        .multiply(graphics_box_state.computed_svg_transforms()->svg_transform());
 
@@ -465,7 +465,7 @@ void SVGFormattingContext::layout_mask_or_clip(SVGBox const& mask_or_clip)
         auto& parent_node_state = m_state.get(*parent_node);
         layout_state.set_content_width(parent_node_state.content_width());
         layout_state.set_content_height(parent_node_state.content_height());
-        parent_viewbox_transform = Gfx::AffineTransform {}.translate(parent_node_state.offset.to_type<float>());
+        parent_viewbox_transform = Gfx::FloatAffineTransform {}.translate(parent_node_state.offset.to_type<float>());
     } else {
         layout_state.set_content_width(m_viewport_size.width());
         layout_state.set_content_height(m_viewport_size.height());

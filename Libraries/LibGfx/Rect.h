@@ -85,7 +85,8 @@ public:
     ALWAYS_INLINE void scale_by(T dboth) { scale_by(dboth, dboth); }
     ALWAYS_INLINE void scale_by(Point<T> const& delta) { scale_by(delta.x(), delta.y()); }
 
-    void transform_by(AffineTransform const& transform) { *this = transform.map(*this); }
+    template<FloatingPoint U>
+    void transform_by(AffineTransform<U> const& transform) { *this = transform.map(*this); }
 
     [[nodiscard]] Point<T> center() const
     {
@@ -198,7 +199,8 @@ public:
         return rect;
     }
 
-    [[nodiscard]] Rect<T> transformed(AffineTransform const& transform) const
+    template<FloatingPoint U>
+    [[nodiscard]] Rect<T> transformed(AffineTransform<U> const& transform) const
     {
         Rect<T> rect = *this;
         rect.transform_by(transform);

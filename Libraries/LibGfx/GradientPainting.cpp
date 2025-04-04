@@ -253,7 +253,7 @@ static GradientLine::RepeatMode svg_spread_method_to_repeat_mode(SVGGradientPain
     }
 }
 
-void SVGGradientPaintStyle::set_gradient_transform(AffineTransform transform)
+void SVGGradientPaintStyle::set_gradient_transform(FloatAffineTransform transform)
 {
     // Note: The scaling is removed so enough points on the gradient line are generated.
     // Otherwise, if you scale a tiny path the gradient looks pixelated.
@@ -261,7 +261,7 @@ void SVGGradientPaintStyle::set_gradient_transform(AffineTransform transform)
     if (auto inverse = transform.inverse(); inverse.has_value()) {
         auto transform_scale = transform.scale();
         m_scale = max(transform_scale.x(), transform_scale.y());
-        m_inverse_transform = AffineTransform {}.scale(m_scale, m_scale).multiply(*inverse);
+        m_inverse_transform = FloatAffineTransform {}.scale(m_scale, m_scale).multiply(*inverse);
     } else {
         m_inverse_transform = OptionalNone {};
     }

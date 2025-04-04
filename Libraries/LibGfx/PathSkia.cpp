@@ -223,7 +223,7 @@ NonnullOwnPtr<PathImpl> PathImplSkia::clone() const
     return adopt_own(*new PathImplSkia(*this));
 }
 
-NonnullOwnPtr<PathImpl> PathImplSkia::copy_transformed(Gfx::AffineTransform const& transform) const
+NonnullOwnPtr<PathImpl> PathImplSkia::copy_transformed(Gfx::FloatAffineTransform const& transform) const
 {
     auto new_path = adopt_own(*new PathImplSkia(*this));
     auto matrix = SkMatrix::MakeAll(

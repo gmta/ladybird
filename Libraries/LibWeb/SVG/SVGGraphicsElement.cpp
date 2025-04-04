@@ -89,30 +89,30 @@ GC::Ptr<SVG::SVGClipPathElement const> SVGGraphicsElement::clip_path() const
     return try_resolve_url_to<SVG::SVGClipPathElement const>(clip_path_reference->url());
 }
 
-Gfx::AffineTransform transform_from_transform_list(ReadonlySpan<Transform> transform_list)
+Gfx::FloatAffineTransform transform_from_transform_list(ReadonlySpan<Transform> transform_list)
 {
-    Gfx::AffineTransform affine_transform;
+    Gfx::FloatAffineTransform affine_transform;
     for (auto& transform : transform_list) {
         transform.operation.visit(
             [&](Transform::Translate const& translate) {
-                affine_transform.multiply(Gfx::AffineTransform {}.translate({ translate.x, translate.y }));
+                affine_transform.multiply(Gfx::FloatAffineTransform {}.translate({ translate.x, translate.y }));
             },
             [&](Transform::Scale const& scale) {
-                affine_transform.multiply(Gfx::AffineTransform {}.scale({ scale.x, scale.y }));
+                affine_transform.multiply(Gfx::FloatAffineTransform {}.scale({ scale.x, scale.y }));
             },
             [&](Transform::Rotate const& rotate) {
-                Gfx::AffineTransform translate_transform;
+                Gfx::FloatAffineTransform translate_transform;
                 affine_transform.multiply(
-                    Gfx::AffineTransform {}
+                    Gfx::FloatAffineTransform {}
                         .translate({ rotate.x, rotate.y })
                         .rotate_radians(AK::to_radians(rotate.a))
                         .translate({ -rotate.x, -rotate.y }));
             },
             [&](Transform::SkewX const& skew_x) {
-                affine_transform.multiply(Gfx::AffineTransform {}.skew_radians(AK::to_radians(skew_x.a), 0));
+                affine_transform.multiply(Gfx::FloatAffineTransform {}.skew_radians(AK::to_radians(skew_x.a), 0));
             },
             [&](Transform::SkewY const& skew_y) {
-                affine_transform.multiply(Gfx::AffineTransform {}.skew_radians(0, AK::to_radians(skew_y.a)));
+                affine_transform.multiply(Gfx::FloatAffineTransform {}.skew_radians(0, AK::to_radians(skew_y.a)));
             },
             [&](Transform::Matrix const& matrix) {
                 affine_transform.multiply(Gfx::AffineTransform {
@@ -122,7 +122,7 @@ Gfx::AffineTransform transform_from_transform_list(ReadonlySpan<Transform> trans
     return affine_transform;
 }
 
-Gfx::AffineTransform SVGGraphicsElement::get_transform() const
+Gfx::FloatAffineTransform SVGGraphicsElement::get_transform() const
 {
     Gfx::AffineTransform transform = m_transform;
     for (auto* svg_ancestor = shadow_including_first_ancestor_of_type<SVGGraphicsElement>(); svg_ancestor; svg_ancestor = svg_ancestor->shadow_including_first_ancestor_of_type<SVGGraphicsElement>()) {

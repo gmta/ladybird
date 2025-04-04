@@ -166,7 +166,7 @@ private:
 
 class SVGGradientPaintStyle : public GradientPaintStyle {
 public:
-    void set_gradient_transform(Gfx::AffineTransform transform);
+    void set_gradient_transform(Gfx::FloatAffineTransform transform);
 
     enum class SpreadMethod {
         Pad,
@@ -180,12 +180,12 @@ public:
     }
 
 protected:
-    Optional<AffineTransform> const& scale_adjusted_inverse_gradient_transform() const { return m_inverse_transform; }
+    Optional<FloatAffineTransform> const& scale_adjusted_inverse_gradient_transform() const { return m_inverse_transform; }
     float gradient_transform_scale() const { return m_scale; }
     SpreadMethod spread_method() const { return m_spread_method; }
 
 private:
-    Optional<AffineTransform> m_inverse_transform {};
+    Optional<FloatAffineTransform> m_inverse_transform {};
     float m_scale = 1.0f;
     SpreadMethod m_spread_method { SpreadMethod::Pad };
 };

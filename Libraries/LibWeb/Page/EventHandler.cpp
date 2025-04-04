@@ -167,9 +167,9 @@ static CSSPixelPoint compute_mouse_event_offset(CSSPixelPoint position, Painting
     // FIXME: Is this guaranteed to be dispatched?
 
     // return the x-coordinate of the position where the event occurred,
-    Gfx::Point<float> precision_offset = {
-        position.x().to_double(),
-        position.y().to_double()
+    Gfx::FloatPoint precision_offset = {
+        position.x().to_float(),
+        position.y().to_float()
     };
 
     // ignoring the transforms that apply to the element and its ancestors,
@@ -178,9 +178,9 @@ static CSSPixelPoint compute_mouse_event_offset(CSSPixelPoint position, Painting
         auto const affine_transform = Gfx::extract_2d_affine_transform(paintable_box.transform().inverse());
 
         auto const& origin = paintable_box.transform_origin();
-        Gfx::Point<float> const precision_origin = {
-            origin.x().to_double(),
-            origin.y().to_double()
+        Gfx::FloatPoint const precision_origin = {
+            origin.x().to_float(),
+            origin.y().to_float()
         };
 
         precision_offset.translate_by(-precision_origin);

@@ -37,7 +37,7 @@ public:
     virtual void fill_path(Gfx::Path const&, Gfx::Color, Gfx::WindingRule, float blur_radius, Gfx::CompositingAndBlendingOperator compositing_and_blending_operator) = 0;
     virtual void fill_path(Gfx::Path const&, Gfx::PaintStyle const&, ReadonlySpan<Gfx::Filter>, float global_alpha, Gfx::CompositingAndBlendingOperator compositing_and_blending_operator, Gfx::WindingRule) = 0;
 
-    virtual void set_transform(Gfx::AffineTransform const&) = 0;
+    virtual void set_transform(Gfx::FloatAffineTransform const&) = 0;
 
     virtual void save() = 0;
     virtual void restore() = 0;

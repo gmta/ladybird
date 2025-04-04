@@ -35,15 +35,8 @@ public:
     bool has_focus() const { return m_focus; }
     void set_has_focus(bool focus) { m_focus = focus; }
 
-    void set_svg_transform(Gfx::AffineTransform transform)
-    {
-        m_svg_transform = transform;
-    }
-
-    Gfx::AffineTransform const& svg_transform() const
-    {
-        return m_svg_transform;
-    }
+    Gfx::FloatAffineTransform const& svg_transform() const { return m_svg_transform; }
+    void set_svg_transform(Gfx::FloatAffineTransform transform) { m_svg_transform = transform; }
 
     bool draw_svg_geometry_for_clip_path() const
     {
@@ -92,7 +85,7 @@ private:
     bool m_should_paint_overlay { true };
     bool m_focus { false };
     bool m_draw_svg_geometry_for_clip_path { false };
-    Gfx::AffineTransform m_svg_transform;
+    Gfx::FloatAffineTransform m_svg_transform;
     u64 m_paint_generation_id { 0 };
 };
 

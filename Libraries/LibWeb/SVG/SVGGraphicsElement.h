@@ -54,7 +54,7 @@ public:
         return 0;
     }
 
-    Gfx::AffineTransform get_transform() const;
+    Gfx::FloatAffineTransform get_transform() const;
 
     Optional<Painting::PaintStyle> fill_paint_style(SVGPaintContext const&) const;
     Optional<Painting::PaintStyle> stroke_paint_style(SVGPaintContext const&) const;
@@ -67,10 +67,7 @@ public:
 
     GC::Ptr<Geometry::DOMMatrix> get_screen_ctm();
 
-    virtual Gfx::AffineTransform element_transform() const
-    {
-        return m_transform;
-    }
+    virtual Gfx::FloatAffineTransform element_transform() const { return m_transform; }
 
 protected:
     SVGGraphicsElement(DOM::Document&, DOM::QualifiedName);
@@ -79,7 +76,7 @@ protected:
 
     Optional<Painting::PaintStyle> svg_paint_computed_value_to_gfx_paint_style(SVGPaintContext const& paint_context, Optional<CSS::SVGPaint> const& paint_value) const;
 
-    Gfx::AffineTransform m_transform = {};
+    Gfx::FloatAffineTransform m_transform = {};
 
     template<typename T>
     GC::Ptr<T> try_resolve_url_to(URL::URL const& url) const
@@ -99,7 +96,7 @@ private:
     float resolve_relative_to_viewport_size(CSS::LengthPercentage const& length_percentage) const;
 };
 
-Gfx::AffineTransform transform_from_transform_list(ReadonlySpan<Transform> transform_list);
+Gfx::FloatAffineTransform transform_from_transform_list(ReadonlySpan<Transform> transform_list);
 
 }
 

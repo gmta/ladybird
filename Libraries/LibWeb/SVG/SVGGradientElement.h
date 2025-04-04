@@ -19,7 +19,7 @@ namespace Web::SVG {
 struct SVGPaintContext {
     Gfx::FloatRect viewport;
     Gfx::FloatRect path_bounding_box;
-    Gfx::AffineTransform paint_transform;
+    Gfx::FloatAffineTransform paint_transform;
 };
 
 inline Painting::SVGGradientPaintStyle::SpreadMethod to_painting_spread_method(SpreadMethod spread_method)
@@ -52,7 +52,7 @@ public:
 
     SpreadMethod spread_method() const;
 
-    Optional<Gfx::AffineTransform> gradient_transform() const;
+    Optional<Gfx::FloatAffineTransform> gradient_transform() const;
 
 protected:
     SVGGradientElement(DOM::Document&, DOM::QualifiedName);
@@ -62,7 +62,7 @@ protected:
 
     GC::Ptr<SVGGradientElement const> linked_gradient(HashTable<SVGGradientElement const*>& seen_gradients) const;
 
-    Gfx::AffineTransform gradient_paint_transform(SVGPaintContext const&) const;
+    Gfx::FloatAffineTransform gradient_paint_transform(SVGPaintContext const&) const;
 
     template<VoidFunction<SVGStopElement> Callback>
     void for_each_color_stop(Callback const& callback) const
@@ -91,13 +91,13 @@ private:
 
     GradientUnits gradient_units_impl(HashTable<SVGGradientElement const*>& seen_gradients) const;
     SpreadMethod spread_method_impl(HashTable<SVGGradientElement const*>& seen_gradients) const;
-    Optional<Gfx::AffineTransform> gradient_transform_impl(HashTable<SVGGradientElement const*>& seen_gradients) const;
+    Optional<Gfx::FloatAffineTransform> gradient_transform_impl(HashTable<SVGGradientElement const*>& seen_gradients) const;
 
     // https://svgwg.org/svg2-draft/pservers.html#LinearGradientAttributes
     Optional<GradientUnits> m_gradient_units = {};
 
     Optional<SpreadMethod> m_spread_method = {};
-    Optional<Gfx::AffineTransform> m_gradient_transform = {};
+    Optional<Gfx::FloatAffineTransform> m_gradient_transform = {};
 };
 
 }

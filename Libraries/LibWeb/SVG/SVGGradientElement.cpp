@@ -66,13 +66,13 @@ SpreadMethod SVGGradientElement::spread_method_impl(HashTable<SVGGradientElement
     return SpreadMethod::Pad;
 }
 
-Optional<Gfx::AffineTransform> SVGGradientElement::gradient_transform() const
+Optional<Gfx::FloatAffineTransform> SVGGradientElement::gradient_transform() const
 {
     HashTable<SVGGradientElement const*> seen_gradients;
     return gradient_transform_impl(seen_gradients);
 }
 
-Optional<Gfx::AffineTransform> SVGGradientElement::gradient_transform_impl(HashTable<SVGGradientElement const*>& seen_gradients) const
+Optional<Gfx::FloatAffineTransform> SVGGradientElement::gradient_transform_impl(HashTable<SVGGradientElement const*>& seen_gradients) const
 {
     if (m_gradient_transform.has_value())
         return m_gradient_transform;
@@ -82,9 +82,9 @@ Optional<Gfx::AffineTransform> SVGGradientElement::gradient_transform_impl(HashT
 }
 
 // The gradient transform, appropriately scaled and combined with the paint transform.
-Gfx::AffineTransform SVGGradientElement::gradient_paint_transform(SVGPaintContext const& paint_context) const
+Gfx::FloatAffineTransform SVGGradientElement::gradient_paint_transform(SVGPaintContext const& paint_context) const
 {
-    Gfx::AffineTransform gradient_paint_transform = paint_context.paint_transform;
+    auto gradient_paint_transform = paint_context.paint_transform;
     auto const& bounding_box = paint_context.path_bounding_box;
 
     if (gradient_units() == SVGUnits::ObjectBoundingBox) {

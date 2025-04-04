@@ -158,7 +158,7 @@ void PainterSkia::draw_bitmap(Gfx::FloatRect const& dst_rect, Gfx::ImmutableBitm
     });
 }
 
-void PainterSkia::set_transform(Gfx::AffineTransform const& transform)
+void PainterSkia::set_transform(Gfx::FloatAffineTransform const& transform)
 {
     auto matrix = SkMatrix::MakeAll(
         transform.a(), transform.c(), transform.e(),

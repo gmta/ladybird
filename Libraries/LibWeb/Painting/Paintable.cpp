@@ -194,9 +194,9 @@ CSSPixelPoint Paintable::box_type_agnostic_position() const
     return position;
 }
 
-Gfx::AffineTransform Paintable::compute_combined_css_transform() const
+Gfx::FloatAffineTransform Paintable::compute_combined_css_transform() const
 {
-    Gfx::AffineTransform combined_transform;
+    Gfx::FloatAffineTransform combined_transform;
     if (is_paintable_box()) {
         auto const& paintable_box = static_cast<PaintableBox const&>(*this);
         auto affine_transform = Gfx::extract_2d_affine_transform(paintable_box.transform());

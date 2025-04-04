@@ -26,8 +26,8 @@ public:
         Reflect
     };
 
-    Optional<Gfx::AffineTransform> const& gradient_transform() const { return m_gradient_transform; }
-    void set_gradient_transform(Gfx::AffineTransform transform) { m_gradient_transform = transform; }
+    Optional<Gfx::FloatAffineTransform> const& gradient_transform() const { return m_gradient_transform; }
+    void set_gradient_transform(Gfx::FloatAffineTransform transform) { m_gradient_transform = transform; }
 
     SpreadMethod spread_method() const { return m_spread_method; }
     void set_spread_method(SpreadMethod spread_method) { m_spread_method = spread_method; }
@@ -53,7 +53,7 @@ protected:
     Vector<ColorStop, 4> m_color_stops;
     Optional<float> m_repeat_length;
 
-    Optional<Gfx::AffineTransform> m_gradient_transform {};
+    Optional<Gfx::FloatAffineTransform> m_gradient_transform {};
     SpreadMethod m_spread_method { SpreadMethod::Pad };
 };
 

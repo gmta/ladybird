@@ -286,7 +286,7 @@ void StackingContext::paint_internal(PaintContext& context) const
 
 // FIXME: This extracts the affine 2D part of the full transformation matrix.
 //  Use the whole matrix when we get better transformation support in LibGfx or use LibGL for drawing the bitmap
-Gfx::AffineTransform StackingContext::affine_transform_matrix() const
+Gfx::FloatAffineTransform StackingContext::affine_transform_matrix() const
 {
     return Gfx::extract_2d_affine_transform(paintable_box().transform());
 }
@@ -308,7 +308,7 @@ void StackingContext::paint(PaintContext& context) const
 
     DisplayListRecorderStateSaver saver(context.display_list_recorder());
 
-    auto to_device_pixels_scale = float(context.device_pixels_per_css_pixel());
+    auto to_device_pixels_scale = context.device_pixels_per_css_pixel();
     auto source_paintable_rect = context.enclosing_device_rect(paintable_box().absolute_paint_rect()).to_type<int>();
 
     auto transform_matrix = paintable_box().transform();
@@ -334,7 +334,7 @@ void StackingContext::paint(PaintContext& context) const
         auto const& basic_shape = computed_values.clip_path()->basic_shape();
         auto path = basic_shape.to_path(*masking_area, paintable_box().layout_node());
         auto device_pixel_scale = context.device_pixels_per_css_pixel();
-        push_stacking_context_params.clip_path = path.copy_transformed(Gfx::AffineTransform {}.set_scale(device_pixel_scale, device_pixel_scale).set_translation(source_paintable_rect.location().to_type<float>()));
+        push_stacking_context_params.clip_path = path.copy_transformed(Gfx::FloatAffineTransform {}.set_scale(device_pixel_scale, device_pixel_scale).set_translation(source_paintable_rect.location().to_type<float>()));
     }
 
     auto has_css_transform = paintable_box().has_css_transform();

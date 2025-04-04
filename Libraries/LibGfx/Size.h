@@ -53,7 +53,8 @@ public:
         m_height *= dy;
     }
 
-    constexpr void transform_by(AffineTransform const& transform) { *this = transform.map(*this); }
+    template<FloatingPoint U>
+    constexpr void transform_by(AffineTransform<U> const& transform) { *this = transform.map(*this); }
 
     ALWAYS_INLINE constexpr void scale_by(T dboth) { scale_by(dboth, dboth); }
     ALWAYS_INLINE constexpr void scale_by(Point<T> const& s) { scale_by(s.x(), s.y()); }
@@ -79,7 +80,8 @@ public:
         return size;
     }
 
-    [[nodiscard]] constexpr Size transformed_by(AffineTransform const& transform) const
+    template<FloatingPoint U>
+    [[nodiscard]] constexpr Size transformed_by(AffineTransform<U> const& transform) const
     {
         Size<T> size = *this;
         size.transform_by(transform);
@@ -196,6 +198,7 @@ private:
 
 using IntSize = Size<int>;
 using FloatSize = Size<float>;
+using DoubleSize = Size<double>;
 
 }
 

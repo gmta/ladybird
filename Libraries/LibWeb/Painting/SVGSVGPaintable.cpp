@@ -83,8 +83,8 @@ void SVGSVGPaintable::paint_svg_box(PaintContext& context, PaintableBox const& s
 
     if (svg_box.has_css_transform()) {
         auto transform_matrix = svg_box.transform();
-        Gfx::FloatPoint transform_origin = svg_box.transform_origin().template to_type<float>();
-        auto to_device_pixels_scale = float(context.device_pixels_per_css_pixel());
+        auto transform_origin = svg_box.transform_origin().to_type<float>();
+        auto to_device_pixels_scale = static_cast<float>(context.device_pixels_per_css_pixel());
         context.display_list_recorder().apply_transform(transform_origin.scaled(to_device_pixels_scale), matrix_with_scaled_translation(transform_matrix, to_device_pixels_scale));
     }
 

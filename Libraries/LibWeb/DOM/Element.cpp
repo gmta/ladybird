@@ -1040,7 +1040,7 @@ Vector<CSSPixelRect> Element::get_client_rects() const
     // NOTE: Make sure CSS transforms are resolved before it is used to calculate the rect position.
     const_cast<Document&>(document()).update_paint_and_hit_testing_properties_if_needed();
 
-    Gfx::AffineTransform transform;
+    Gfx::FloatAffineTransform transform;
     CSSPixelPoint scroll_offset;
     auto const* paintable = this->paintable();
 

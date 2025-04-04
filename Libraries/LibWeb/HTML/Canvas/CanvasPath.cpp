@@ -10,7 +10,7 @@
 
 namespace Web::HTML {
 
-Gfx::AffineTransform CanvasPath::active_transform() const
+Gfx::FloatAffineTransform CanvasPath::active_transform() const
 {
     if (m_canvas_state.has_value())
         return m_canvas_state->drawing_state().transform;
@@ -206,7 +206,7 @@ WebIDL::ExceptionOr<void> CanvasPath::arc_to(double x1, double y1, double x2, do
     //    transformed by the inverse of the current transformation matrix
     //    (so that it is in the same coordinate system as the points passed to the method).
     // Point (x0, y0)
-    auto p0 = transform.inverse().value_or(Gfx::AffineTransform()).map(m_path.last_point());
+    auto p0 = transform.inverse().value_or(Gfx::FloatAffineTransform()).map(m_path.last_point());
     // Point (x1, y1)
     auto p1 = Gfx::FloatPoint { x1, y1 };
     // Point (x2, y2)

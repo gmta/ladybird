@@ -238,7 +238,7 @@ Gfx::Path CanvasRenderingContext2D::text_path(StringView text, float x, float y,
     path.text(Utf8View { text }, *font);
 
     auto text_width = path.bounding_box().width();
-    Gfx::AffineTransform transform = {};
+    Gfx::FloatAffineTransform transform = {};
 
     // https://html.spec.whatwg.org/multipage/canvas.html#text-preparation-algorithm:
     // 9. If maxWidth was provided and the hypothetical width of the inline box in the hypothetical line box
@@ -247,7 +247,7 @@ Gfx::Path CanvasRenderingContext2D::text_path(StringView text, float x, float y,
     // factor to the font) or a smaller font, and return to the previous step.
     if (max_width.has_value() && text_width > float(*max_width)) {
         auto horizontal_scale = float(*max_width) / text_width;
-        transform = Gfx::AffineTransform {}.scale({ horizontal_scale, 1 });
+        transform = Gfx::FloatAffineTransform {}.scale({ horizontal_scale, 1 });
         text_width *= horizontal_scale;
     }
 
@@ -256,10 +256,10 @@ Gfx::Path CanvasRenderingContext2D::text_path(StringView text, float x, float y,
     //        https://html.spec.whatwg.org/multipage/canvas.html#dom-context-2d-textalign-start
     // Default alignment of draw_text is left so do nothing by CanvasTextAlign::Start and CanvasTextAlign::Left
     if (drawing_state.text_align == Bindings::CanvasTextAlign::Center) {
-        transform = Gfx::AffineTransform {}.set_translation({ -text_width / 2, 0 }).multiply(transform);
+        transform = Gfx::FloatAffineTransform {}.set_translation({ -text_width / 2, 0 }).multiply(transform);
     }
     if (drawing_state.text_align == Bindings::CanvasTextAlign::End || drawing_state.text_align == Bindings::CanvasTextAlign::Right) {
-        transform = Gfx::AffineTransform {}.set_translation({ -text_width, 0 }).multiply(transform);
+        transform = Gfx::FloatAffineTransform {}.set_translation({ -text_width, 0 }).multiply(transform);
     }
 
     // Apply text baseline
@@ -268,10 +268,10 @@ Gfx::Path CanvasRenderingContext2D::text_path(StringView text, float x, float y,
     //        https://html.spec.whatwg.org/multipage/canvas.html#dom-context-2d-textbaseline-hanging
     // Default baseline of draw_text is top so do nothing by CanvasTextBaseline::Top and CanvasTextBasline::Hanging
     if (drawing_state.text_baseline == Bindings::CanvasTextBaseline::Middle) {
-        transform = Gfx::AffineTransform {}.set_translation({ 0, font->pixel_size() / 2 }).multiply(transform);
+        transform = Gfx::FloatAffineTransform {}.set_translation({ 0, font->pixel_size() / 2 }).multiply(transform);
     }
     if (drawing_state.text_baseline == Bindings::CanvasTextBaseline::Top || drawing_state.text_baseline == Bindings::CanvasTextBaseline::Hanging) {
-        transform = Gfx::AffineTransform {}.set_translation({ 0, font->pixel_size() }).multiply(transform);
+        transform = Gfx::FloatAffineTransform {}.set_translation({ 0, font->pixel_size() }).multiply(transform);
     }
 
     return path.copy_transformed(transform);
@@ -924,7 +924,7 @@ void CanvasRenderingContext2D::paint_shadow_for_fill_internal(Gfx::Path const& p
 
     painter->save();
 
-    Gfx::AffineTransform transform;
+    Gfx::FloatAffineTransform transform;
     transform.translate(state.shadow_offset_x, state.shadow_offset_y);
     painter->set_transform(transform);
     painter->fill_path(path_to_fill, state.shadow_color.with_opacity(state.global_alpha), winding_rule, state.shadow_blur, state.current_compositing_and_blending_operator);
@@ -947,7 +947,7 @@ void CanvasRenderingContext2D::paint_shadow_for_stroke_internal(Gfx::Path const&
 
     painter->save();
 
-    Gfx::AffineTransform transform;
+    Gfx::FloatAffineTransform transform;
     transform.translate(state.shadow_offset_x, state.shadow_offset_y);
     painter->set_transform(transform);
     painter->stroke_path(path, state.shadow_color.with_opacity(state.global_alpha), state.line_width, state.shadow_blur, state.current_compositing_and_blending_operator);

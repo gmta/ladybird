@@ -128,9 +128,10 @@ public:
     Point<T> const& a() const { return m_a; }
     Point<T> const& b() const { return m_b; }
 
-    Line<T> rotated(float radians)
+    template<FloatingPoint U>
+    Line<T> rotated(U radians)
     {
-        Gfx::AffineTransform rotation_transform;
+        Gfx::AffineTransform<U> rotation_transform;
         rotation_transform.rotate_radians(radians);
 
         Line<T> line = *this;

@@ -51,12 +51,15 @@ using FloatLine = Line<float>;
 
 using IntRect = Rect<int>;
 using FloatRect = Rect<float>;
+using DoubleRect = Rect<double>;
 
 using IntPoint = Point<int>;
 using FloatPoint = Point<float>;
+using DoublePoint = Point<double>;
 
 using IntSize = Size<int>;
 using FloatSize = Size<float>;
+using DoubleSize = Size<double>;
 
 using FloatQuad = Quad<float>;
 

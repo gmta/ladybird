@@ -29,7 +29,7 @@ public:
     virtual void fill_path(Gfx::Path const&, Gfx::Color, Gfx::WindingRule) override;
     virtual void fill_path(Gfx::Path const&, Gfx::Color, Gfx::WindingRule, float blur_radius, Gfx::CompositingAndBlendingOperator compositing_and_blending_operator) override;
     virtual void fill_path(Gfx::Path const&, Gfx::PaintStyle const&, ReadonlySpan<Gfx::Filter>, float global_alpha, Gfx::CompositingAndBlendingOperator compositing_and_blending_operator, Gfx::WindingRule) override;
-    virtual void set_transform(Gfx::AffineTransform const&) override;
+    virtual void set_transform(Gfx::FloatAffineTransform const&) override;
     virtual void save() override;
     virtual void restore() override;
     virtual void clip(Gfx::Path const&, Gfx::WindingRule) override;

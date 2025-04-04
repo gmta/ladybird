@@ -38,7 +38,7 @@ public:
 
     [[nodiscard]] TraversalDecision hit_test(CSSPixelPoint, HitTestType, Function<TraversalDecision(HitTestResult)> const& callback) const;
 
-    Gfx::AffineTransform affine_transform_matrix() const;
+    Gfx::FloatAffineTransform affine_transform_matrix() const;
 
     void dump(int indent = 0) const;
 

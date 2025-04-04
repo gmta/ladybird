@@ -79,7 +79,7 @@ public:
 
     // https://html.spec.whatwg.org/multipage/canvas.html#drawing-state
     struct DrawingState {
-        Gfx::AffineTransform transform;
+        Gfx::FloatAffineTransform transform;
         FillOrStrokeStyle fill_style { Gfx::Color::Black };
         FillOrStrokeStyle stroke_style { Gfx::Color::Black };
         float shadow_offset_x { 0.0f };
