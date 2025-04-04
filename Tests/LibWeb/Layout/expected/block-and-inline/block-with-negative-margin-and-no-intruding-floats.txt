@@ -1,15 +1,15 @@
 Viewport <#document> at (0,0) content-size 800x600 children: not-inline
-  BlockContainer <html> at (1,1) content-size 798x54 [BFC] children: not-inline
-    BlockContainer <body> at (110,10) content-size 300x36 positioned children: not-inline
-      BlockContainer <div> at (61,11) content-size 200x34 children: inline
-        frag 0 from TextNode start: 0, length: 19, rect: [61,11 159.859375x17] baseline: 13.296875
+  BlockContainer <html> at (1,1) content-size 798x61.21875 [BFC] children: not-inline
+    BlockContainer <body> at (110,10) content-size 300x43.21875 positioned children: not-inline
+      BlockContainer <div> at (61,11) content-size 200x41.21875 children: inline
+        frag 0 from TextNode start: 0, length: 19, rect: [61,11 159.859375x20.40625] baseline: 15
             "there are no floats"
-        frag 1 from TextNode start: 20, length: 21, rect: [61,28 163.875x17] baseline: 13.296875
+        frag 1 from TextNode start: 20, length: 21, rect: [61,31 163.875x20.40625] baseline: 15
             "intruding on this div"
         TextNode <#text>
 
 ViewportPaintable (Viewport<#document>) [0,0 800x600]
-  PaintableWithLines (BlockContainer<HTML>) [0,0 800x56]
-    PaintableWithLines (BlockContainer<BODY>) [109,9 302x38] overflow: [60,10 350x36]
-      PaintableWithLines (BlockContainer<DIV>) [60,10 202x36]
+  PaintableWithLines (BlockContainer<HTML>) [0,0 800x63.21875]
+    PaintableWithLines (BlockContainer<BODY>) [109,9 302x45.21875] overflow: [60,10 350x43.21875]
+      PaintableWithLines (BlockContainer<DIV>) [60,10 202x43.21875]
         TextPaintable (TextNode<#text>)
