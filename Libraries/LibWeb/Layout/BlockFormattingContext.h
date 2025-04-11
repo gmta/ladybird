@@ -178,6 +178,11 @@ private:
         void reset()
         {
             block_container_y_position_update_callback = {};
+            reset_margins();
+        }
+
+        void reset_margins()
+        {
             current_negative_collapsible_margin = 0;
             current_positive_collapsible_margin = 0;
         }

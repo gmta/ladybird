@@ -695,12 +695,15 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
         return;
     }
 
+    dbgln("box: {} border_box_height: {}", box.debug_description(), box_state.border_box_height());
     m_margin_state.add_margin(box_state.margin_top);
+    dbgln("  -> added margin_top of {} for {}", box_state.margin_top, box.debug_description());
     auto introduce_clearance = clear_floating_boxes(box, {});
     if (introduce_clearance == DidIntroduceClearance::Yes)
         m_margin_state.reset();
 
     auto const y = m_y_offset_of_current_block_container.value();
+    dbgln("  -> y begins with: {}", y);
 
     auto box_is_html_element_in_quirks_mode = box.document().in_quirks_mode()
         && box.dom_node()
@@ -725,17 +728,21 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
 
     m_margin_state.update_block_waiting_for_final_y_position();
     CSSPixels margin_top = m_margin_state.current_collapsed_margin();
+    dbgln("  -> margin_top begins with: {}", margin_top);
 
     if (m_margin_state.has_block_container_waiting_for_final_y_position()) {
         // If first child margin top will collapse with margin-top of containing block then margin-top of child is 0
         margin_top = 0;
+        dbgln("  -> but margin_top is set to 0, because there is a block container waiting");
     }
 
     if (independent_formatting_context) {
         // Margins of elements that establish new formatting contexts do not collapse with their in-flow children
         m_margin_state.reset();
+        dbgln("  -> but the margin state is reset, because there is an independent FC");
     }
 
+    // dbgln("  -> placing box {} at {}", box.debug_description(), y + margin_top);
     place_block_level_element_in_normal_flow_vertically(box, y + margin_top);
 
     compute_width(box, available_space);
@@ -798,9 +805,11 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
                 m_margin_state.reset();
             } else if (!m_margin_state.has_block_container_waiting_for_final_y_position()) {
                 // margin-top of block container can be updated during children layout hence it's final y position yet to be determined
+                dbgln("  -> registering box {} for later Y update", box.debug_description());
                 m_margin_state.register_block_container_y_position_update_callback([&, introduce_clearance](CSSPixels margin_top) {
                     if (introduce_clearance == DidIntroduceClearance::No) {
-                        place_block_level_element_in_normal_flow_vertically(box, margin_top + y);
+                        dbgln("  -> DELAYED placing box {} at {}", box.debug_description(), y + margin_top);
+                        place_block_level_element_in_normal_flow_vertically(box, y + margin_top);
                     }
                 });
             }
@@ -817,7 +826,9 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
     }
 
     if (independent_formatting_context || !margins_collapse_through(box, m_state)) {
+        dbgln("  -> so we end up here!");
         if (!m_margin_state.box_last_in_flow_child_margin_bottom_collapsed) {
+            dbgln("  -> and we reset the margin state!");
             m_margin_state.reset();
         }
         auto box_height = box_state.offset.y() + box_state.content_height() + box_state.border_box_bottom();
@@ -826,8 +837,19 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
     }
     m_margin_state.box_last_in_flow_child_margin_bottom_collapsed = false;
 
-    m_margin_state.add_margin(box_state.margin_bottom);
-    m_margin_state.update_block_waiting_for_final_y_position();
+    bool is_empty_linebox = box.display().is_flow_inside()
+        && !box.display().is_list_item()
+        && box_state.border_box_height() == 0
+        && false;
+    if (is_empty_linebox) {
+        dbgln("  -> empty linebox, should not influence anything");
+        //m_margin_state.add_margin(-box_state.margin_bottom);
+        m_margin_state.reset_margins();
+    } else {
+        dbgln("  -> adding margin {} for box {}", box_state.margin_bottom, box.debug_description());
+        m_margin_state.add_margin(box_state.margin_bottom);
+        m_margin_state.update_block_waiting_for_final_y_position();
+    }
 
     auto const& block_container_state = m_state.get(block_container);
     compute_inset(box, content_box_rect(block_container_state).size());
@@ -838,6 +860,8 @@ void BlockFormattingContext::layout_block_level_box(Box const& box, BlockContain
     }
 
     bottom_of_lowest_margin_box = max(bottom_of_lowest_margin_box, box_state.offset.y() + box_state.content_height() + box_state.margin_box_bottom());
+    dbgln("  -> bottom_of_lowest_margin_box: {}", bottom_of_lowest_margin_box);
+    dbgln("  -> m_margin_state.current_collapsed_margin(): {}", m_margin_state.current_collapsed_margin());
 
     if (independent_formatting_context)
         independent_formatting_context->parent_context_did_dimension_child_root_box();
