@@ -1257,13 +1257,15 @@ EventResult EventHandler::handle_keydown(UIEvents::KeyCode key, u32 modifiers, u
             return EventResult::Handled;
         }
 
-        if (key == UIEvents::KeyCode::Key_Return) {
-            FIRE(input_event(UIEvents::EventNames::beforeinput, UIEvents::InputTypes::insertParagraph, m_navigable, code_point));
+        if (key == UIEvents::KeyCode::Key_Return && (modifiers == UIEvents::Mod_None || modifiers == UIEvents::Mod_Shift)) {
+            dbgln("return path! yay");
+            auto input_type = modifiers == UIEvents::Mod_Shift ? UIEvents::InputTypes::insertLineBreak : UIEvents::InputTypes::insertParagraph;
+            FIRE(input_event(UIEvents::EventNames::beforeinput, input_type, m_navigable, code_point));
 
-            if (target->handle_return_key() != EventResult::Handled)
+            if (target->handle_return_key(input_type) != EventResult::Handled)
                 target->handle_insert(String::from_code_point(code_point));
 
-            FIRE(input_event(UIEvents::EventNames::input, UIEvents::InputTypes::insertParagraph, m_navigable, code_point));
+            FIRE(input_event(UIEvents::EventNames::input, input_type, m_navigable, code_point));
             return EventResult::Handled;
         }
 

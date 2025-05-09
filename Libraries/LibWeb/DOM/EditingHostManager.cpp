@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024, Aliaksandr Kalenik <kalenik.aliaksandr@gmail.com>
+ * Copyright (c) 2025, Jelle Raaijmakers <jelle@ladybird.org>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -8,7 +9,9 @@
 #include <LibWeb/DOM/EditingHostManager.h>
 #include <LibWeb/DOM/Range.h>
 #include <LibWeb/DOM/Text.h>
+#include <LibWeb/Editing/CommandNames.h>
 #include <LibWeb/Selection/Selection.h>
+#include <LibWeb/UIEvents/InputTypes.h>
 
 namespace Web::DOM {
 
@@ -190,10 +193,31 @@ void EditingHostManager::handle_delete(DeleteDirection direction)
     MUST(selection_range->delete_contents());
 }
 
-EventResult EditingHostManager::handle_return_key()
+EventResult EditingHostManager::handle_return_key(FlyString const& ui_input_type)
 {
-    dbgln("FIXME: Implement EditingHostManager::handle_return_key()");
-    return EventResult::Dropped;
+    // https://w3c.github.io/editing/docs/execCommand/#additional-requirements
+    // When the user instructs the user agent to insert a line break inside an editing host, such as by pressing the
+    // Enter key while the cursor is in an editable node, the user agent must call execCommand("insertparagraph") on the
+    // relevant document.
+    // When the user instructs the user agent to insert a line break inside an editing host without breaking out of the
+    // current block, such as by pressing Shift-Enter or Option-Enter while the cursor is in an editable node, the user
+    // agent must call execCommand("insertlinebreak") on the relevant document.
+    auto editing_result = [&] {
+        if (ui_input_type == UIEvents::InputTypes::insertParagraph)
+            return m_document->exec_command(Editing::CommandNames::insertParagraph, false, {});
+        if (ui_input_type == UIEvents::InputTypes::insertLineBreak)
+            return m_document->exec_command(Editing::CommandNames::insertLineBreak, false, {});
+        VERIFY_NOT_REACHED();
+    }();
+
+    dbgln("we get here?");
+
+    if (editing_result.is_exception()) {
+        dbgln("handle_return_key(): editing resulted in exception: {}", editing_result.exception());
+        return EventResult::Dropped;
+    }
+
+    return editing_result.value() ? EventResult::Handled : EventResult::Dropped;
 }
 
 }
