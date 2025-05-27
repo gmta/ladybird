@@ -110,6 +110,7 @@ jobs:
           ccache_path: ${{ env.CCACHE_DIR }}
           download_cache_path: ${{ github.workspace }}/Build/caches
           vcpkg_cache_path: ${{ github.workspace }}/Build/caches/vcpkg-binary-cache
+          blacksmith_cache_enabled: ${{ inputs.os_name == 'macOS' && 'false' || 'true' }}
 
       - name: Set dynamic environment variables
         run: |
@@ -180,6 +181,7 @@ jobs:
           ccache_primary_key: ${{ steps.cache-restore.outputs.ccache_primary_key }}
           vcpkg_cache_path: ${{ github.workspace }}/Build/caches/vcpkg-binary-cache
           vcpkg_cache_primary_key: ${{ steps.cache-restore.outputs.vcpkg_cache_primary_key }}
+          blacksmith_cache_enabled: ${{ inputs.os_name == 'macOS' && 'false' || 'true' }}
 
       # === TEST ===
 

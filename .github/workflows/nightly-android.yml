@@ -56,6 +56,7 @@ jobs:
           ccache_path: ${{ env.CCACHE_DIR }}
           download_cache_path: ${{ github.workspace }}/Build/caches
           vcpkg_cache_path: ${{ github.workspace }}/Build/caches/vcpkg-binary-cache
+          blacksmith_cache_enabled: 'false'
 
       - name: Assign Build Parameters
         id: 'build-parameters'
@@ -105,3 +106,4 @@ jobs:
           ccache_primary_key: ${{ steps.cache-restore.outputs.ccache_primary_key }}
           vcpkg_cache_path: ${{ github.workspace }}/Build/caches/vcpkg-binary-cache
           vcpkg_cache_primary_key: ${{ steps.cache-restore.outputs.vcpkg_cache_primary_key }}
+          blacksmith_cache_enabled: 'false'

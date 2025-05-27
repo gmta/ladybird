@@ -35,6 +35,11 @@ inputs:
     description: 'Path to vcpkg binary cache'
     required: false
     default: ''
+  # FIXME: Remove this when the useblacksmith/cache action supports transparent fallback to GitHub's cache.
+  blacksmith_cache_enabled:
+    description: 'Whether to use the Blacksmith cache action'
+    required: false
+    default: 'true'
 
 outputs:
   ccache_primary_key:
@@ -54,7 +59,7 @@ runs:
         echo "timestamp=$(date -u "+%Y%m%d%H%M_%S")" >> "$GITHUB_OUTPUT"
 
     - name: 'Compiler Cache'
-      uses: useblacksmith/cache/restore@v5
+      uses: ${{ inputs.blacksmith_cache_enabled == 'true' && 'useblacksmith/cache/restore@v5' || 'actions/cache/restore@v3' }}
       id: 'ccache'
       if: ${{ inputs.ccache_path != '' }}
       with:
@@ -76,7 +81,7 @@ runs:
           CCACHE_DIR=${{ inputs.ccache_path }} ccache -z
 
     - name: 'Restore vcpkg cache'
-      uses: useblacksmith/cache/restore@v5
+      uses: ${{ inputs.blacksmith_cache_enabled == 'true' && 'useblacksmith/cache/restore@v5' || 'actions/cache/restore@v3' }}
       if: ${{ inputs.vcpkg_cache_path != '' }}
       id: 'vcpkg'
       with:
