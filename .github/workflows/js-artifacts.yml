@@ -12,7 +12,6 @@ env:
 jobs:
   build-and-package:
     runs-on: ${{ matrix.runner }}
-    if: github.repository == 'LadybirdBrowser/ladybird'
     strategy:
       fail-fast: false
       matrix:

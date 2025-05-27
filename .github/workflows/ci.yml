@@ -9,8 +9,6 @@ concurrency:
 jobs:
   # CI matrix - runs the job in lagom-template.yml with different configurations.
   Lagom:
-    if: github.repository == 'LadybirdBrowser/ladybird'
-
     strategy:
       fail-fast: false
       matrix:
