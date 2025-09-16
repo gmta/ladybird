@@ -129,7 +129,7 @@ CSSPixels Length::viewport_relative_length_to_px(CSSPixelRect const& viewport_re
 
 Length::ResolutionContext Length::ResolutionContext::for_element(DOM::AbstractElement const& element)
 {
-    auto const* root_element = element.element().document().document_element();
+    auto const root_element = element.element().document().document_element();
 
     VERIFY(element.computed_properties());
     VERIFY(root_element);
@@ -161,7 +161,7 @@ Length::ResolutionContext Length::ResolutionContext::for_layout_node(Layout::Nod
     if (is<DOM::Document>(node.dom_node())) {
         root_layout_node = &node;
     } else {
-        auto const* root_element = node.document().document_element();
+        auto const root_element = node.document().document_element();
         VERIFY(root_element);
         VERIFY(root_element->layout_node());
         root_layout_node = root_element->layout_node();
@@ -185,7 +185,7 @@ CSSPixels Length::to_px_slow_case(Layout::Node const& layout_node) const
         return 0;
 
     if (is_font_relative()) {
-        auto* root_element = layout_node.document().document_element();
+        auto const root_element = layout_node.document().document_element();
         if (!root_element || !root_element->layout_node())
             return 0;
 

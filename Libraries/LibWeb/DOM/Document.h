@@ -275,11 +275,11 @@ public:
     GC::Ptr<Layout::Node> highlighted_layout_node();
     GC::Ptr<Layout::Node const> highlighted_layout_node() const { return const_cast<Document*>(this)->highlighted_layout_node(); }
 
-    Element* document_element();
-    Element const* document_element() const;
+    GC::Ptr<Element> document_element();
+    GC::Ptr<Element const> document_element() const;
 
     // https://www.w3.org/TR/SVG2/struct.html#InterfaceDocumentExtensions
-    GC::Ptr<SVG::SVGSVGElement> root_element();
+    GC::Ptr<SVG::SVGSVGElement const> root_element() const;
 
     HTML::HTMLHtmlElement* html_element();
     HTML::HTMLHeadElement* head();

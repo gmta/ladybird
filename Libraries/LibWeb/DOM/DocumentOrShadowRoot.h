@@ -40,7 +40,7 @@ GC::Ptr<Element> calculate_active_element(T& self)
         return body;
 
     // 6. If candidate's document element is non-null, then return that document element.
-    if (auto* document_element = candidate_document->document_element())
+    if (auto document_element = candidate_document->document_element())
         return document_element;
 
     // 7. Return null.

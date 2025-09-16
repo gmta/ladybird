@@ -38,9 +38,9 @@ void SVGTitleElement::children_changed(ChildrenChangedMetadata const* metadata)
     if (document().browsing_context() != &page.top_level_browsing_context())
         return;
 
-    auto* document_element = document().document_element();
+    auto document_element = document().document_element();
 
-    if (document_element == parent() && is<SVGElement>(document_element))
+    if (document_element == parent() && is<SVGElement>(document_element.ptr()))
         page.client().page_did_change_title(document().title());
 }
 

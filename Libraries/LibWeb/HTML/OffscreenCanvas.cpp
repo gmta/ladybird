@@ -60,7 +60,7 @@ WebIDL::ExceptionOr<GC::Ref<OffscreenCanvas>> OffscreenCanvas::construct_impl(
     if (is<HTML::Window>(global)) {
         auto& window = as<HTML::Window>(global);
         // 1.Let element be the document element of global's associated Document.
-        auto* element = window.associated_document().document_element();
+        auto element = window.associated_document().document_element();
         // 2. If element is not null :
         if (element) {
             // FIXME: 1. Set the inherited language of this to element's language.

@@ -892,28 +892,27 @@ bool Document::is_child_allowed(Node const& node) const
     }
 }
 
-Element* Document::document_element()
+GC::Ptr<Element> Document::document_element()
 {
     return first_child_of_type<Element>();
 }
 
-Element const* Document::document_element() const
+GC::Ptr<Element const> Document::document_element() const
 {
     return first_child_of_type<Element>();
 }
 
 // https://www.w3.org/TR/SVG2/struct.html#InterfaceDocumentExtensions
-GC::Ptr<SVG::SVGSVGElement> Document::root_element()
+GC::Ptr<SVG::SVGSVGElement const> Document::root_element() const
 {
-    return as_if<SVG::SVGSVGElement>(document_element());
+    return as_if<SVG::SVGSVGElement>(document_element().ptr());
 }
 
 // https://html.spec.whatwg.org/multipage/dom.html#the-html-element-2
 HTML::HTMLHtmlElement* Document::html_element()
 {
     // The html element of a document is its document element, if it's an html element, and null otherwise.
-    auto* html = document_element();
-    return as_if<HTML::HTMLHtmlElement>(html);
+    return as_if<HTML::HTMLHtmlElement>(document_element().ptr());
 }
 
 // https://html.spec.whatwg.org/multipage/dom.html#the-head-element-2
@@ -991,7 +990,7 @@ WebIDL::ExceptionOr<void> Document::set_body(HTML::HTMLElement* new_body)
         return {};
     }
 
-    auto* document_element = this->document_element();
+    auto document_element = this->document_element();
     if (!document_element)
         return WebIDL::HierarchyRequestError::create(realm(), "Missing document element"_utf16);
 
@@ -1006,7 +1005,7 @@ Utf16String Document::title() const
 
     // 1. If the document element is an SVG svg element, then let value be the child text content of the first SVG title
     //    element that is a child of the document element.
-    if (auto const* document_element = this->document_element(); is<SVG::SVGElement>(document_element)) {
+    if (auto const document_element = this->document_element(); is<SVG::SVGElement>(document_element.ptr())) {
         if (auto const* title_element = document_element->first_child_of_type<SVG::SVGTitleElement>())
             value = title_element->child_text_content();
     }
@@ -1027,10 +1026,10 @@ Utf16String Document::title() const
 // https://html.spec.whatwg.org/multipage/dom.html#document.title
 WebIDL::ExceptionOr<void> Document::set_title(Utf16String const& title)
 {
-    auto* document_element = this->document_element();
+    auto document_element = this->document_element();
 
     // -> If the document element is an SVG svg element
-    if (is<SVG::SVGElement>(document_element)) {
+    if (is<SVG::SVGElement>(document_element.ptr())) {
         GC::Ptr<Element> element;
 
         // 1. If there is an SVG title element that is a child of the document element, let element be the first such
@@ -1344,7 +1343,7 @@ void Document::update_layout(UpdateLayoutReason reason)
 
     invalidate_display_list();
 
-    auto* document_element = this->document_element();
+    auto document_element = this->document_element();
     auto viewport_rect = navigable->viewport_rect();
 
     auto timer = Core::ElapsedTimer::start_new(Core::TimerType::Precise);
@@ -5610,7 +5609,7 @@ WebIDL::ExceptionOr<void> Document::set_design_mode(String const& design_mode)
             }
         }
         // 3. Run the focusing steps for this's document element, if non-null.
-        if (auto* document_element = this->document_element(); document_element)
+        if (auto document_element = this->document_element())
             HTML::run_focusing_steps(document_element);
     }
     // 3. If value is "off", then set this's design mode enabled to false.
@@ -5652,7 +5651,7 @@ Element const* Document::element_from_point(double x, double y)
         return static_cast<Element*>(hit_test_result->dom_node());
 
     // 3. If the document has a root element, return the root element and terminate these steps.
-    if (auto const* root_element = document_element())
+    if (auto const root_element = document_element())
         return root_element;
 
     // 4. Return null.
@@ -5690,7 +5689,7 @@ GC::RootVector<GC::Ref<Element>> Document::elements_from_point(double x, double 
 
     // 4. If the document has a root element, and the last item in sequence is not the root element,
     //    append the root element to sequence.
-    if (auto* root_element = document_element(); root_element && (sequence.is_empty() || (sequence.last() != root_element)))
+    if (auto root_element = document_element(); root_element && (sequence.is_empty() || (sequence.last() != root_element)))
         sequence.append(*root_element);
 
     // 5. Return sequence.
@@ -5712,7 +5711,7 @@ GC::Ptr<Element const> Document::scrolling_element() const
     }
 
     // 2. If there is a root element, return the root element and abort these steps.
-    if (auto const* root_element = document_element(); root_element)
+    if (auto const root_element = document_element())
         return root_element;
 
     // 3. Return null.

@@ -2291,7 +2291,7 @@ Optional<String> Node::locate_a_namespace(Optional<String> const& prefix) const
     // Document
     if (is<Document>(*this)) {
         // 1. If its document element is null, then return null.
-        auto* document_element = as<Document>(*this).document_element();
+        auto document_element = as<Document>(*this).document_element();
         if (!document_element)
             return {};
 
@@ -2357,7 +2357,7 @@ Optional<String> Node::lookup_prefix(Optional<String> namespace_) const
     // Document
     if (is<Document>(*this)) {
         // Return the result of locating a namespace prefix for its document element, if its document element is non-null; otherwise null.
-        auto* document_element = as<Document>(*this).document_element();
+        auto document_element = as<Document>(*this).document_element();
         if (!document_element)
             return {};
 
@@ -2616,7 +2616,7 @@ void Node::build_accessibility_tree(AccessibilityTreeNode& parent)
 
     if (is_document()) {
         auto* document = static_cast<DOM::Document*>(this);
-        auto* document_element = document->document_element();
+        auto document_element = document->document_element();
         if (document_element && document_element->include_in_accessibility_tree()) {
             parent.set_value(document_element);
             if (document_element->has_child_nodes())

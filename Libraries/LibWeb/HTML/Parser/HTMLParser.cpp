@@ -685,7 +685,7 @@ void HTMLParser::handle_before_html(HTMLToken& token)
 
         // AD-HOC: First check if we've already inserted a <html> element into the document.
         //         This can happen by mixing document.write() and DOM manipulation.
-        if (auto* html_element = document().document_element(); html_element && html_element->is_html_html_element()) {
+        if (auto* html_element = as_if<HTMLElement>(document().document_element().ptr())) {
             m_stack_of_open_elements.push(*html_element);
         } else {
             auto element = create_element(document(), HTML::TagNames::html, Namespace::HTML).release_value_but_fixme_should_propagate_errors();

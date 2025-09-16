@@ -414,8 +414,7 @@ void EventLoop::update_the_rendering()
             bool had_initial_visible_content_visibility_determination = false;
 
             // 3. For each element element with 'auto' used value of 'content-visibility':
-            auto* document_element = document->document_element();
-            if (document_element) {
+            if (document->document_element()) {
                 for (auto& paintable_box : document->paintable()->paintable_boxes_with_auto_content_visibility()) {
                     auto& element = as<DOM::Element>(*paintable_box->dom_node());
 
