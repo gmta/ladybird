@@ -550,7 +550,7 @@ void Document::visit_edges(Cell::Visitor& visitor)
     visitor.visit(m_highlighted_node);
     visitor.visit(m_active_favicon);
     visitor.visit(m_browsing_context);
-    visitor.visit(m_focused_area);
+    visitor.visit(m_focused_anchor);
     visitor.visit(m_active_element);
     visitor.visit(m_target_element);
     visitor.visit(m_implementation);
@@ -2451,44 +2451,54 @@ void Document::update_active_element()
     set_active_element(calculate_active_element(*this));
 }
 
-void Document::set_focused_area(GC::Ptr<Node> node)
+Optional<FocusableArea> Document::focused_area() const
 {
-    if (m_focused_area == node)
+    // We don't store an Optional<FocusableArea>, since style calculation for affected pseudo classes needs a place to
+    // store a temporary nullptr DOM::Node.
+    if (!m_focused_anchor)
+        return {};
+    return FocusableArea { m_focused_type, *m_focused_anchor };
+}
+
+void Document::set_focused_area(Optional<FocusableArea> focused_area)
+{
+    GC::Ptr<Node> old_focused_node = m_focused_anchor;
+    GC::Ptr<Node> new_focused_node = focused_area.has_value() ? const_cast<Node*>(focused_area->anchor.ptr()) : nullptr;
+    if (old_focused_node == new_focused_node)
         return;
 
-    GC::Ptr old_focused_area = m_focused_area;
-
-    if (auto* old_focused_element = as_if<Element>(old_focused_area.ptr()))
+    if (auto* old_focused_element = as_if<Element>(old_focused_node.ptr()))
         old_focused_element->did_lose_focus();
 
-    auto* common_ancestor = find_common_ancestor(old_focused_area, node);
+    auto* common_ancestor = find_common_ancestor(old_focused_node, new_focused_node);
 
     GC::Ptr<Node> old_focused_node_root = nullptr;
     GC::Ptr<Node> new_focused_node_root = nullptr;
-    if (old_focused_area)
-        old_focused_node_root = old_focused_area->root();
-    if (node)
-        new_focused_node_root = node->root();
+    if (old_focused_node)
+        old_focused_node_root = old_focused_node->root();
+    if (new_focused_node)
+        new_focused_node_root = new_focused_node->root();
     if (old_focused_node_root != new_focused_node_root) {
         if (old_focused_node_root) {
-            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::Focus, m_focused_area, *old_focused_node_root, node);
-            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusWithin, m_focused_area, *old_focused_node_root, node);
-            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusVisible, m_focused_area, *old_focused_node_root, node);
+            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::Focus, m_focused_anchor, *old_focused_node_root, new_focused_node);
+            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusWithin, m_focused_anchor, *old_focused_node_root, new_focused_node);
+            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusVisible, m_focused_anchor, *old_focused_node_root, new_focused_node);
         }
         if (new_focused_node_root) {
-            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::Focus, m_focused_area, *new_focused_node_root, node);
-            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusWithin, m_focused_area, *new_focused_node_root, node);
-            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusVisible, m_focused_area, *new_focused_node_root, node);
+            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::Focus, m_focused_anchor, *new_focused_node_root, new_focused_node);
+            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusWithin, m_focused_anchor, *new_focused_node_root, new_focused_node);
+            invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusVisible, m_focused_anchor, *new_focused_node_root, new_focused_node);
         }
     } else {
-        invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::Focus, m_focused_area, *common_ancestor, node);
-        invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusWithin, m_focused_area, *common_ancestor, node);
-        invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusVisible, m_focused_area, *common_ancestor, node);
+        invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::Focus, m_focused_anchor, *common_ancestor, new_focused_node);
+        invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusWithin, m_focused_anchor, *common_ancestor, new_focused_node);
+        invalidate_style_for_elements_affected_by_pseudo_class_change(CSS::PseudoClass::FocusVisible, m_focused_anchor, *common_ancestor, new_focused_node);
     }
 
-    m_focused_area = node;
+    m_focused_type = focused_area.has_value() ? focused_area->type : FocusableArea::Type::Node;
+    m_focused_anchor = focused_area.has_value() ? const_cast<Node*>(focused_area->anchor.ptr()) : nullptr;
 
-    auto* new_focused_element = as_if<Element>(node.ptr());
+    auto* new_focused_element = as_if<Element>(new_focused_node.ptr());
     if (new_focused_element)
         new_focused_element->did_receive_focus();
 
@@ -2497,11 +2507,11 @@ void Document::set_focused_area(GC::Ptr<Node> node)
 
     // Scroll the viewport if necessary to make the newly focused element visible.
     if (new_focused_element) {
-        new_focused_element->queue_an_element_task(HTML::Task::Source::UserInteraction, [&] {
+        new_focused_element->queue_an_element_task(HTML::Task::Source::UserInteraction, [new_focused_element] {
             ScrollIntoViewOptions scroll_options;
             scroll_options.block = Bindings::ScrollLogicalPosition::Nearest;
             scroll_options.inline_ = Bindings::ScrollLogicalPosition::Nearest;
-            (void)as<Element>(*m_focused_area).scroll_into_view(scroll_options);
+            (void)new_focused_element->scroll_into_view(scroll_options);
         });
     }
 
@@ -6369,38 +6379,38 @@ GC::Ref<Document> Document::parse_html_unsafe(JS::VM& vm, StringView html)
 
 InputEventsTarget* Document::active_input_events_target()
 {
-    auto focused_area = this->focused_area();
-    if (!focused_area)
+    auto const focused_node = focused_anchor();
+    if (!focused_node)
         return {};
 
-    if (auto* input_element = as_if<HTML::HTMLInputElement>(*focused_area))
+    if (auto* input_element = as_if<HTML::HTMLInputElement>(*focused_node))
         return input_element;
-    if (auto* text_area_element = as_if<HTML::HTMLTextAreaElement>(*focused_area))
+    if (auto* text_area_element = as_if<HTML::HTMLTextAreaElement>(*focused_node))
         return text_area_element;
-    if (focused_area->is_editable_or_editing_host())
+    if (focused_node->is_editable_or_editing_host())
         return m_editing_host_manager;
     return nullptr;
 }
 
 GC::Ptr<DOM::Position> Document::cursor_position() const
 {
-    auto const focused_area = this->focused_area();
-    if (!focused_area)
+    auto const focused_node = focused_anchor();
+    if (!focused_node)
         return nullptr;
 
     Optional<HTML::FormAssociatedTextControlElement const&> target {};
-    if (auto const* input_element = as_if<HTML::HTMLInputElement>(*focused_area)) {
+    if (auto const* input_element = as_if<HTML::HTMLInputElement>(*focused_node)) {
         // Some types of <input> tags shouldn't have a cursor, like buttons
         if (!input_element->can_have_text_editing_cursor())
             return nullptr;
         target = *input_element;
-    } else if (is<HTML::HTMLTextAreaElement>(*focused_area))
-        target = static_cast<HTML::HTMLTextAreaElement const&>(*focused_area);
+    } else if (is<HTML::HTMLTextAreaElement>(*focused_node))
+        target = static_cast<HTML::HTMLTextAreaElement const&>(*focused_node);
 
     if (target.has_value())
         return target->cursor_position();
 
-    if (focused_area->is_editable_or_editing_host())
+    if (focused_node->is_editable_or_editing_host())
         return m_selection->cursor_position();
 
     return nullptr;

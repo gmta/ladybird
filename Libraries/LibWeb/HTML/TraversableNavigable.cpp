@@ -1369,17 +1369,17 @@ GC::Ptr<DOM::Node> TraversableNavigable::currently_focused_area()
 
     // 3. While candidate's focused area is a navigable container with a non-null content navigable:
     //    set candidate to the active document of that navigable container's content navigable.
-    while (candidate->focused_area()
-        && is<NavigableContainer>(candidate->focused_area().ptr())
-        && as<NavigableContainer>(*candidate->focused_area()).content_navigable()) {
-        candidate = as<NavigableContainer>(*candidate->focused_area()).content_navigable()->active_document();
+    while (candidate->focused_anchor()
+        && is<NavigableContainer>(candidate->focused_anchor().ptr())
+        && as<NavigableContainer>(*candidate->focused_anchor()).content_navigable()) {
+        candidate = as<NavigableContainer>(*candidate->focused_anchor()).content_navigable()->active_document();
     }
 
     // 4. If candidate's focused area is non-null, set candidate to candidate's focused area.
-    if (candidate->focused_area()) {
+    if (candidate->focused_anchor()) {
         // NOTE: We return right away here instead of assigning to candidate,
         //       since that would require compromising type safety.
-        return candidate->focused_area();
+        return candidate->focused_anchor();
     }
 
     // 5. Return candidate.

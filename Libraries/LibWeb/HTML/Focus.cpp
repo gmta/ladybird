@@ -112,13 +112,13 @@ static void run_focus_update_steps(Vector<GC::Root<DOM::Node>> old_chain, Vector
     // 4. For each entry entry in new chain, in reverse order, run these substeps:
     for (auto& entry : new_chain.in_reverse()) {
         // 1. If entry is a focusable area, and the focused area of the document is not entry:
-        if (entry->is_a_focusable_area() && entry->document().focused_area() != entry.ptr()) {
+        if (entry->is_a_focusable_area() && entry->document().focused_anchor() != entry.ptr()) {
             // 1. Set document's relevant global object's navigation API's focus changed during ongoing navigation to
             //    true.
             as<Window>(relevant_global_object(*entry)).navigation()->set_focus_changed_during_ongoing_navigation(true);
 
             // 2. Designate entry as the focused area of the document.
-            entry->document().set_focused_area(*entry);
+            entry->document().set_focused_area(DOM::FocusableArea { DOM::FocusableArea::Type::Node, *entry });
         }
 
         // 2. If entry is an element, let focus event target be entry.
@@ -166,7 +166,7 @@ static Vector<GC::Root<DOM::Node>> focus_chain(DOM::Node* subject)
     Vector<GC::Root<DOM::Node>> output;
 
     // 2. Let currentObject be subject.
-    auto* current_object = subject;
+    GC::Ptr<DOM::Node> current_object = subject;
 
     // 3. While true:
     while (true) {

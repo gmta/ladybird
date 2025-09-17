@@ -552,8 +552,8 @@ static inline bool matches_pseudo_class(CSS::Selector::SimpleSelector::PseudoCla
     case CSS::PseudoClass::FocusVisible:
         return element.is_focused() && element.should_indicate_focus();
     case CSS::PseudoClass::FocusWithin: {
-        auto focused_area = element.document().focused_area();
-        return focused_area && element.is_inclusive_ancestor_of(*focused_area);
+        auto focused_node = element.document().focused_anchor();
+        return focused_node && element.is_inclusive_ancestor_of(*focused_node);
     }
     case CSS::PseudoClass::FirstChild:
         if (context.collect_per_element_selector_involvement_metadata) {

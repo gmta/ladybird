@@ -688,8 +688,8 @@ EventResult EventHandler::handle_mousedown(CSSPixelPoint viewport_position, CSSP
                 // Spec Note: Note that focusing is not an activation behavior, i.e. calling the click() method on an element or dispatching a synthetic click event on it won't cause the element to get focused.
                 if (focus_candidate)
                     HTML::run_focusing_steps(focus_candidate, nullptr, HTML::FocusTrigger::Click);
-                else if (auto focused_area = document->focused_area())
-                    HTML::run_unfocusing_steps(focused_area);
+                else if (auto focused_node = document->focused_anchor())
+                    HTML::run_unfocusing_steps(focused_node);
 
                 // https://drafts.csswg.org/css-ui/#valdef-user-select-none
                 // Attempting to start a selection in an element where user-select is none, such as by clicking in it or starting
@@ -1071,7 +1071,7 @@ EventResult EventHandler::focus_next_element()
         return EventResult::Dropped;
     };
 
-    auto node = m_navigable->active_document()->focused_area();
+    auto node = m_navigable->active_document()->focused_anchor();
     if (!node)
         return set_focus_to_first_focusable_element();
 
@@ -1106,7 +1106,7 @@ EventResult EventHandler::focus_previous_element()
         return EventResult::Dropped;
     };
 
-    auto node = m_navigable->active_document()->focused_area();
+    auto node = m_navigable->active_document()->focused_anchor();
     if (!node)
         return set_focus_to_last_focusable_element();
 
@@ -1137,15 +1137,14 @@ EventResult EventHandler::fire_keyboard_event(FlyString const& event_name, HTML:
     if (!document->is_fully_active())
         return EventResult::Dropped;
 
-    if (GC::Ptr focused_area = document->focused_area()) {
-        if (is<HTML::NavigableContainer>(*focused_area)) {
-            auto& navigable_container = as<HTML::NavigableContainer>(*focused_area);
-            if (navigable_container.content_navigable())
-                return fire_keyboard_event(event_name, *navigable_container.content_navigable(), key, modifiers, code_point, repeat);
+    if (auto focused_node = document->focused_anchor()) {
+        if (auto* navigable_container = as_if<HTML::NavigableContainer>(*focused_node)) {
+            if (navigable_container->content_navigable())
+                return fire_keyboard_event(event_name, *navigable_container->content_navigable(), key, modifiers, code_point, repeat);
         }
 
         auto event = UIEvents::KeyboardEvent::create_from_platform_event(document->realm(), event_name, key, modifiers, code_point, repeat);
-        return focused_area->dispatch_event(event) ? EventResult::Accepted : EventResult::Cancelled;
+        return focused_node->dispatch_event(event) ? EventResult::Accepted : EventResult::Cancelled;
     }
 
     // FIXME: De-duplicate this. This is just to prevent wasting a KeyboardEvent allocation when recursing into an (i)frame.
@@ -1212,15 +1211,14 @@ EventResult EventHandler::input_event(FlyString const& event_name, FlyString con
 
     input_event_init.input_type = input_type;
 
-    if (auto focused_area = document->focused_area()) {
-        if (is<HTML::NavigableContainer>(*focused_area)) {
-            auto& navigable_container = as<HTML::NavigableContainer>(*focused_area);
-            if (navigable_container.content_navigable())
-                return input_event(event_name, input_type, *navigable_container.content_navigable(), move(code_point_or_string));
+    if (auto focused_node = document->focused_anchor()) {
+        if (auto* navigable_container = as_if<HTML::NavigableContainer>(*focused_node)) {
+            if (navigable_container->content_navigable())
+                return input_event(event_name, input_type, *navigable_container->content_navigable(), move(code_point_or_string));
         }
 
         auto event = UIEvents::InputEvent::create_from_platform_event(document->realm(), event_name, input_event_init, target_ranges_for_input_event(*document));
-        return focused_area->dispatch_event(event) ? EventResult::Accepted : EventResult::Cancelled;
+        return focused_node->dispatch_event(event) ? EventResult::Accepted : EventResult::Cancelled;
     }
 
     auto event = UIEvents::InputEvent::create_from_platform_event(document->realm(), event_name, input_event_init, target_ranges_for_input_event(*document));
@@ -1275,8 +1273,8 @@ EventResult EventHandler::handle_keydown(UIEvents::KeyCode key, u32 modifiers, u
         //    instead interpret this interaction as some other action, instead of interpreting it as a close request.
     }
 
-    auto focused_area = m_navigable->active_document()->focused_area();
-    if (auto* media_element = as_if<HTML::HTMLMediaElement>(focused_area.ptr())) {
+    auto focused_node = m_navigable->active_document()->focused_anchor();
+    if (auto* media_element = as_if<HTML::HTMLMediaElement>(focused_node.ptr())) {
         if (media_element->handle_keydown({}, key, modifiers).release_value_but_fixme_should_propagate_errors())
             return EventResult::Handled;
     }
@@ -1352,8 +1350,8 @@ EventResult EventHandler::handle_keydown(UIEvents::KeyCode key, u32 modifiers, u
             auto input_type = modifiers == UIEvents::Mod_Shift ? UIEvents::InputTypes::insertLineBreak : UIEvents::InputTypes::insertParagraph;
 
             // If the editing host is contenteditable="plaintext-only", we force a line break.
-            if (focused_area) {
-                if (auto editing_host = focused_area->editing_host(); editing_host
+            if (focused_node) {
+                if (auto editing_host = focused_node->editing_host(); editing_host
                     && as<HTML::HTMLElement>(*editing_host).content_editable_state() == HTML::ContentEditableState::PlaintextOnly)
                     input_type = UIEvents::InputTypes::insertLineBreak;
             }

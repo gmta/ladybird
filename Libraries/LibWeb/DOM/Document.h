@@ -436,10 +436,10 @@ public:
 
     void set_editable(bool editable) { m_editable = editable; }
 
-    // // https://html.spec.whatwg.org/multipage/interaction.html#focused-area-of-the-document
-    GC::Ptr<Node> focused_area() { return m_focused_area; }
-    GC::Ptr<Node const> focused_area() const { return m_focused_area; }
-    void set_focused_area(GC::Ptr<Node>);
+    // https://html.spec.whatwg.org/multipage/interaction.html#focused-area-of-the-document
+    Optional<FocusableArea> focused_area() const;
+    GC::Ptr<Node> focused_anchor() const { return m_focused_anchor; }
+    void set_focused_area(Optional<FocusableArea>);
 
     HTML::FocusTrigger last_focus_trigger() const { return m_last_focus_trigger; }
     void set_last_focus_trigger(HTML::FocusTrigger trigger) { m_last_focus_trigger = trigger; }
@@ -1042,7 +1042,8 @@ private:
     bool m_editable { false };
 
     // https://html.spec.whatwg.org/multipage/interaction.html#focused-area-of-the-document
-    GC::Ptr<Node> m_focused_area;
+    FocusableArea::Type m_focused_type { FocusableArea::Type::Node };
+    GC::Ptr<Node> m_focused_anchor;
 
     HTML::FocusTrigger m_last_focus_trigger { HTML::FocusTrigger::Other };
 
