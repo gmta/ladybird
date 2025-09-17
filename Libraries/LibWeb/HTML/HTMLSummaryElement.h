@@ -18,6 +18,9 @@ class HTMLSummaryElement final : public HTMLElement {
 public:
     virtual ~HTMLSummaryElement() override;
 
+    // ^DOM::EventTarget
+    Optional<DOM::FocusableArea> focusable_area() const override;
+
     // https://www.w3.org/TR/html-aria/#el-details
     virtual Optional<ARIA::Role> default_role() const override { return ARIA::Role::button; }
 

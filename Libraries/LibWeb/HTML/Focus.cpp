@@ -112,7 +112,7 @@ static void run_focus_update_steps(Vector<GC::Root<DOM::Node>> old_chain, Vector
     // 4. For each entry entry in new chain, in reverse order, run these substeps:
     for (auto& entry : new_chain.in_reverse()) {
         // 1. If entry is a focusable area, and the focused area of the document is not entry:
-        if (entry->is_focusable() && entry->document().focused_area() != entry.ptr()) {
+        if (entry->is_a_focusable_area() && entry->document().focused_area() != entry.ptr()) {
             // 1. Set document's relevant global object's navigation API's focus changed during ongoing navigation to
             //    true.
             as<Window>(relevant_global_object(*entry)).navigation()->set_focus_changed_during_ongoing_navigation(true);
@@ -293,7 +293,7 @@ void run_unfocusing_steps(DOM::Node* old_focus_target)
         return;
 
     // 6. If old focus target is not a focusable area, then return.
-    if (!old_focus_target->is_focusable())
+    if (!old_focus_target->is_a_focusable_area())
         return;
 
     // 7. Let topDocument be old chain's last entry.

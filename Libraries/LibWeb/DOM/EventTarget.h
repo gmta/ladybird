@@ -7,6 +7,7 @@
 #pragma once
 
 #include <AK/Noncopyable.h>
+#include <AK/Optional.h>
 #include <AK/Vector.h>
 #include <LibJS/Forward.h>
 #include <LibWeb/Bindings/PlatformObject.h>
@@ -18,6 +19,19 @@
 
 namespace Web::DOM {
 
+// https://html.spec.whatwg.org/multipage/interaction.html#focusable-area
+struct FocusableArea {
+    enum class Type : u8 {
+        Node,
+        Viewport,
+    };
+
+    Type type;
+    GC::Ref<Node const> anchor;
+
+    bool operator==(FocusableArea const&) const = default;
+};
+
 class WEB_API EventTarget : public Bindings::PlatformObject {
     WEB_PLATFORM_OBJECT(EventTarget, Bindings::PlatformObject);
     GC_DECLARE_ALLOCATOR(EventTarget);
@@ -27,7 +41,9 @@ public:
 
     static WebIDL::ExceptionOr<GC::Ref<EventTarget>> construct_impl(JS::Realm&);
 
-    virtual bool is_focusable() const { return false; }
+    // https://html.spec.whatwg.org/multipage/interaction.html#focusable-area
+    virtual Optional<FocusableArea> focusable_area() const { return {}; }
+    bool is_a_focusable_area() const { return focusable_area().has_value(); }
 
     void add_event_listener(FlyString const& type, IDLEventListener* callback, Variant<AddEventListenerOptions, bool> const& options);
     void remove_event_listener(FlyString const& type, IDLEventListener* callback, Variant<EventListenerOptions, bool> const& options);

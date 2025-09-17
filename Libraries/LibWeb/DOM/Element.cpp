@@ -3986,10 +3986,7 @@ Optional<String> Element::lang() const
 bool Element::not_rendered() const
 {
     // An element is not rendered if it does not have an associated box.
-    if (!layout_node() || !paintable_box())
-        return true;
-
-    return false;
+    return !layout_node() || !paintable_box();
 }
 
 // https://drafts.csswg.org/css-view-transitions-1/#document-scoped-view-transition-name

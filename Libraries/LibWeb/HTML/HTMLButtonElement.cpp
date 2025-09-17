@@ -273,11 +273,6 @@ void HTMLButtonElement::activation_behavior(DOM::Event const& event)
         PopoverInvokerElement::popover_target_activation_behaviour(*this, as<DOM::Node>(*event.target()));
 }
 
-bool HTMLButtonElement::is_focusable() const
-{
-    return enabled();
-}
-
 // https://html.spec.whatwg.org/multipage/form-elements.html#dom-button-command
 String HTMLButtonElement::command() const
 {

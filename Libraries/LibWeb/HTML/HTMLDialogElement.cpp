@@ -318,6 +318,11 @@ void HTMLDialogElement::request_close_the_dialog(Optional<String> return_value, 
         m_close_watcher->set_enabled(m_is_modal);
 }
 
+Optional<DOM::FocusableArea> HTMLDialogElement::focusable_area() const
+{
+    return DOM::FocusableArea { DOM::FocusableArea::Type::Node, *this };
+}
+
 // https://html.spec.whatwg.org/multipage/interactive-elements.html#dom-dialog-returnvalue
 String HTMLDialogElement::return_value() const
 {

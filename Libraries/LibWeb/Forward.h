@@ -463,6 +463,7 @@ enum class QuirksMode;
 
 struct AddEventListenerOptions;
 struct EventListenerOptions;
+struct FocusableArea;
 
 }
 

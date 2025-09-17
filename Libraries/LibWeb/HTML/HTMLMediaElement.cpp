@@ -78,6 +78,11 @@ void HTMLMediaElement::finalize()
     document().page().unregister_media_element({}, unique_id());
 }
 
+Optional<DOM::FocusableArea> HTMLMediaElement::focusable_area() const
+{
+    return DOM::FocusableArea { DOM::FocusableArea::Type::Node, *this };
+}
+
 // https://html.spec.whatwg.org/multipage/media.html#queue-a-media-element-task
 void HTMLMediaElement::queue_a_media_element_task(Function<void()> steps)
 {

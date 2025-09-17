@@ -44,7 +44,7 @@ public:
     // https://html.spec.whatwg.org/multipage/interaction.html#the-tabindex-attribute:the-textarea-element
     // https://html.spec.whatwg.org/multipage/interaction.html#focusable-area
     // https://html.spec.whatwg.org/multipage/semantics-other.html#concept-element-disabled
-    virtual bool is_focusable() const override;
+    virtual Optional<DOM::FocusableArea> focusable_area() const override { return FormAssociatedElement::focusable_area(); }
 
     virtual void did_lose_focus() override;
     virtual void did_receive_focus() override;

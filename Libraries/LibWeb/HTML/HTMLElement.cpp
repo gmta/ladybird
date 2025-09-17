@@ -147,9 +147,29 @@ void HTMLElement::set_dir(String const& dir)
     MUST(set_attribute(HTML::AttributeNames::dir, dir));
 }
 
-bool HTMLElement::is_focusable() const
+// https://html.spec.whatwg.org/multipage/interaction.html#focusable-area
+Optional<DOM::FocusableArea> HTMLElement::focusable_area() const
 {
-    return is_editing_host() || get_attribute(HTML::AttributeNames::tabindex).has_value();
+    // Elements that meet all the following criteria:
+    // * the element's tabindex value is non-null, or the element is determined by the user agent to be focusable;
+    if (!get_attribute(AttributeNames::tabindex).has_value() && !is_editing_host())
+        return {};
+
+    // * the element is either not a shadow host, or has a shadow root whose delegates focus is false;
+    if (is_shadow_host() && shadow_root()->delegates_focus())
+        return {};
+
+    // * the element is not actually disabled;
+    // AD-HOC: This is implemented by subclasses through e.g. FormAssociatedElement.
+
+    // * the element is not inert;
+    if (is_inert())
+        return {};
+
+    // FIXME: * the element is either being rendered, delegating its rendering to its children, or being used as relevant
+    //   canvas fallback content.
+
+    return DOM::FocusableArea { DOM::FocusableArea::Type::Node, *this };
 }
 
 // https://html.spec.whatwg.org/multipage/interaction.html#dom-iscontenteditable

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2021, Andreas Kling <andreas@ladybird.org>
- * Copyright (c) 2024, Jelle Raaijmakers <jelle@ladybird.org>
+ * Copyright (c) 2024-2025, Jelle Raaijmakers <jelle@ladybird.org>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -78,6 +78,8 @@ public:
     void element_with_id_was_added_or_removed(Badge<DOM::Document>);
 
     bool enabled() const;
+
+    Optional<DOM::FocusableArea> focusable_area() const;
 
     void set_parser_inserted(Badge<HTMLParser>);
 

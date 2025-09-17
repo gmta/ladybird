@@ -177,4 +177,12 @@ void HTMLAnchorElement::set_text(Utf16String const& text)
     string_replace_all(text);
 }
 
+// https://html.spec.whatwg.org/multipage/interaction.html#the-tabindex-attribute:the-a-element
+Optional<DOM::FocusableArea> HTMLAnchorElement::focusable_area() const
+{
+    if (!has_attribute(AttributeNames::href))
+        return {};
+    return DOM::FocusableArea { DOM::FocusableArea::Type::Node, *this };
+}
+
 }

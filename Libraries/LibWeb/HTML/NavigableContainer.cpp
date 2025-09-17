@@ -148,6 +148,15 @@ WebIDL::ExceptionOr<void> NavigableContainer::create_new_child_navigable(GC::Ptr
     return {};
 }
 
+// https://html.spec.whatwg.org/multipage/interaction.html#bc-focus-ergo-bcc-focus
+Optional<DOM::FocusableArea> NavigableContainer::focusable_area() const
+{
+    // A navigable container (e.g. an iframe) is a focusable area, but key events routed to a navigable container get
+    // immediately routed to its content navigable's active document. Similarly, in sequential focus navigation a
+    // navigable container essentially acts merely as a placeholder for its content navigable's active document.
+    return DOM::FocusableArea { DOM::FocusableArea::Type::Node, *this };
+}
+
 // https://html.spec.whatwg.org/multipage/browsers.html#concept-bcc-content-document
 DOM::Document const* NavigableContainer::content_document() const
 {

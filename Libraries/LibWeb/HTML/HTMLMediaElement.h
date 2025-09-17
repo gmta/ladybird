@@ -20,7 +20,6 @@
 #include <LibWeb/PixelUnits.h>
 #include <LibWeb/UIEvents/KeyCode.h>
 #include <LibWeb/WebIDL/DOMException.h>
-#include <math.h>
 
 namespace Web::HTML {
 
@@ -37,7 +36,8 @@ class HTMLMediaElement : public HTMLElement {
 public:
     virtual ~HTMLMediaElement() override;
 
-    virtual bool is_focusable() const override { return true; }
+    // ^EventTarget
+    virtual Optional<DOM::FocusableArea> focusable_area() const override;
 
     // NOTE: The function is wrapped in a GC::HeapFunction immediately.
     void queue_a_media_element_task(Function<void()>);

@@ -40,6 +40,16 @@ void HTMLSummaryElement::activation_behavior(DOM::Event const&)
         MUST(parent->set_attribute(HTML::AttributeNames::open, String {}));
 }
 
+// https://html.spec.whatwg.org/multipage/interaction.html#the-tabindex-attribute:the-summary-element
+Optional<DOM::FocusableArea> HTMLSummaryElement::focusable_area() const
+{
+    // * summary elements that are the first summary element child of a details element
+    if (!parent() || !is<HTMLDetailsElement>(*parent()) || parent()->first_child_of_type<HTMLSummaryElement>() != this)
+        return {};
+
+    return DOM::FocusableArea { DOM::FocusableArea::Type::Node, *this };
+}
+
 // https://html.spec.whatwg.org/multipage/interactive-elements.html#summary-for-its-parent-details
 bool HTMLSummaryElement::is_summary_for_its_parent_details()
 {

@@ -30,8 +30,7 @@ public:
     void set_text(Utf16String const&);
 
     // ^EventTarget
-    // https://html.spec.whatwg.org/multipage/interaction.html#the-tabindex-attribute:the-a-element
-    virtual bool is_focusable() const override { return has_attribute(HTML::AttributeNames::href); }
+    virtual Optional<DOM::FocusableArea> focusable_area() const override;
 
     virtual bool is_html_anchor_element() const override { return true; }
 

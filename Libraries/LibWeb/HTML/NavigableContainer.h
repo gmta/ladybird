@@ -22,6 +22,9 @@ public:
 
     static HashTable<NavigableContainer*>& all_instances();
 
+    // ^EventTarget
+    virtual Optional<DOM::FocusableArea> focusable_area() const override;
+
     GC::Ptr<Navigable> content_navigable() { return m_content_navigable; }
     GC::Ptr<Navigable const> content_navigable() const { return m_content_navigable.ptr(); }
 

@@ -95,6 +95,13 @@ bool FormAssociatedElement::enabled() const
     return true;
 }
 
+Optional<DOM::FocusableArea> FormAssociatedElement::focusable_area() const
+{
+    if (!enabled())
+        return {};
+    return DOM::FocusableArea { DOM::FocusableArea::Type::Node, form_associated_element_to_html_element() };
+}
+
 void FormAssociatedElement::set_parser_inserted(Badge<HTMLParser>)
 {
     m_parser_inserted = true;

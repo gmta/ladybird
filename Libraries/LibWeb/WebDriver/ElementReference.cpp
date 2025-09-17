@@ -275,7 +275,7 @@ bool is_element_pointer_interactable(Web::HTML::BrowsingContext const& browsing_
 bool is_element_keyboard_interactable(Web::DOM::Element const& element)
 {
     // A keyboard-interactable element is any element that has a focusable area, is a body element, or is the document element.
-    return element.is_focusable() || is<HTML::HTMLBodyElement>(element) || element.is_document_element();
+    return element.is_a_focusable_area() || is<HTML::HTMLBodyElement>(element) || element.is_document_element();
 }
 
 // https://w3c.github.io/webdriver/#dfn-editable

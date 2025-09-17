@@ -3313,9 +3313,11 @@ HTMLInputElement::ValueAttributeMode HTMLInputElement::value_attribute_mode() co
     return value_attribute_mode_for_type_state(type_state());
 }
 
-bool HTMLInputElement::is_focusable() const
+Optional<DOM::FocusableArea> HTMLInputElement::focusable_area() const
 {
-    return m_type != TypeAttributeState::Hidden && enabled();
+    if (m_type == TypeAttributeState::Hidden)
+        return {};
+    return FormAssociatedElement::focusable_area();
 }
 
 // https://html.spec.whatwg.org/multipage/input.html#has-a-reversed-range

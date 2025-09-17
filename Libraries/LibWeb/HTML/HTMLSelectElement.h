@@ -66,7 +66,7 @@ public:
     // https://html.spec.whatwg.org/multipage/interaction.html#the-tabindex-attribute:the-select-element
     // https://html.spec.whatwg.org/multipage/interaction.html#focusable-area
     // https://html.spec.whatwg.org/multipage/semantics-other.html#concept-element-disabled
-    virtual bool is_focusable() const override;
+    virtual Optional<DOM::FocusableArea> focusable_area() const override { return FormAssociatedElement::focusable_area(); }
 
     // ^FormAssociatedElement
     // https://html.spec.whatwg.org/multipage/forms.html#category-listed

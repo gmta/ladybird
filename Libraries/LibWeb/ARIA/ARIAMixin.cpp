@@ -149,7 +149,7 @@ Optional<Role> ARIAMixin::role_from_role_attribute_value() const
             // https://w3c.github.io/aria/#conflict_resolution_presentation_none
             // If an element is focusable, user agents MUST ignore the none/presentation
             // role and expose the element with its implicit role.
-            if (to_element().is_focusable())
+            if (to_element().is_a_focusable_area())
                 continue;
             // If an element has global WAI-ARIA states or properties, user agents MUST
             // ignore the none/presentation role and instead expose the element's implicit role.

@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <LibCore/Forward.h>
 #include <LibGfx/Forward.h>
 #include <LibWeb/HTML/FormAssociatedElement.h>
 #include <LibWeb/HTML/HTMLElement.h>

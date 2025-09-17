@@ -691,11 +691,6 @@ void HTMLSelectElement::update_selectedness()
     update_inner_text_element();
 }
 
-bool HTMLSelectElement::is_focusable() const
-{
-    return enabled();
-}
-
 // https://html.spec.whatwg.org/multipage/form-elements.html#placeholder-label-option
 HTMLOptionElement* HTMLSelectElement::placeholder_label_option() const
 {

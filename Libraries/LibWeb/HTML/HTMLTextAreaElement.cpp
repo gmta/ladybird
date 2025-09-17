@@ -447,11 +447,6 @@ void HTMLTextAreaElement::queue_firing_input_event()
     });
 }
 
-bool HTMLTextAreaElement::is_focusable() const
-{
-    return enabled();
-}
-
 // https://html.spec.whatwg.org/multipage/form-elements.html#the-textarea-element%3Asuffering-from-being-missing
 bool HTMLTextAreaElement::suffering_from_being_missing() const
 {

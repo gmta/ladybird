@@ -677,7 +677,7 @@ EventResult EventHandler::handle_mousedown(CSSPixelPoint viewport_position, CSSP
                     focus_candidate = input_control;
                 } else {
                     for (auto candidate = node; candidate; candidate = candidate->parent_or_shadow_host()) {
-                        if (candidate->is_focusable()) {
+                        if (candidate->is_a_focusable_area()) {
                             focus_candidate = candidate;
                             break;
                         }
@@ -1062,7 +1062,7 @@ EventResult EventHandler::focus_next_element()
         auto* element = m_navigable->active_document()->first_child_of_type<DOM::Element>();
 
         for (; element; element = element->next_element_in_pre_order()) {
-            if (element->is_focusable()) {
+            if (element->is_a_focusable_area()) {
                 HTML::run_focusing_steps(element, nullptr, HTML::FocusTrigger::Key);
                 return EventResult::Handled;
             }
@@ -1075,7 +1075,7 @@ EventResult EventHandler::focus_next_element()
     if (!node)
         return set_focus_to_first_focusable_element();
 
-    for (node = node->next_in_pre_order(); node && !node->is_focusable(); node = node->next_in_pre_order())
+    for (node = node->next_in_pre_order(); node && !node->is_a_focusable_area(); node = node->next_in_pre_order())
         ;
 
     if (!node)
@@ -1097,7 +1097,7 @@ EventResult EventHandler::focus_previous_element()
         auto* element = m_navigable->active_document()->last_child_of_type<DOM::Element>();
 
         for (; element; element = element->previous_element_in_pre_order()) {
-            if (element->is_focusable()) {
+            if (element->is_a_focusable_area()) {
                 HTML::run_focusing_steps(element, nullptr, HTML::FocusTrigger::Key);
                 return EventResult::Handled;
             }
@@ -1110,7 +1110,7 @@ EventResult EventHandler::focus_previous_element()
     if (!node)
         return set_focus_to_last_focusable_element();
 
-    for (node = node->previous_in_pre_order(); node && !node->is_focusable(); node = node->previous_in_pre_order())
+    for (node = node->previous_in_pre_order(); node && !node->is_a_focusable_area(); node = node->previous_in_pre_order())
         ;
 
     if (!node)

@@ -24,7 +24,7 @@ public:
     virtual void removed_from(Node* old_parent, Node& old_root) override;
 
     // ^EventTarget
-    virtual bool is_focusable() const override { return true; }
+    virtual Optional<DOM::FocusableArea> focusable_area() const override;
 
     String return_value() const;
     void set_return_value(String);

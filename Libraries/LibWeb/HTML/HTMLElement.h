@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018-2022, Andreas Kling <andreas@ladybird.org>
+ * Copyright (c) 2025, Jelle Raaijmakers <jelle@ladybird.org>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -89,7 +90,9 @@ public:
     StringView dir() const;
     void set_dir(String const&);
 
-    virtual bool is_focusable() const override;
+    // ^EventTarget
+    Optional<DOM::FocusableArea> focusable_area() const override;
+
     bool is_content_editable() const;
     StringView content_editable() const;
     ContentEditableState content_editable_state() const { return m_content_editable_state; }
