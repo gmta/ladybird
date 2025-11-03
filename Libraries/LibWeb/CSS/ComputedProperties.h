@@ -300,8 +300,6 @@ private:
     RefPtr<Gfx::FontCascadeList const> m_font_list;
     RefPtr<Gfx::Font const> m_first_available_computed_font;
 
-    Optional<CSSPixels> m_line_height;
-
     PseudoClassBitmap m_attempted_pseudo_class_matches;
 };
 
