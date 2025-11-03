@@ -3380,7 +3380,7 @@ void Document::update_the_visibility_state(HTML::VisibilityState visibility_stat
     dispatch_event(event);
 }
 
-// https://drafts.csswg.org/cssom-view/#run-the-resize-steps
+// https://drafts.csswg.org/cssom-view/#document-run-the-resize-steps
 void Document::run_the_resize_steps()
 {
     // 1. If doc’s viewport has had its width or height changed
