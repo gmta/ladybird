@@ -85,7 +85,6 @@ public:
     String debug_description() const;
 
     bool has_style() const { return m_has_style; }
-    bool has_style_or_parent_with_style() const;
 
     virtual bool can_have_children() const { return true; }
 
@@ -313,16 +312,12 @@ private:
 template<>
 inline bool Node::fast_is<NodeWithStyleAndBoxModelMetrics>() const { return is_node_with_style_and_box_model_metrics(); }
 
-inline bool Node::has_style_or_parent_with_style() const
-{
-    return m_has_style || (parent() != nullptr && parent()->has_style_or_parent_with_style());
-}
-
 inline Gfx::Font const& Node::first_available_font() const
 {
-    VERIFY(has_style_or_parent_with_style());
     if (m_has_style)
         return static_cast<NodeWithStyle const*>(this)->first_available_font();
+
+    VERIFY(parent());
     return parent()->first_available_font();
 }
 
@@ -339,10 +334,10 @@ inline Gfx::Font const& Node::font(float scale_factor) const
 
 inline CSS::ImmutableComputedValues const& Node::computed_values() const
 {
-    VERIFY(has_style_or_parent_with_style());
-
     if (m_has_style)
         return static_cast<NodeWithStyle const*>(this)->computed_values();
+
+    VERIFY(parent());
     return parent()->computed_values();
 }
 
