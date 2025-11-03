@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <AK/IterationDecision.h>
 #include <AK/Optional.h>
 #include <LibWeb/ARIA/ARIAMixin.h>
 #include <LibWeb/ARIA/AttributeNames.h>
@@ -28,9 +27,7 @@
 #include <LibWeb/Export.h>
 #include <LibWeb/HTML/AttributeNames.h>
 #include <LibWeb/HTML/EventLoop/Task.h>
-#include <LibWeb/HTML/LazyLoadingElement.h>
 #include <LibWeb/HTML/ScrollOptions.h>
-#include <LibWeb/HTML/TagNames.h>
 #include <LibWeb/IntersectionObserver/IntersectionObserver.h>
 #include <LibWeb/TrustedTypes/TrustedHTML.h>
 #include <LibWeb/TrustedTypes/TrustedScript.h>

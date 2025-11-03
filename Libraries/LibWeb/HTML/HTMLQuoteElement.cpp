@@ -9,6 +9,7 @@
 #include <LibWeb/Bindings/HTMLQuoteElementPrototype.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/HTML/HTMLQuoteElement.h>
+#include <LibWeb/HTML/TagNames.h>
 
 namespace Web::HTML {
 

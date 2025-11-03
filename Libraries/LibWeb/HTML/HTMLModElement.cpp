@@ -8,6 +8,7 @@
 #include <LibWeb/Bindings/HTMLModElementPrototype.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/HTML/HTMLModElement.h>
+#include <LibWeb/HTML/TagNames.h>
 
 namespace Web::HTML {
 

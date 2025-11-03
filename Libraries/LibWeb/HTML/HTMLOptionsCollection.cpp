@@ -11,6 +11,7 @@
 #include <LibWeb/HTML/HTMLOptionElement.h>
 #include <LibWeb/HTML/HTMLOptionsCollection.h>
 #include <LibWeb/HTML/HTMLSelectElement.h>
+#include <LibWeb/HTML/TagNames.h>
 #include <LibWeb/Namespace.h>
 #include <LibWeb/WebIDL/DOMException.h>
 

@@ -7,6 +7,7 @@
 #include <LibWeb/DOM/Element.h>
 #include <LibWeb/HTML/Parser/HTMLParser.h>
 #include <LibWeb/HTML/Parser/StackOfOpenElements.h>
+#include <LibWeb/HTML/TagNames.h>
 #include <LibWeb/MathML/TagNames.h>
 #include <LibWeb/Namespace.h>
 #include <LibWeb/SVG/TagNames.h>

@@ -39,6 +39,7 @@
 #include <LibWeb/HTML/PaintConfig.h>
 #include <LibWeb/HTML/SandboxingFlagSet.h>
 #include <LibWeb/HTML/Scripting/Environments.h>
+#include <LibWeb/HTML/TagNames.h>
 #include <LibWeb/HTML/VisibilityState.h>
 #include <LibWeb/InvalidateDisplayList.h>
 #include <LibWeb/ResizeObserver/ResizeObserver.h>
