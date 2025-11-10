@@ -64,7 +64,7 @@ Gfx::Font& FontPlugin::default_fixed_width_font()
     return *m_default_fixed_width_font;
 }
 
-Vector<FlyString> FontPlugin::symbol_font_names()
+Vector<FlyString> const& FontPlugin::symbol_font_names()
 {
     return m_symbol_font_names;
 }

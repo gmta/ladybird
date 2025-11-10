@@ -22,7 +22,7 @@ public:
     virtual RefPtr<Gfx::Font> default_font(float point_size) override;
     virtual Gfx::Font& default_fixed_width_font() override;
     virtual FlyString generic_font_name(Web::Platform::GenericFont) override;
-    virtual Vector<FlyString> symbol_font_names() override;
+    virtual Vector<FlyString> const& symbol_font_names() override;
 
     void update_generic_fonts();
 

@@ -1983,10 +1983,9 @@ RefPtr<Gfx::FontCascadeList const> StyleComputer::compute_font_for_style_values(
     }
 
     // Add emoji and symbol fonts
-    for (auto font_name : Platform::FontPlugin::the().symbol_font_names()) {
-        if (auto other_font_list = find_font(font_name)) {
+    for (auto const& font_name : Platform::FontPlugin::the().symbol_font_names()) {
+        if (auto other_font_list = find_font(font_name))
             font_list->extend(*other_font_list);
-        }
     }
 
     // The default font is already included in the font list, but we explicitly set it
