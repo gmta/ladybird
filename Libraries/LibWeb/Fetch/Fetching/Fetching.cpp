@@ -452,21 +452,11 @@ GC::Ptr<PendingResponse> main_fetch(JS::Realm& realm, Infrastructure::FetchParam
             return PendingResponse::create(vm, request, fetch_params.preloaded_response_candidate().get<GC::Ref<Infrastructure::Response>>());
         }
 
-        // FIXME: This is a hack to allow file scheme URLs always being treated as same origin to one another as to not
-        //        break file:// origin HTML pages from loading any other files. We should tighten up these restrictions.
-        //        This will require some investigation into what other browsers allow for different types of requests.
-        //        Relevant spec context: https://github.com/whatwg/fetch/issues/1195
-        bool both_origins_are_file_opaque_origins = origin
-            && origin->is_opaque()
-            && request->current_url().origin().is_opaque()
-            && origin->opaque_data().type == URL::Origin::OpaqueData::Type::File
-            && request->current_url().origin().opaque_data().type == URL::Origin::OpaqueData::Type::File;
-
         // -> request’s current URL’s origin is same origin with request’s origin, and request’s response tainting is "basic"
         // -> request’s current URL’s scheme is "data"
         // -> request’s mode is "navigate" or "websocket"
         if (
-            (origin && (request->current_url().origin().is_same_origin(*origin) || both_origins_are_file_opaque_origins) && request->response_tainting() == Infrastructure::Request::ResponseTainting::Basic)
+            (origin && request->current_url().origin().is_same_origin(*origin) && request->response_tainting() == Infrastructure::Request::ResponseTainting::Basic)
             || request->current_url().scheme() == "data"sv
             || (request->mode() == Infrastructure::Request::Mode::Navigate || request->mode() == Infrastructure::Request::Mode::WebSocket)) {
             // 1. Set request’s response tainting to "basic".
@@ -500,8 +490,19 @@ GC::Ptr<PendingResponse> main_fetch(JS::Realm& realm, Infrastructure::FetchParam
 
         // -> request’s current URL’s scheme is not an HTTP(S) scheme
         // AD-HOC: We allow CORS requests for resource:// URLs from opaque origins to enable requesting JS modules from internal pages.
+        // AD-HOC: We allow CORS requests for file:// URLs from file opaque origins, but only when the request has a
+        //         destination (e.g. "script", "style", "font"). This enables file:// HTML pages to load module scripts,
+        //         fonts, etc. from other file:// URLs, while still blocking the fetch() API (which has an empty
+        //         destination) from reading arbitrary files - a security requirement to prevent data exfiltration.
+        auto both_are_file_opaque_origins_with_destination = origin
+            && origin->is_opaque()
+            && request->current_url().origin().is_opaque()
+            && origin->opaque_data().type == URL::Origin::OpaqueData::Type::File
+            && request->current_url().origin().opaque_data().type == URL::Origin::OpaqueData::Type::File
+            && request->destination().has_value();
         if (!Infrastructure::is_http_or_https_scheme(request->current_url().scheme())
-            && !(origin && origin->is_opaque() && request->current_url().scheme() == "resource"sv)) {
+            && !(origin && origin->is_opaque() && request->current_url().scheme() == "resource"sv)
+            && !both_are_file_opaque_origins_with_destination) {
             // NOTE: At this point all other request modes have been handled. Ensure we're not lying in the error message :^)
             VERIFY(request->mode() == Infrastructure::Request::Mode::CORS);
 
