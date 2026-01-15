@@ -1348,8 +1348,8 @@ bool command_insert_linebreak_action(DOM::Document& document, Utf16String const&
     delete_the_selection(selection, true, false);
 
     // 2. If the active range's start node is neither editable nor an editing host, return true.
-    auto& active_range = *selection.range();
-    auto start_node = active_range.start_container();
+    auto start_node = active_range(document)->start_container();
+    auto start_offset = active_range(document)->start_offset();
     if (!start_node->is_editable_or_editing_host())
         return true;
 
@@ -1365,30 +1365,46 @@ bool command_insert_linebreak_action(DOM::Document& document, Utf16String const&
     // 5. If the active range's start node is a Text node and its start offset is zero, call collapse() on the context
     //    object's selection, with first argument equal to the active range's start node's parent and second argument
     //    equal to the active range's start node's index.
-    if (is<DOM::Text>(*start_node) && active_range.start_offset() == 0)
+    if (is<DOM::Text>(*start_node) && start_offset == 0)
         MUST(selection.collapse(start_node->parent(), start_node->index()));
 
     // 6. If the active range's start node is a Text node and its start offset is the length of its start node, call
     //    collapse() on the context object's selection, with first argument equal to the active range's start node's
     //    parent and second argument equal to one plus the active range's start node's index.
-    if (is<DOM::Text>(*start_node) && active_range.start_offset() == start_node->length())
+    if (is<DOM::Text>(*start_node) && start_offset == start_node->length())
         MUST(selection.collapse(start_node->parent(), start_node->index() + 1));
 
-    // AD-HOC: If the active range's start node is a Text node and its resolved value for "white-space-collapse" is one of
+    // AD-HOC: If the original start node is a Text node and its resolved value for "white-space-collapse" is one of
     //         "preserve" or "preserve-breaks":
-    //         * Insert a newline (\n) character at the active range's start offset;
-    //         * Collapse the selection with active range's start node as the first argument and one plus active range's
-    //           start offset as the second argument
-    //         * Insert another newline (\n) character if the active range's start offset is equal to the length of the
-    //           active range's start node.
+    //         * Insert a newline (\n) character at the original start offset;
+    //         * Collapse the selection with start node as the first argument and one plus start offset as the second
+    //           argument;
+    //         * If the new start offset is at the end of the text node, insert a padding <br> element;
     //         * Return true.
+    //         If the original start node is an Element with preformatted white-space:
+    //         * Create a Text node containing a newline and insert it at the current position;
+    //         * Collapse the selection after the newline;
+    //         * Return true (existing content like <br> serves as padding).
     if (auto* text_node = as_if<DOM::Text>(*start_node); text_node) {
         auto resolved_white_space_collapse = resolved_keyword(*start_node, CSS::PropertyID::WhiteSpaceCollapse);
         if (resolved_white_space_collapse.has_value() && first_is_one_of(resolved_white_space_collapse.value(), CSS::Keyword::Preserve, CSS::Keyword::PreserveBreaks)) {
-            MUST(text_node->insert_data(active_range.start_offset(), "\n"_utf16));
-            MUST(selection.collapse(start_node, active_range.start_offset() + 1));
-            if (selection.range()->start_offset() == start_node->length())
-                MUST(text_node->insert_data(active_range.start_offset(), "\n"_utf16));
+            MUST(text_node->insert_data(start_offset, "\n"_utf16));
+            MUST(selection.collapse(start_node, start_offset + 1));
+            // If at the end, insert a padding <br> after the text node.
+            if (active_range(document)->start_offset() == start_node->length()) {
+                MUST(selection.collapse(start_node->parent(), start_node->index() + 1));
+                auto br = MUST(DOM::create_element(document, HTML::TagNames::br, Namespace::HTML));
+                MUST(active_range(document)->insert_node(br));
+                MUST(selection.collapse(br->parent(), br->index() + 1));
+            }
+            return true;
+        }
+    } else if (is<DOM::Element>(*start_node)) {
+        auto resolved_white_space_collapse = resolved_keyword(*start_node, CSS::PropertyID::WhiteSpaceCollapse);
+        if (resolved_white_space_collapse.has_value() && first_is_one_of(resolved_white_space_collapse.value(), CSS::Keyword::Preserve, CSS::Keyword::PreserveBreaks)) {
+            auto text = document.create_text_node("\n"_utf16);
+            MUST(active_range(document)->insert_node(text));
+            MUST(selection.collapse(text, 1));
             return true;
         }
     }
@@ -1397,7 +1413,7 @@ bool command_insert_linebreak_action(DOM::Document& document, Utf16String const&
     auto br = MUST(DOM::create_element(document, HTML::TagNames::br, Namespace::HTML));
 
     // 8. Call insertNode(br) on the active range.
-    MUST(active_range.insert_node(br));
+    MUST(active_range(document)->insert_node(br));
 
     // 9. Call collapse() on the context object's selection, with br's parent as the first argument and one plus br's
     //    index as the second argument.
@@ -1407,7 +1423,7 @@ bool command_insert_linebreak_action(DOM::Document& document, Utf16String const&
     //     result, then call insertNode(extra br) on the active range.
     if (is_collapsed_line_break(br)) {
         auto extra_br = MUST(DOM::create_element(document, HTML::TagNames::br, Namespace::HTML));
-        MUST(active_range.insert_node(extra_br));
+        MUST(active_range(document)->insert_node(extra_br));
     }
 
     // 11. Return true.
