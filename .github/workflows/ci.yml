@@ -76,18 +76,17 @@ jobs:
       clang_plugins: ${{ matrix.clang_plugins }}
 
   Flatpak:
-    if: github.repository == 'LadybirdBrowser/ladybird'
     name: Flatpak ${{ matrix.arch }}
 
     strategy:
       fail-fast: false
       matrix:
         arch: ['x86_64']
-        runner_labels: ['["blacksmith-16vcpu-ubuntu-2404"]']
+        runner_labels: ['["ubuntu-24.04"]']
 
         include:
           - arch: 'aarch64'
-            runner_labels: '["blacksmith-16vcpu-ubuntu-2404-arm"]'
+            runner_labels: '["ubuntu-24.04-arm"]'
 
     secrets: inherit
     uses: ./.github/workflows/flatpak-template.yml
