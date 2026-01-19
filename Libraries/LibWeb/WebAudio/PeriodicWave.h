@@ -34,6 +34,11 @@ public:
     explicit PeriodicWave(JS::Realm&);
     virtual ~PeriodicWave() override;
 
+    // Accessors for waveform data
+    GC::Ptr<JS::Float32Array> real() const { return m_real; }
+    GC::Ptr<JS::Float32Array> imag() const { return m_imag; }
+    bool normalize() const { return m_normalize; }
+
 protected:
     virtual void initialize(JS::Realm&) override;
     virtual void visit_edges(Cell::Visitor&) override;

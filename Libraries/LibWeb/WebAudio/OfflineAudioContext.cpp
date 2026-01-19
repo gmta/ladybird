@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibJS/Runtime/TypedArray.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/DOM/Event.h>
 #include <LibWeb/HTML/EventNames.h>
@@ -120,7 +121,41 @@ WebIDL::ExceptionOr<GC::Ref<WebIDL::Promise>> OfflineAudioContext::start_renderi
 void OfflineAudioContext::begin_offline_rendering(GC::Ref<WebIDL::Promise> promise)
 {
     // To begin offline rendering, the following steps MUST happen on a rendering thread that is created for the occasion.
-    // FIXME: 1: Given the current connections and scheduled changes, start rendering length sample-frames of audio into [[rendered buffer]]
+    // 1: Given the current connections and scheduled changes, start rendering length sample-frames of audio into [[rendered buffer]]
+
+    // Collect source nodes connected to the destination
+    auto source_nodes = collect_connected_source_nodes();
+
+    // Pre-allocate render buffer (avoid allocations in render loop)
+    Vector<float> render_buffer;
+    render_buffer.resize(render_quantum_size());
+
+    size_t total_frames = length();
+    size_t frames_rendered = 0;
+
+    while (frames_rendered < total_frames) {
+        size_t frames_this_quantum = min(static_cast<size_t>(render_quantum_size()), total_frames - frames_rendered);
+
+        // Zero the render buffer
+        for (size_t i = 0; i < frames_this_quantum; ++i)
+            render_buffer[i] = 0.0f;
+
+        // Process each source node
+        for (auto& source : source_nodes)
+            source->process(render_buffer.span().slice(0, frames_this_quantum), static_cast<double>(sample_rate()), frames_this_quantum);
+
+        // Copy rendered samples to the output buffer for each channel
+        // For now, copy the mono output to all channels
+        for (WebIDL::UnsignedLong channel = 0; channel < m_number_of_channels; ++channel) {
+            auto channel_data = MUST(m_rendered_buffer->get_channel_data(channel));
+            auto output_data = channel_data->data();
+            for (size_t i = 0; i < frames_this_quantum; ++i)
+                output_data[frames_rendered + i] = render_buffer[i];
+        }
+
+        frames_rendered += frames_this_quantum;
+    }
+
     // FIXME: 2: For every render quantum, check and suspend rendering if necessary.
     // FIXME: 3: If a suspended context is resumed, continue to render the buffer.
     // 4: Once the rendering is complete, queue a media element task to execute the following steps:

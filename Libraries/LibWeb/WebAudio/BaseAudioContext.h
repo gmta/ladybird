@@ -89,6 +89,12 @@ public:
 
     void queue_control_message(ControlMessage);
 
+    // Collect all source nodes connected to the destination
+    Vector<GC::Ref<AudioNode>> collect_connected_source_nodes();
+
+    // Mark that the audio graph has changed and needs re-scanning
+    virtual void invalidate_source_node_cache() { }
+
 protected:
     explicit BaseAudioContext(JS::Realm&, float m_sample_rate = 0);
 
@@ -96,6 +102,8 @@ protected:
 
     virtual void initialize(JS::Realm&) override;
     virtual void visit_edges(Cell::Visitor&) override;
+
+    ControlMessageQueue& control_message_queue() { return *m_control_message_queue; }
 
     GC::Ptr<AudioDestinationNode> m_destination;
     Vector<GC::Ref<WebIDL::Promise>> m_pending_promises;

@@ -6,8 +6,12 @@
 
 #pragma once
 
+#include <AK/Vector.h>
+#include <LibMedia/Audio/PlaybackStream.h>
+#include <LibThreading/Thread.h>
 #include <LibWeb/Bindings/AudioContextPrototype.h>
 #include <LibWeb/HighResolutionTime/DOMHighResTimeStamp.h>
+#include <LibWeb/WebAudio/AudioNode.h>
 #include <LibWeb/WebAudio/BaseAudioContext.h>
 #include <LibWeb/WebAudio/MediaElementAudioSourceNode.h>
 
@@ -42,6 +46,8 @@ public:
 
     WebIDL::ExceptionOr<GC::Ref<MediaElementAudioSourceNode>> create_media_element_source(GC::Ptr<HTML::HTMLMediaElement>);
 
+    void invalidate_source_node_cache() override;
+
 private:
     explicit AudioContext(JS::Realm& realm)
         : BaseAudioContext(realm)
@@ -57,8 +63,32 @@ private:
     bool m_allowed_to_start = true;
     Vector<GC::Ref<WebIDL::Promise>> m_pending_resume_promises;
     bool m_suspended_by_user = false;
+    bool m_sample_rate_explicitly_set = false;
 
     bool start_rendering_audio_graph();
+
+    // Rendering thread
+    RefPtr<Threading::Thread> m_rendering_thread;
+    void rendering_thread_loop();
+    void start_rendering_thread();
+
+    // Audio output
+    RefPtr<Audio::PlaybackStream> m_playback_stream;
+    Vector<float> m_render_buffer; // Pre-allocated render buffer
+    double m_playback_time { 0.0 };
+
+    // Cached source nodes for rendering (set when rendering starts)
+    struct SourceNodeInfo {
+        // Store raw pointers for audio thread access
+        // These are valid as long as the source nodes are connected
+        AudioNode* node { nullptr };
+    };
+    Vector<SourceNodeInfo> m_cached_source_nodes;
+    bool m_sources_cached { false };
+
+    ReadonlySpan<float> render_audio_callback(Span<float> buffer);
+    void cache_source_nodes();
+    void process_control_messages();
 };
 
 }

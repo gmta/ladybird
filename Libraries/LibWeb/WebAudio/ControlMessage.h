@@ -6,25 +6,28 @@
 
 #pragma once
 
+#include <AK/Math.h>
 #include <AK/Variant.h>
 
 namespace Web::WebAudio {
 
-using SourceId = u64;
+class AudioNode;
 
 struct StartSource {
-    SourceId id { 0 }; // FIXME: stable per-source id for render-thread routing
-    double when { 0.0 };
+    AudioNode* node { nullptr };
+    float when { 0.0f };
+    float offset { 0.0f };
+    float duration { AK::Infinity<float> };
 };
 
 struct StopSource {
-    SourceId id { 0 }; // FIXME: stable per-source id for render-thread routing
-    double when { 0.0 };
+    AudioNode* node { nullptr };
+    float when { 0.0f };
 };
 
-// FIXME: add more event types
+struct StartRendering { };
 
 // https://webaudio.github.io/web-audio-api/#control-message
-using ControlMessage = Variant<StartSource, StopSource>;
+using ControlMessage = Variant<StartSource, StopSource, StartRendering>;
 
 }

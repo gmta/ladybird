@@ -4,12 +4,16 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/Math.h>
+#include <LibJS/Runtime/TypedArray.h>
 #include <LibWeb/Bindings/AudioScheduledSourceNodePrototype.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/WebAudio/AudioBuffer.h>
 #include <LibWeb/WebAudio/AudioBufferSourceNode.h>
 #include <LibWeb/WebAudio/AudioParam.h>
 #include <LibWeb/WebAudio/AudioScheduledSourceNode.h>
+#include <LibWeb/WebAudio/BaseAudioContext.h>
+#include <LibWeb/WebAudio/ControlMessage.h>
 
 namespace Web::WebAudio {
 
@@ -130,11 +134,20 @@ WebIDL::ExceptionOr<void> AudioBufferSourceNode::start(Optional<double> when, Op
     // 3. Set the internal slot [[source started]] on this AudioBufferSourceNode to true.
     set_source_started(true);
 
-    // FIXME: 4. Queue a control message to start the AudioBufferSourceNode, including the parameter values in the message.
+    // 4. Queue a control message to start the AudioBufferSourceNode, including the parameter values in the message.
+    context()->queue_control_message(StartSource {
+        .node = this,
+        .when = static_cast<float>(when.value_or(0)),
+        .offset = static_cast<float>(offset.value_or(0)),
+        .duration = duration.has_value() ? static_cast<float>(duration.value()) : AK::Infinity<float>,
+    });
+
+    // AD-HOC: Invalidate the source node cache so the rendering thread picks up this new source
+    context()->invalidate_source_node_cache();
+
     // FIXME: 5. Acquire the contents of the buffer if the buffer has been set.
     // FIXME: 6. Send a control message to the associated AudioContext to start running its rendering thread only when all the following conditions are met:
 
-    dbgln("FIXME: Implement AudioBufferSourceNode::start(when, offset, duration)");
     return {};
 }
 
@@ -176,6 +189,94 @@ void AudioBufferSourceNode::visit_edges(Cell::Visitor& visitor)
     visitor.visit(m_buffer);
     visitor.visit(m_playback_rate);
     visitor.visit(m_detune);
+}
+
+// https://webaudio.github.io/web-audio-api/#playback-AudioBufferSourceNode
+void AudioBufferSourceNode::handle_start(float when, float offset, float duration)
+{
+    set_start_time(when);
+    m_offset = offset;
+    m_duration = duration;
+
+    // Initialize playback position based on offset
+    if (m_buffer)
+        m_playback_position = m_offset * m_buffer->sample_rate();
+}
+
+// https://webaudio.github.io/web-audio-api/#audiobuffersourcenode-rendering
+void AudioBufferSourceNode::process(Span<float> output_buffer, double sample_rate, size_t frames_to_process)
+{
+    // Don't process if we haven't started yet
+    if (!source_started())
+        return;
+
+    // Don't process if we've been stopped
+    // FIXME: Properly handle scheduled stop times using currentTime
+    if (stop_time().has_value())
+        return;
+
+    // Don't process if there's no buffer
+    if (!m_buffer)
+        return;
+
+    // Get playback rate and detune values
+    float playback_rate = m_playback_rate->value();
+    float detune = m_detune->value();
+
+    // Apply detune: computedPlaybackRate = playbackRate * pow(2, detune / 1200)
+    float computed_rate = playback_rate * AK::pow(2.0f, detune / 1200.0f);
+
+    // Get buffer properties
+    auto buffer_length = m_buffer->length();
+    auto buffer_sample_rate = m_buffer->sample_rate();
+
+    // Calculate actual playback rate accounting for sample rate differences
+    float rate_ratio = buffer_sample_rate / static_cast<float>(sample_rate);
+    float effective_rate = computed_rate * rate_ratio;
+
+    // Get channel data (use first channel for mono output)
+    auto channel_data_result = m_buffer->get_channel_data(0);
+    if (channel_data_result.is_error())
+        return;
+    auto channel_data = channel_data_result.value();
+    auto buffer_data = channel_data->data();
+
+    // Calculate end position based on duration
+    float end_position = (m_duration < AK::Infinity<float>)
+        ? (m_offset * buffer_sample_rate + m_duration * buffer_sample_rate)
+        : static_cast<float>(buffer_length);
+
+    for (size_t i = 0; i < frames_to_process; ++i) {
+        // Check if we've reached the end
+        if (m_playback_position >= end_position) {
+            if (m_loop) {
+                // Handle looping
+                float loop_start_sample = static_cast<float>(m_loop_start) * buffer_sample_rate;
+                float loop_end_sample = (m_loop_end > 0) ? static_cast<float>(m_loop_end) * buffer_sample_rate : static_cast<float>(buffer_length);
+                m_playback_position = loop_start_sample + AK::fmod(m_playback_position - loop_start_sample, loop_end_sample - loop_start_sample);
+            } else {
+                // Stop playback
+                return;
+            }
+        }
+
+        // Linear interpolation for fractional sample positions
+        size_t sample_index = static_cast<size_t>(m_playback_position);
+        if (sample_index >= buffer_length)
+            return;
+
+        float fraction = m_playback_position - static_cast<float>(sample_index);
+        float sample = buffer_data[sample_index];
+
+        // Interpolate with next sample if available
+        if (sample_index + 1 < buffer_length)
+            sample += fraction * (buffer_data[sample_index + 1] - sample);
+
+        output_buffer[i] += sample;
+
+        // Advance playback position
+        m_playback_position += effective_rate;
+    }
 }
 
 }

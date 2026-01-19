@@ -86,6 +86,17 @@ public:
 
     WebIDL::ExceptionOr<void> initialize_audio_node_options(AudioNodeOptions const& given_options, AudioNodeDefaultOptions const& default_options);
 
+    // Audio processing interface
+    virtual void process(Span<float> output_buffer, double sample_rate, size_t frames_to_process)
+    {
+        (void)output_buffer;
+        (void)sample_rate;
+        (void)frames_to_process;
+    }
+    virtual bool is_source_node() const { return false; }
+
+    Vector<AudioNodeConnection> const& input_connections() const { return m_input_connections; }
+
 protected:
     AudioNode(JS::Realm&, GC::Ref<BaseAudioContext>, WebIDL::UnsignedLong channel_count = 2);
 

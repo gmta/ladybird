@@ -12,8 +12,12 @@
 #include <LibWeb/HTML/MessagePort.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
 #include <LibWeb/HTML/Window.h>
+#include <LibWeb/WebAudio/AudioBufferSourceNode.h>
 #include <LibWeb/WebAudio/AudioContext.h>
 #include <LibWeb/WebAudio/AudioDestinationNode.h>
+#include <LibWeb/WebAudio/AudioScheduledSourceNode.h>
+#include <LibWeb/WebAudio/ControlMessage.h>
+#include <LibWeb/WebAudio/ControlMessageQueue.h>
 #include <LibWeb/WebIDL/Promise.h>
 
 namespace Web::WebAudio {
@@ -76,31 +80,19 @@ WebIDL::ExceptionOr<GC::Ref<AudioContext>> AudioContext::construct_impl(JS::Real
         // 3: If contextOptions.sampleRate is specified, set the sampleRate of context to this value.
         if (context_options->sample_rate.has_value()) {
             context->set_sample_rate(context_options->sample_rate.value());
+            context->m_sample_rate_explicitly_set = true;
         }
-        // Otherwise, follow these substeps:
-        else {
-            // FIXME: 1. If sinkId is the empty string or a type of AudioSinkOptions, use the sample rate of the default output device. Abort these substeps.
-            // FIXME: 2. If sinkId is a DOMString, use the sample rate of the output device identified by sinkId. Abort these substeps.
-            // If contextOptions.sampleRate differs from the sample rate of the output device, the user agent MUST resample the audio output to match the sample rate of the output device.
-            context->set_sample_rate(44100);
-        }
+        // Otherwise, we'll use the sample rate of the default output device once it's known.
     }
 
-    // FIXME: 11. If context is allowed to start, send a control message to start processing.
-    // FIXME: Implement control message queue to run following steps on the rendering thread
+    // 11. If context is allowed to start, send a control message to start processing.
     if (context->m_allowed_to_start) {
-        // FIXME: 1. Let document be the current settings object's relevant global object's associated Document.
-        // FIXME: 2. Attempt to acquire system resources to use a following audio output device based on [[sink ID]] for rendering
-
-        // 2. Set this [[rendering thread state]] to running on the AudioContext.
+        // Handle StartRendering synchronously since it requires main-thread operations
+        // (TaskQueue::add is not thread-safe, so we can't post from the rendering thread)
+        context->start_rendering_audio_graph();
         context->set_rendering_state(Bindings::AudioContextState::Running);
-
-        // 3. Queue a media element task to execute the following steps:
         context->queue_a_media_element_task(GC::create_function(context->heap(), [context]() {
-            // 1. Set the state attribute of the AudioContext to "running".
             context->set_control_state(Bindings::AudioContextState::Running);
-
-            // 2. Fire an event named statechange at the AudioContext.
             context->dispatch_event(DOM::Event::create(context->realm(), HTML::EventNames::statechange));
         }));
     }
@@ -109,12 +101,20 @@ WebIDL::ExceptionOr<GC::Ref<AudioContext>> AudioContext::construct_impl(JS::Real
     return context;
 }
 
-AudioContext::~AudioContext() = default;
+AudioContext::~AudioContext()
+{
+    // Signal the rendering thread to exit and wait for it
+    if (m_rendering_thread) {
+        control_message_queue().signal_exit();
+        (void)m_rendering_thread->join();
+    }
+}
 
 void AudioContext::initialize(JS::Realm& realm)
 {
     WEB_SET_PROTOTYPE_FOR_INTERFACE(AudioContext);
     Base::initialize(realm);
+    start_rendering_thread();
 }
 
 void AudioContext::visit_edges(Cell::Visitor& visitor)
@@ -336,11 +336,140 @@ WebIDL::ExceptionOr<GC::Ref<WebIDL::Promise>> AudioContext::close()
     return promise;
 }
 
-// FIXME: Actually implement the rendering thread
+void AudioContext::process_control_messages()
+{
+    auto messages = control_message_queue().drain();
+    for (auto& message : messages) {
+        message.visit(
+            [](StartRendering const&) {
+                // StartRendering is handled synchronously in construct_impl
+                // because TaskQueue::add is not thread-safe
+            },
+            [](StartSource const& start) {
+                if (!start.node)
+                    return;
+                // AudioBufferSourceNode has additional parameters (offset, duration)
+                if (auto* buffer_source = as_if<AudioBufferSourceNode>(start.node)) {
+                    buffer_source->handle_start(start.when, start.offset, start.duration);
+                } else if (auto* scheduled_source = as_if<AudioScheduledSourceNode>(start.node)) {
+                    scheduled_source->set_start_time(start.when);
+                }
+            },
+            [](StopSource const& stop) {
+                if (!stop.node)
+                    return;
+                if (auto* scheduled_source = as_if<AudioScheduledSourceNode>(stop.node))
+                    scheduled_source->set_stop_time(stop.when);
+            });
+    }
+}
+
+void AudioContext::start_rendering_thread()
+{
+    m_rendering_thread = Threading::Thread::construct([this]() {
+        rendering_thread_loop();
+        return static_cast<intptr_t>(0);
+    },
+        "WebAudio Rendering"sv);
+    m_rendering_thread->start();
+}
+
+void AudioContext::rendering_thread_loop()
+{
+    while (true) {
+        // Wait for control messages to arrive
+        if (!control_message_queue().wait_for_messages())
+            break; // Exit signaled
+
+        // Process all pending control messages
+        process_control_messages();
+    }
+}
+
+void AudioContext::invalidate_source_node_cache()
+{
+    m_sources_cached = false;
+}
+
+void AudioContext::cache_source_nodes()
+{
+    if (m_sources_cached)
+        return;
+
+    auto source_nodes = collect_connected_source_nodes();
+    m_cached_source_nodes.clear_with_capacity();
+    m_cached_source_nodes.ensure_capacity(source_nodes.size());
+    for (auto& node : source_nodes)
+        m_cached_source_nodes.unchecked_append({ .node = node.ptr() });
+    m_sources_cached = true;
+}
+
+ReadonlySpan<float> AudioContext::render_audio_callback(Span<float> buffer)
+{
+    // Process any pending control messages at the start of each render quantum
+    process_control_messages();
+
+    // Refresh source node cache if invalidated
+    cache_source_nodes();
+
+    // This is called from the audio thread - avoid allocations!
+    size_t num_channels = 2; // Assume stereo output
+    size_t frames = buffer.size() / num_channels;
+
+    // Ensure render buffer is large enough for mono rendering
+    if (m_render_buffer.size() < frames)
+        m_render_buffer.resize(frames);
+
+    // Zero the mono render buffer
+    m_render_buffer.span().slice(0, frames).fill(0.0f);
+
+    // Process each cached source node
+    for (auto& info : m_cached_source_nodes) {
+        if (info.node)
+            info.node->process(m_render_buffer.span().slice(0, frames), static_cast<double>(sample_rate()), frames);
+    }
+
+    // Convert mono to stereo interleaved
+    for (size_t i = 0; i < frames; ++i) {
+        buffer[i * 2] = m_render_buffer[i];     // Left
+        buffer[i * 2 + 1] = m_render_buffer[i]; // Right
+    }
+
+    // Update playback time
+    m_playback_time += static_cast<double>(frames) / sample_rate();
+
+    return buffer;
+}
+
 bool AudioContext::start_rendering_audio_graph()
 {
-    bool render_result = true;
-    return render_result;
+    // Pre-allocate render buffer
+    m_render_buffer.resize(render_quantum_size() * 2);
+
+    auto stream_result = Audio::PlaybackStream::create(
+        Audio::OutputState::Playing,
+        10, // target latency in ms
+        [this](Audio::SampleSpecification spec) {
+            // Called when sample specification is determined
+            if (!m_sample_rate_explicitly_set) {
+                // Use the output device's sample rate
+                set_sample_rate(spec.sample_rate());
+            } else if (spec.sample_rate() != static_cast<u32>(sample_rate())) {
+                // FIXME: Resample audio to match output device sample rate
+                dbgln("WebAudio: Sample rate mismatch - context: {}, output: {} (resampling not implemented)", sample_rate(), spec.sample_rate());
+            }
+        },
+        [this](Span<float> buffer) -> ReadonlySpan<float> {
+            return render_audio_callback(buffer);
+        });
+
+    if (stream_result.is_error()) {
+        dbgln("WebAudio: Failed to create PlaybackStream: {}", stream_result.error());
+        return false;
+    }
+
+    m_playback_stream = stream_result.release_value();
+    return true;
 }
 
 // https://webaudio.github.io/web-audio-api/#dom-audiocontext-createmediaelementsource

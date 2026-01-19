@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/Math.h>
 #include <LibWeb/Bindings/OscillatorNodePrototype.h>
 #include <LibWeb/WebAudio/AudioScheduledSourceNode.h>
 
@@ -41,6 +42,10 @@ public:
     WebIDL::UnsignedLong number_of_inputs() override { return 0; }
     WebIDL::UnsignedLong number_of_outputs() override { return 1; }
 
+    // Audio processing
+    void process(Span<float> output_buffer, double sample_rate, size_t frames_to_process) override;
+    bool is_source_node() const override { return true; }
+
 protected:
     OscillatorNode(JS::Realm&, GC::Ref<BaseAudioContext>, OscillatorOptions const& = {});
 
@@ -58,6 +63,9 @@ private:
     GC::Ref<AudioParam> m_detune;
 
     GC::Ptr<PeriodicWave> m_periodic_wave;
+
+    // Phase accumulator for waveform generation
+    float m_phase { 0.0f };
 };
 
 }

@@ -16,6 +16,7 @@
 #include <LibWeb/WebAudio/AudioBuffer.h>
 #include <LibWeb/WebAudio/AudioBufferSourceNode.h>
 #include <LibWeb/WebAudio/AudioDestinationNode.h>
+#include <LibWeb/WebAudio/AudioNode.h>
 #include <LibWeb/WebAudio/BaseAudioContext.h>
 #include <LibWeb/WebAudio/BiquadFilterNode.h>
 #include <LibWeb/WebAudio/ChannelMergerNode.h>
@@ -222,6 +223,43 @@ void BaseAudioContext::queue_control_message(ControlMessage message)
 {
     m_control_message_queue->enqueue(move(message));
     // FIXME: Should signal the rendering thread when implemented
+}
+
+// Walk the audio graph backwards from the destination to collect all connected source nodes
+Vector<GC::Ref<AudioNode>> BaseAudioContext::collect_connected_source_nodes()
+{
+    Vector<GC::Ref<AudioNode>> source_nodes;
+    Vector<GC::Ref<AudioNode>> nodes_to_visit;
+
+    // Start from the destination node
+    nodes_to_visit.append(*m_destination);
+
+    while (!nodes_to_visit.is_empty()) {
+        auto node = nodes_to_visit.take_last();
+
+        // Check each input connection
+        for (auto const& connection : node->input_connections()) {
+            auto& source_node = connection.destination_node;
+
+            if (source_node->is_source_node()) {
+                // Check if we already have this source node
+                bool already_added = false;
+                for (auto const& existing : source_nodes) {
+                    if (existing.ptr() == source_node.ptr()) {
+                        already_added = true;
+                        break;
+                    }
+                }
+                if (!already_added)
+                    source_nodes.append(source_node);
+            } else {
+                // Continue traversing through this node
+                nodes_to_visit.append(source_node);
+            }
+        }
+    }
+
+    return source_nodes;
 }
 
 // https://webaudio.github.io/web-audio-api/#dom-baseaudiocontext-decodeaudiodata

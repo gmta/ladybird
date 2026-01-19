@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/Math.h>
 #include <LibWeb/Bindings/AudioBufferSourceNodePrototype.h>
 #include <LibWeb/WebAudio/AudioBuffer.h>
 #include <LibWeb/WebAudio/AudioParam.h>
@@ -49,6 +50,14 @@ public:
     static WebIDL::ExceptionOr<GC::Ref<AudioBufferSourceNode>> create(JS::Realm&, GC::Ref<BaseAudioContext>, AudioBufferSourceOptions const& = {});
     static WebIDL::ExceptionOr<GC::Ref<AudioBufferSourceNode>> construct_impl(JS::Realm&, GC::Ref<BaseAudioContext>, AudioBufferSourceOptions const& = {});
 
+    // Audio processing
+    void process(Span<float> output_buffer, double sample_rate, size_t frames_to_process) override;
+    bool is_source_node() const override { return true; }
+
+    // https://webaudio.github.io/web-audio-api/#playback-AudioBufferSourceNode
+    // Called when the StartSource control message is processed
+    void handle_start(float when, float offset, float duration);
+
 protected:
     AudioBufferSourceNode(JS::Realm&, GC::Ref<BaseAudioContext>, AudioBufferSourceOptions const& = {});
 
@@ -64,6 +73,11 @@ private:
     bool m_buffer_set { false };
     double m_loop_start { 0.0 };
     double m_loop_end { 0.0 };
+
+    // Buffer-specific playback state (offset/duration are AudioBufferSourceNode-specific)
+    float m_offset { 0.0f };                  // Start offset in seconds
+    float m_duration { AK::Infinity<float> }; // Duration to play
+    float m_playback_position { 0.0f };       // Current position in buffer (in samples)
 };
 
 }

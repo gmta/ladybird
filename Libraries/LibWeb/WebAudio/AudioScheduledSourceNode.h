@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/Optional.h>
 #include <LibWeb/WebAudio/AudioNode.h>
 
 namespace Web::WebAudio {
@@ -24,6 +25,12 @@ public:
     WebIDL::ExceptionOr<void> start(double when = 0);
     WebIDL::ExceptionOr<void> stop(double when = 0);
 
+    // Timing accessors (used by control message processing and subclass process())
+    float start_time() const { return m_start_time; }
+    void set_start_time(float time) { m_start_time = time; }
+    Optional<float> stop_time() const { return m_stop_time; }
+    void set_stop_time(float time) { m_stop_time = time; }
+
 protected:
     AudioScheduledSourceNode(JS::Realm&, GC::Ref<BaseAudioContext>);
 
@@ -36,6 +43,10 @@ protected:
 private:
     // https://webaudio.github.io/web-audio-api/#dom-audioscheduledsourcenode-source-started-slot
     bool m_source_started { false };
+
+    // Playback timing (common to all scheduled source nodes)
+    float m_start_time { 0.0f };
+    Optional<float> m_stop_time;
 };
 
 }
