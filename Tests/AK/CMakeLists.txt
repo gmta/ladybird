@@ -44,6 +44,7 @@ set(AK_TEST_SOURCES
     TestIntrusiveRedBlackTree.cpp
     TestJSON.cpp
     TestLEB128.cpp
+    TestLRUCache.cpp
     TestMemory.cpp
     TestMemoryStream.cpp
     TestNeverDestroyed.cpp
@@ -114,6 +115,9 @@ endif()
 
 target_link_libraries(TestString PRIVATE LibUnicode)
 target_link_libraries(TestUtf16String PRIVATE LibUnicode)
+
+add_executable(BenchmarkLRUCache BenchmarkLRUCache.cpp)
+target_link_libraries(BenchmarkLRUCache PRIVATE AK LibCore LibMain)
 
 if (ENABLE_SWIFT)
 

@@ -143,17 +143,29 @@ SkFont Font::skia_font(float scale) const
     return sk_font;
 }
 
-Font::ShapingCache::~ShapingCache()
+Font::HBBufferHandle::~HBBufferHandle()
 {
-    clear();
+    if (handle)
+        hb_buffer_destroy(handle);
 }
 
-void Font::ShapingCache::clear()
+Font::HBBufferHandle::HBBufferHandle(HBBufferHandle&& other)
+    : handle(exchange(other.handle, nullptr))
 {
-    for (auto& it : map) {
-        hb_buffer_destroy(it.value);
+}
+
+Font::HBBufferHandle& Font::HBBufferHandle::operator=(HBBufferHandle&& other)
+{
+    if (this != &other) {
+        if (handle)
+            hb_buffer_destroy(handle);
+        handle = exchange(other.handle, nullptr);
     }
-    map.clear();
+    return *this;
+}
+
+Font::ShapingCache::~ShapingCache()
+{
     for (auto& buffer : single_ascii_character_map) {
         if (buffer) {
             hb_buffer_destroy(buffer);

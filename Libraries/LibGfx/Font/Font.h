@@ -10,6 +10,7 @@
 #pragma once
 
 #include <AK/FlyString.h>
+#include <AK/LRUCache.h>
 #include <AK/Utf16String.h>
 #include <LibGfx/Font/Font.h>
 #include <LibGfx/Font/Typeface.h>
@@ -84,12 +85,27 @@ public:
     hb_font_t* harfbuzz_font() const;
     ShapeFeatures const& features() const { return m_shape_features; }
 
+    struct HBBufferHandle {
+        hb_buffer_t* handle { nullptr };
+
+        HBBufferHandle() = default;
+        explicit HBBufferHandle(hb_buffer_t* p)
+            : handle(p)
+        {
+        }
+        ~HBBufferHandle();
+
+        HBBufferHandle(HBBufferHandle&&);
+        HBBufferHandle& operator=(HBBufferHandle&&);
+        HBBufferHandle(HBBufferHandle const&) = delete;
+        HBBufferHandle& operator=(HBBufferHandle const&) = delete;
+    };
+
     struct ShapingCache {
-        HashMap<Utf16String, hb_buffer_t*> map;
+        LRUCache<Utf16String, HBBufferHandle> cache { 1024 };
         hb_buffer_t* single_ascii_character_map[128] { nullptr };
 
         ~ShapingCache();
-        void clear();
     };
     ShapingCache& shaping_cache() const { return m_shaping_cache; }
 
