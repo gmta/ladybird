@@ -113,7 +113,10 @@ void DisplayListPlayer::execute_impl(DisplayList& display_list, ScrollStateSnaps
                 Optional<Gfx::Filter> gfx_filter;
                 if (effects.filter.has_filters())
                     gfx_filter = to_gfx_filter(effects.filter, device_pixels_per_css_pixel);
-                apply_effects({ .opacity = effects.opacity, .compositing_and_blending_operator = effects.blend_mode, .filter = gfx_filter });
+                Optional<Gfx::IntRect> layer_bounds;
+                if (effects.filter.has_filters() && !effects.filter.has_svg_filters())
+                    layer_bounds = device_pixel_converter.rounded_device_rect(effects.bounds).to_type<int>();
+                apply_effects({ .opacity = effects.opacity, .compositing_and_blending_operator = effects.blend_mode, .filter = gfx_filter, .layer_bounds = layer_bounds });
             },
             [&](PerspectiveData const& perspective) {
                 save({});

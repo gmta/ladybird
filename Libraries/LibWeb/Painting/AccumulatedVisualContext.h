@@ -66,6 +66,7 @@ struct EffectsData {
     float opacity { 1.0f };
     Gfx::CompositingAndBlendingOperator blend_mode { Gfx::CompositingAndBlendingOperator::Normal };
     ResolvedCSSFilter filter;
+    CSSPixelRect bounds;
 
     bool needs_layer() const
     {

@@ -1,0 +1,9 @@
+AccumulatedVisualContext Tree:
+  [1] scroll_frame_id=0 (PaintableWithLines(BlockContainer<PRE>#out))
+    [2] effects=[filters=(drop-shadow(2 2 1 rgb(0, 0, 0))) bounds=[0,0 50x50]] (PaintableWithLines(BlockContainer<DIV>.drop-shadow))
+
+DisplayList:
+SaveLayer@0
+  FillRect@2 rect=[0,0 50x50] color=rgb(0, 128, 0)
+Restore@0
+

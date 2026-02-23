@@ -192,6 +192,11 @@ void AccumulatedVisualContext::dump(StringBuilder& builder) const
                 effects.filter.dump(builder);
                 has_content = true;
             }
+            if (!effects.bounds.is_empty()) {
+                if (has_content)
+                    builder.append(' ');
+                builder.appendff("bounds=[{},{} {}x{}]", effects.bounds.x().to_float(), effects.bounds.y().to_float(), effects.bounds.width().to_float(), effects.bounds.height().to_float());
+            }
             builder.append("]"sv);
         });
 }

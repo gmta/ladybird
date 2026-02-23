@@ -372,6 +372,7 @@ struct ApplyEffects {
     float opacity { 1.0f };
     Gfx::CompositingAndBlendingOperator compositing_and_blending_operator { Gfx::CompositingAndBlendingOperator::Normal };
     Optional<Gfx::Filter> filter {};
+    Optional<Gfx::IntRect> layer_bounds {};
 
     void dump(StringBuilder&) const;
 };

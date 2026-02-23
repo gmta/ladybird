@@ -870,7 +870,12 @@ void DisplayListPlayerSkia::apply_effects(ApplyEffects const& command)
     if (command.filter.has_value())
         paint.setImageFilter(to_skia_image_filter(command.filter.value()));
 
-    canvas.saveLayer(nullptr, &paint);
+    if (command.layer_bounds.has_value()) {
+        auto skia_bounds = to_skia_rect(command.layer_bounds.value());
+        canvas.saveLayer(&skia_bounds, &paint);
+    } else {
+        canvas.saveLayer(nullptr, &paint);
+    }
 }
 
 void DisplayListPlayerSkia::apply_transform(Gfx::FloatPoint origin, Gfx::FloatMatrix4x4 const& matrix)

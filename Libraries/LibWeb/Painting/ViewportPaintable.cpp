@@ -292,7 +292,8 @@ void ViewportPaintable::assign_accumulated_visual_contexts()
         EffectsData effects {
             computed_values.opacity(),
             mix_blend_mode_to_compositing_and_blending_operator(computed_values.mix_blend_mode()),
-            box.filter()
+            box.filter(),
+            box.absolute_border_box_rect(),
         };
         if (!effects.needs_layer())
             return {};
