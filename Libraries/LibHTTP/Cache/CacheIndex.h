@@ -25,6 +25,8 @@ class CacheIndex {
 
         String url;
         NonnullRefPtr<HeaderList> request_headers;
+        u32 status_code { 0 };
+        Optional<String> reason_phrase;
         NonnullRefPtr<HeaderList> response_headers;
         u64 data_size { 0 };
 
@@ -36,7 +38,7 @@ class CacheIndex {
 public:
     static ErrorOr<CacheIndex> create(Database::Database&, LexicalPath const& cache_directory);
 
-    ErrorOr<void> create_entry(u64 cache_key, u64 vary_key, String url, NonnullRefPtr<HeaderList> request_headers, NonnullRefPtr<HeaderList> response_headers, u64 data_size, UnixDateTime request_time, UnixDateTime response_time);
+    ErrorOr<void> create_entry(u64 cache_key, u64 vary_key, String url, NonnullRefPtr<HeaderList> request_headers, u32 status_code, Optional<String> reason_phrase, NonnullRefPtr<HeaderList> response_headers, u64 data_size, UnixDateTime request_time, UnixDateTime response_time);
     void remove_entry(u64 cache_key, u64 vary_key);
     void remove_entries_exceeding_cache_limit(Function<void(u64 cache_key, u64 vary_key)> on_entry_removed);
     void remove_entries_accessed_since(UnixDateTime, Function<void(u64 cache_key, u64 vary_key)> on_entry_removed);

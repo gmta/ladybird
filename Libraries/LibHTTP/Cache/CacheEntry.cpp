@@ -123,6 +123,7 @@ ErrorOr<void> CacheEntryWriter::write_status_and_reason(u32 status_code, Optiona
 
     m_response_time = UnixDateTime::now() + m_current_time_offset_for_testing;
     m_cache_header.status_code = status_code;
+    m_reason_phrase = reason_phrase;
 
     if (reason_phrase.has_value()) {
         m_cache_header.reason_phrase_size = reason_phrase->byte_count();
@@ -203,7 +204,7 @@ ErrorOr<void> CacheEntryWriter::flush(NonnullRefPtr<HeaderList> request_headers,
         return result.release_error();
     }
 
-    if (auto result = m_index.create_entry(m_cache_key, m_vary_key, m_url, move(request_headers), move(response_headers), m_cache_footer.data_size, m_request_time, m_response_time); result.is_error()) {
+    if (auto result = m_index.create_entry(m_cache_key, m_vary_key, m_url, move(request_headers), m_cache_header.status_code, m_reason_phrase, move(response_headers), m_cache_footer.data_size, m_request_time, m_response_time); result.is_error()) {
         dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[31;1mUnable to flush cache entry for\033[0m {} ({} bytes): {}", m_url, m_cache_footer.data_size, result.error());
         remove();
 
@@ -222,63 +223,43 @@ void CacheEntryWriter::remove_incomplete_entry()
     close_and_destroy_cache_entry();
 }
 
-ErrorOr<NonnullOwnPtr<CacheEntryReader>> CacheEntryReader::create(DiskCache& disk_cache, CacheIndex& index, u64 cache_key, u64 vary_key, NonnullRefPtr<HeaderList> response_headers, u64 data_size)
+NonnullOwnPtr<CacheEntryReader> CacheEntryReader::create(DiskCache& disk_cache, CacheIndex& index, u64 cache_key, u64 vary_key, String url, u32 status_code, Optional<String> reason_phrase, NonnullRefPtr<HeaderList> response_headers, u64 data_size)
 {
-    auto path = path_for_cache_entry(disk_cache.cache_directory(), cache_key, vary_key);
-
-    auto file = TRY(Core::File::open(path.string(), Core::File::OpenMode::Read));
-    auto fd = file->fd();
-
-    CacheHeader cache_header;
-    size_t cache_header_size { 0 };
-
-    String url;
-    Optional<String> reason_phrase;
-
-    auto result = [&]() -> ErrorOr<void> {
-        cache_header = TRY(file->read_value<CacheHeader>());
-        cache_header_size = TRY(file->tell());
-
-        if (cache_header.magic != CacheHeader::CACHE_MAGIC)
-            return Error::from_string_literal("Magic value mismatch");
-        if (cache_header.version != CACHE_VERSION)
-            return Error::from_string_literal("Version mismatch");
-
-        if (cache_header.key_hash != u64_hash(cache_key))
-            return Error::from_string_literal("Key hash mismatch");
-
-        url = TRY(String::from_stream(*file, cache_header.url_size));
-        if (url.hash() != cache_header.url_hash)
-            return Error::from_string_literal("URL hash mismatch");
-
-        if (cache_header.reason_phrase_size != 0) {
-            reason_phrase = TRY(String::from_stream(*file, cache_header.reason_phrase_size));
-            if (reason_phrase->hash() != cache_header.reason_phrase_hash)
-                return Error::from_string_literal("Reason phrase hash mismatch");
-        }
-
-        return {};
-    }();
-
-    if (result.is_error()) {
-        (void)FileSystem::remove(path.string(), FileSystem::RecursionMode::Disallowed);
-        return result.release_error();
-    }
-
-    auto data_offset = cache_header_size + cache_header.url_size + cache_header.reason_phrase_size;
-
-    return adopt_own(*new CacheEntryReader { disk_cache, index, cache_key, vary_key, move(url), move(path), move(file), fd, cache_header, move(reason_phrase), move(response_headers), data_offset, data_size });
+    return adopt_own(*new CacheEntryReader { disk_cache, index, cache_key, vary_key, move(url), status_code, move(reason_phrase), move(response_headers), data_size });
 }
 
-CacheEntryReader::CacheEntryReader(DiskCache& disk_cache, CacheIndex& index, u64 cache_key, u64 vary_key, String url, LexicalPath path, NonnullOwnPtr<Core::File> file, int fd, CacheHeader cache_header, Optional<String> reason_phrase, NonnullRefPtr<HeaderList> response_headers, u64 data_offset, u64 data_size)
-    : CacheEntry(disk_cache, index, cache_key, vary_key, move(url), move(path), cache_header)
-    , m_file(move(file))
-    , m_fd(fd)
+CacheEntryReader::CacheEntryReader(DiskCache& disk_cache, CacheIndex& index, u64 cache_key, u64 vary_key, String url, u32 status_code, Optional<String> reason_phrase, NonnullRefPtr<HeaderList> response_headers, u64 data_size)
+    : CacheEntry(disk_cache, index, cache_key, vary_key, move(url), path_for_cache_entry(disk_cache.cache_directory(), cache_key, vary_key), {})
+    , m_status_code(status_code)
     , m_reason_phrase(move(reason_phrase))
     , m_response_headers(move(response_headers))
-    , m_data_offset(data_offset)
     , m_data_size(data_size)
 {
+}
+
+ErrorOr<void> CacheEntryReader::open_file()
+{
+    if (m_file)
+        return {};
+
+    auto file = TRY(Core::File::open(m_path->string(), Core::File::OpenMode::Read));
+
+    auto cache_header = TRY(file->read_value<CacheHeader>());
+    auto cache_header_size = TRY(file->tell());
+
+    if (cache_header.magic != CacheHeader::CACHE_MAGIC)
+        return Error::from_string_literal("Magic value mismatch");
+    if (cache_header.version != CACHE_VERSION)
+        return Error::from_string_literal("Version mismatch");
+    if (cache_header.key_hash != u64_hash(m_cache_key))
+        return Error::from_string_literal("Key hash mismatch");
+
+    m_cache_header = cache_header;
+    m_data_offset = cache_header_size + cache_header.url_size + cache_header.reason_phrase_size;
+    m_fd = file->fd();
+    m_file = move(file);
+
+    return {};
 }
 
 void CacheEntryReader::revalidation_succeeded(HeaderList const& response_headers)
@@ -310,6 +291,11 @@ void CacheEntryReader::send_to(int socket_fd, Function<void(u64)> on_complete, F
 
     if (m_marked_for_deletion) {
         send_error(Error::from_string_literal("Cache entry has been deleted"));
+        return;
+    }
+
+    if (auto result = open_file(); result.is_error()) {
+        send_error(result.release_error());
         return;
     }
 

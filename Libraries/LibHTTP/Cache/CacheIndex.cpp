@@ -86,6 +86,8 @@ ErrorOr<CacheIndex> CacheIndex::create(Database::Database& database, LexicalPath
             vary_key INTEGER,
             url TEXT,
             request_headers BLOB,
+            status_code INTEGER,
+            reason_phrase TEXT,
             response_headers BLOB,
             data_size INTEGER,
             request_time INTEGER,
@@ -97,7 +99,7 @@ ErrorOr<CacheIndex> CacheIndex::create(Database::Database& database, LexicalPath
     database.execute_statement(create_cache_index_table, {});
 
     Statements statements {};
-    statements.insert_entry = TRY(database.prepare_statement("INSERT OR REPLACE INTO CacheIndex VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);"sv));
+    statements.insert_entry = TRY(database.prepare_statement("INSERT OR REPLACE INTO CacheIndex VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"sv));
     statements.remove_entry = TRY(database.prepare_statement("DELETE FROM CacheIndex WHERE cache_key = ? AND vary_key = ?;"sv));
     statements.remove_entries_accessed_since = TRY(database.prepare_statement("DELETE FROM CacheIndex WHERE last_access_time >= ? RETURNING cache_key, vary_key;"sv));
     statements.select_entries = TRY(database.prepare_statement("SELECT * FROM CacheIndex WHERE cache_key = ?;"sv));
@@ -148,7 +150,7 @@ CacheIndex::CacheIndex(Database::Database& database, Statements statements, Limi
 {
 }
 
-ErrorOr<void> CacheIndex::create_entry(u64 cache_key, u64 vary_key, String url, NonnullRefPtr<HeaderList> request_headers, NonnullRefPtr<HeaderList> response_headers, u64 data_size, UnixDateTime request_time, UnixDateTime response_time)
+ErrorOr<void> CacheIndex::create_entry(u64 cache_key, u64 vary_key, String url, NonnullRefPtr<HeaderList> request_headers, u32 status_code, Optional<String> reason_phrase, NonnullRefPtr<HeaderList> response_headers, u64 data_size, UnixDateTime request_time, UnixDateTime response_time)
 {
     auto now = UnixDateTime::now();
 
@@ -167,10 +169,14 @@ ErrorOr<void> CacheIndex::create_entry(u64 cache_key, u64 vary_key, String url, 
     if (data_size + serialized_request_headers.length() + serialized_response_headers.length() > m_limits.maximum_disk_cache_entry_size)
         return Error::from_string_literal("Cache entry size exceeds allowed maximum");
 
+    auto serialized_reason_phrase = reason_phrase.value_or(String {});
+
     Entry entry {
         .vary_key = vary_key,
         .url = move(url),
         .request_headers = move(request_headers),
+        .status_code = status_code,
+        .reason_phrase = move(reason_phrase),
         .response_headers = move(response_headers),
         .data_size = data_size,
         .request_time = request_time,
@@ -178,7 +184,7 @@ ErrorOr<void> CacheIndex::create_entry(u64 cache_key, u64 vary_key, String url, 
         .last_access_time = now,
     };
 
-    m_database->execute_statement(m_statements.insert_entry, {}, cache_key, vary_key, entry.url, serialized_request_headers, serialized_response_headers, entry.data_size, entry.request_time, entry.response_time, entry.last_access_time);
+    m_database->execute_statement(m_statements.insert_entry, {}, cache_key, vary_key, entry.url, serialized_request_headers, entry.status_code, serialized_reason_phrase, serialized_response_headers, entry.data_size, entry.request_time, entry.response_time, entry.last_access_time);
     m_entries.ensure(cache_key).append(move(entry));
 
     return {};
@@ -255,13 +261,19 @@ Optional<CacheIndex::Entry const&> CacheIndex::find_entry(u64 cache_key, HeaderL
                 auto vary_key = m_database->result_column<u64>(statement_id, column++);
                 auto url = m_database->result_column<String>(statement_id, column++);
                 auto request_headers = m_database->result_column<ByteString>(statement_id, column++);
+                auto status_code = m_database->result_column<u32>(statement_id, column++);
+                auto serialized_reason_phrase = m_database->result_column<String>(statement_id, column++);
                 auto response_headers = m_database->result_column<ByteString>(statement_id, column++);
                 auto data_size = m_database->result_column<u64>(statement_id, column++);
                 auto request_time = m_database->result_column<UnixDateTime>(statement_id, column++);
                 auto response_time = m_database->result_column<UnixDateTime>(statement_id, column++);
                 auto last_access_time = m_database->result_column<UnixDateTime>(statement_id, column++);
 
-                entries.empend(vary_key, move(url), deserialize_headers(request_headers), deserialize_headers(response_headers), data_size, request_time, response_time, last_access_time);
+                Optional<String> reason_phrase;
+                if (!serialized_reason_phrase.is_empty())
+                    reason_phrase = move(serialized_reason_phrase);
+
+                entries.empend(vary_key, move(url), deserialize_headers(request_headers), status_code, move(reason_phrase), deserialize_headers(response_headers), data_size, request_time, response_time, last_access_time);
             },
             cache_key);
 

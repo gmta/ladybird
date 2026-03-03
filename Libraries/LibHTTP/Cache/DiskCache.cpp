@@ -116,23 +116,18 @@ Variant<Optional<CacheEntryReader&>, DiskCache::CacheHasOpenEntry> DiskCache::op
         return CacheHasOpenEntry {};
 
     auto index_entry = m_index.find_entry(cache_key, request_headers);
+
     if (!index_entry.has_value()) {
         dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[35;1mNo cache entry for\033[0m {}", url);
         return Optional<CacheEntryReader&> {};
     }
 
-    auto cache_entry = CacheEntryReader::create(*this, m_index, cache_key, index_entry->vary_key, index_entry->response_headers, index_entry->data_size);
-    if (cache_entry.is_error()) {
-        dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[31;1mUnable to open cache entry for\033[0m {}: {}", url, cache_entry.error());
-        m_index.remove_entry(cache_key, index_entry->vary_key);
-
-        return Optional<CacheEntryReader&> {};
-    }
+    auto cache_entry = CacheEntryReader::create(*this, m_index, cache_key, index_entry->vary_key, index_entry->url, index_entry->status_code, index_entry->reason_phrase, index_entry->response_headers, index_entry->data_size);
 
     auto current_time_offset_for_testing = compute_current_time_offset_for_testing(*this, request_headers);
 
-    auto const& response_headers = cache_entry.value()->response_headers();
-    auto freshness_lifetime = calculate_freshness_lifetime(cache_entry.value()->status_code(), response_headers, current_time_offset_for_testing);
+    auto const& response_headers = cache_entry->response_headers();
+    auto freshness_lifetime = calculate_freshness_lifetime(cache_entry->status_code(), response_headers, current_time_offset_for_testing);
     auto current_age = calculate_age(response_headers, index_entry->request_time, index_entry->response_time, current_time_offset_for_testing);
 
     auto revalidate_cache_entry = [&]() -> ErrorOr<void, CacheHasOpenEntry> {
@@ -141,7 +136,7 @@ Variant<Optional<CacheEntryReader&>, DiskCache::CacheHasOpenEntry> DiskCache::op
             return CacheHasOpenEntry {};
 
         dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[36;1mMust revalidate cache entry for\033[0m {} (lifetime={}s age={}s)", url, freshness_lifetime.to_seconds(), current_age.to_seconds());
-        cache_entry.value()->set_revalidation_type(CacheEntryReader::RevalidationType::MustRevalidate);
+        cache_entry->set_revalidation_type(CacheEntryReader::RevalidationType::MustRevalidate);
         return {};
     };
 
@@ -165,7 +160,7 @@ Variant<Optional<CacheEntryReader&>, DiskCache::CacheHasOpenEntry> DiskCache::op
             dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[32;1mOpened expired cache entry for\033[0m {} (lifetime={}s age={}s) ({} bytes)", url, freshness_lifetime.to_seconds(), current_age.to_seconds(), index_entry->data_size);
         } else {
             dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[33;1mCache entry expired for\033[0m {} (lifetime={}s age={}s)", url, freshness_lifetime.to_seconds(), current_age.to_seconds());
-            cache_entry.value()->remove();
+            cache_entry->remove();
 
             return Optional<CacheEntryReader&> {};
         }
@@ -188,7 +183,7 @@ Variant<Optional<CacheEntryReader&>, DiskCache::CacheHasOpenEntry> DiskCache::op
             dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[32;1mOpened expired cache entry for\033[0m {} (lifetime={}s age={}s) ({} bytes)", url, freshness_lifetime.to_seconds(), current_age.to_seconds(), index_entry->data_size);
         } else if (open_mode == OpenMode::Read) {
             dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[36;1mMust revalidate, but may use, cache entry for\033[0m {} (lifetime={}s age={}s)", url, freshness_lifetime.to_seconds(), current_age.to_seconds());
-            cache_entry.value()->set_revalidation_type(CacheEntryReader::RevalidationType::StaleWhileRevalidate);
+            cache_entry->set_revalidation_type(CacheEntryReader::RevalidationType::StaleWhileRevalidate);
         } else {
             dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[32;1mOpened cache entry for revalidation\033[0m {} (lifetime={}s age={}s) ({} bytes)", url, freshness_lifetime.to_seconds(), current_age.to_seconds(), index_entry->data_size);
         }
@@ -196,8 +191,15 @@ Variant<Optional<CacheEntryReader&>, DiskCache::CacheHasOpenEntry> DiskCache::op
         break;
     }
 
-    auto* cache_entry_pointer = cache_entry.value().ptr();
-    m_open_cache_entries.ensure(cache_key).append({ cache_entry.release_value(), request });
+    if (auto result = cache_entry->open_file(); result.is_error()) {
+        dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[31;1mUnable to open cache entry for\033[0m {}: {}", url, result.error());
+        cache_entry->remove();
+
+        return Optional<CacheEntryReader&> {};
+    }
+
+    auto* cache_entry_pointer = cache_entry.ptr();
+    m_open_cache_entries.ensure(cache_key).append({ move(cache_entry), request });
 
     return Optional<CacheEntryReader&> { *cache_entry_pointer };
 }

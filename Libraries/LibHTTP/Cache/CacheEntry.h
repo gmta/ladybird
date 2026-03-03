@@ -103,12 +103,14 @@ private:
     UnixDateTime m_request_time;
     UnixDateTime m_response_time;
 
+    Optional<String> m_reason_phrase;
+
     AK::Duration m_current_time_offset_for_testing;
 };
 
 class CacheEntryReader final : public CacheEntry {
 public:
-    static ErrorOr<NonnullOwnPtr<CacheEntryReader>> create(DiskCache&, CacheIndex&, u64 cache_key, u64 vary_key, NonnullRefPtr<HeaderList>, u64 data_size);
+    static NonnullOwnPtr<CacheEntryReader> create(DiskCache&, CacheIndex&, u64 cache_key, u64 vary_key, String url, u32 status_code, Optional<String> reason_phrase, NonnullRefPtr<HeaderList>, u64 data_size);
     virtual ~CacheEntryReader() override = default;
 
     enum class RevalidationType {
@@ -124,21 +126,22 @@ public:
 
     void send_to(int socket_fd, Function<void(u64 bytes_sent)> on_complete, Function<void(u64 bytes_sent)> on_error);
 
-    u32 status_code() const { return m_cache_header.status_code; }
+    ErrorOr<void> open_file();
+
+    u32 status_code() const { return m_status_code; }
     Optional<String> const& reason_phrase() const { return m_reason_phrase; }
     HeaderList& response_headers() { return m_response_headers; }
     HeaderList const& response_headers() const { return m_response_headers; }
 
 private:
-    CacheEntryReader(DiskCache&, CacheIndex&, u64 cache_key, u64 vary_key, String url, LexicalPath, NonnullOwnPtr<Core::File>, int fd, CacheHeader, Optional<String> reason_phrase, NonnullRefPtr<HeaderList>, u64 data_offset, u64 data_size);
-
+    CacheEntryReader(DiskCache&, CacheIndex&, u64 cache_key, u64 vary_key, String url, u32 status_code, Optional<String> reason_phrase, NonnullRefPtr<HeaderList>, u64 data_size);
     void send_without_blocking();
     void send_complete();
     void send_error(Error);
 
     ErrorOr<void> read_and_validate_footer();
 
-    NonnullOwnPtr<Core::File> m_file;
+    OwnPtr<Core::File> m_file;
     int m_fd { -1 };
 
     RefPtr<Core::Notifier> m_socket_write_notifier;
@@ -148,13 +151,14 @@ private:
     Function<void(u64)> m_on_send_error;
     u64 m_bytes_sent { 0 };
 
+    u32 m_status_code { 0 };
     Optional<String> m_reason_phrase;
     NonnullRefPtr<HeaderList> m_response_headers;
 
     RevalidationType m_revalidation_type { RevalidationType::None };
 
-    u64 const m_data_offset { 0 };
-    u64 const m_data_size { 0 };
+    u64 m_data_offset { 0 };
+    u64 m_data_size { 0 };
 };
 
 }
