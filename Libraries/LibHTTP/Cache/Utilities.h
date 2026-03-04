@@ -46,6 +46,7 @@ enum class CacheLifetimeStatus {
     StaleWhileRevalidate,
 };
 CacheLifetimeStatus cache_lifetime_status(HeaderList const& request_headers, HeaderList const& response_headers, AK::Duration freshness_lifetime, AK::Duration current_age);
+CacheLifetimeStatus cache_lifetime_status(u32 status_code, HeaderList const& request_headers, HeaderList const& response_headers, UnixDateTime request_time, UnixDateTime response_time, AK::Duration current_time_offset_for_testing = {});
 
 struct RevalidationAttributes {
     static RevalidationAttributes create(HeaderList const&);

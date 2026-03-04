@@ -38,11 +38,15 @@ class CacheIndex {
 public:
     static ErrorOr<CacheIndex> create(Database::Database&, LexicalPath const& cache_directory);
 
+    bool version_was_upgraded() const { return m_version_was_upgraded; }
+
     ErrorOr<void> create_entry(u64 cache_key, u64 vary_key, String url, NonnullRefPtr<HeaderList> request_headers, u32 status_code, Optional<String> reason_phrase, NonnullRefPtr<HeaderList> response_headers, u64 data_size, UnixDateTime request_time, UnixDateTime response_time);
     void remove_entry(u64 cache_key, u64 vary_key);
     void remove_entries_exceeding_cache_limit(Function<void(u64 cache_key, u64 vary_key)> on_entry_removed);
     void remove_entries_accessed_since(UnixDateTime, Function<void(u64 cache_key, u64 vary_key)> on_entry_removed);
 
+    void for_each_entry(Function<void(u64 cache_key, u64 vary_key)>);
+    Optional<Entry const&> find_entry(u64 cache_key, u64 vary_key);
     Optional<Entry const&> find_entry(u64 cache_key, HeaderList const& request_headers);
 
     void update_response_headers(u64 cache_key, u64 vary_key, NonnullRefPtr<HeaderList>);
@@ -59,6 +63,7 @@ private:
         Database::StatementID remove_entries_exceeding_cache_limit { 0 };
         Database::StatementID remove_entries_accessed_since { 0 };
         Database::StatementID select_entries { 0 };
+        Database::StatementID select_all_entries { 0 };
         Database::StatementID update_response_headers { 0 };
         Database::StatementID update_last_access_time { 0 };
         Database::StatementID estimate_cache_size_accessed_since { 0 };
@@ -70,8 +75,9 @@ private:
         u64 maximum_disk_cache_entry_size { 0 };
     };
 
-    CacheIndex(Database::Database&, Statements, Limits);
+    CacheIndex(Database::Database&, Statements, Limits, bool version_was_upgraded);
 
+    Vector<Entry>& ensure_entries(u64 cache_key);
     Optional<Entry&> get_entry(u64 cache_key, u64 vary_key);
     void delete_entry(u64 cache_key, u64 vary_key);
 
@@ -81,6 +87,8 @@ private:
     HashMap<u64, Vector<Entry>, IdentityHashTraits<u64>> m_entries;
 
     Limits m_limits;
+
+    bool m_version_was_upgraded { false };
 };
 
 }

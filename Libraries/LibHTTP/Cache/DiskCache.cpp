@@ -45,8 +45,14 @@ ErrorOr<DiskCache> DiskCache::create(Mode mode)
         : TRY(Database::Database::create_memory_backed());
 
     auto index = TRY(CacheIndex::create(database, cache_directory));
+    auto version_was_upgraded = index.version_was_upgraded();
 
-    return DiskCache { mode, move(database), move(cache_directory), move(index) };
+    auto disk_cache = DiskCache { mode, move(database), move(cache_directory), move(index) };
+
+    if (mode == Mode::Normal && version_was_upgraded)
+        disk_cache.perform_cache_maintenance();
+
+    return disk_cache;
 }
 
 DiskCache::DiskCache(Mode mode, NonnullRefPtr<Database::Database> database, LexicalPath cache_directory, CacheIndex index)
@@ -285,6 +291,93 @@ void DiskCache::cache_entry_closed(Badge<CacheEntry>, CacheEntry const& cache_en
             }
         });
     }
+}
+
+void DiskCache::perform_cache_maintenance()
+{
+    scan_cache_directory();
+    scan_index_entries();
+}
+
+void DiskCache::scan_cache_directory()
+{
+    auto result = Core::Directory::for_each_entry(m_cache_directory.string(), Core::DirIterator::SkipParentAndBaseDir, [&](auto const& entry, auto const& parent) -> ErrorOr<IterationDecision> {
+        if (entry.type != Core::DirectoryEntry::Type::File)
+            return IterationDecision::Continue;
+
+        auto name = StringView { entry.name };
+        if (name.starts_with(INDEX_DATABASE))
+            return IterationDecision::Continue;
+
+        auto path = LexicalPath::join(parent.path().string(), entry.name);
+        auto remove_file = [&] {
+            (void)FileSystem::remove(path.string(), FileSystem::RecursionMode::Disallowed);
+        };
+
+        auto file = Core::File::open(path.string(), Core::File::OpenMode::Read);
+        if (file.is_error()) {
+            remove_file();
+            return IterationDecision::Continue;
+        }
+
+        auto header = CacheFileHeader::read_from_stream(*file.value());
+        if (header.is_error()) {
+            remove_file();
+            return IterationDecision::Continue;
+        }
+
+        switch (header.value().validate()) {
+        case CacheFileStatus::Corrupted:
+        case CacheFileStatus::VersionNewer:
+            dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m Removing invalid cache file: {}", entry.name);
+            remove_file();
+            break;
+
+        case CacheFileStatus::VersionOlder:
+            // FIXME: Perform data migration instead of deleting.
+            remove_file();
+            break;
+
+        case CacheFileStatus::Valid: {
+            auto index_entry = m_index.find_entry(header.value().cache_key, header.value().vary_key);
+            if (!index_entry.has_value()) {
+                remove_file();
+                break;
+            }
+
+            if (cache_lifetime_status(index_entry->status_code, index_entry->request_headers, index_entry->response_headers, index_entry->request_time, index_entry->response_time) == CacheLifetimeStatus::Expired) {
+                m_index.remove_entry(header.value().cache_key, header.value().vary_key);
+                remove_file();
+            }
+
+            break;
+        }
+        }
+
+        return IterationDecision::Continue;
+    });
+
+    if (result.is_error())
+        dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m Failed to scan cache directory for stale files: {}", result.error());
+}
+
+void DiskCache::scan_index_entries()
+{
+    struct StaleEntry {
+        u64 cache_key;
+        u64 vary_key;
+    };
+    Vector<StaleEntry> stale_entries;
+
+    m_index.for_each_entry([&](u64 cache_key, u64 vary_key) {
+        auto cache_path = path_for_cache_entry(m_cache_directory, cache_key, vary_key);
+
+        if (!FileSystem::exists(cache_path.string()))
+            stale_entries.append({ cache_key, vary_key });
+    });
+
+    for (auto const& entry : stale_entries)
+        m_index.remove_entry(entry.cache_key, entry.vary_key);
 }
 
 void DiskCache::delete_entry(u64 cache_key, u64 vary_key)

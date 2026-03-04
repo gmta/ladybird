@@ -21,11 +21,19 @@
 
 namespace HTTP {
 
+enum class CacheFileStatus {
+    Corrupted,
+    Valid,
+    VersionNewer,
+    VersionOlder,
+};
+
 struct CacheFileHeader {
     static ErrorOr<CacheFileHeader> read_from_stream(Stream&);
     ErrorOr<void> write_to_stream(Stream&) const;
 
     u32 hash() const;
+    CacheFileStatus validate() const;
 
     static constexpr u32 CACHE_MAGIC = 0xcafef00du;
 

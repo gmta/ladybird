@@ -68,7 +68,9 @@ ErrorOr<CacheIndex> CacheIndex::create(Database::Database& database, LexicalPath
         [&](auto statement_id) { cache_version = database.result_column<u32>(statement_id, 0); },
         CACHE_METADATA_KEY);
 
-    if (cache_version != CACHE_VERSION) {
+    auto version_was_upgraded = cache_version != CACHE_VERSION;
+
+    if (version_was_upgraded) {
         if (cache_version != 0)
             dbgln_if(HTTP_DISK_CACHE_DEBUG, "\033[36m[disk]\033[0m \033[31;1mDisk cache version mismatch:\033[0m stored version = {}, new version = {}", cache_version, CACHE_VERSION);
 
@@ -102,6 +104,7 @@ ErrorOr<CacheIndex> CacheIndex::create(Database::Database& database, LexicalPath
     statements.insert_entry = TRY(database.prepare_statement("INSERT OR REPLACE INTO CacheIndex VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"sv));
     statements.remove_entry = TRY(database.prepare_statement("DELETE FROM CacheIndex WHERE cache_key = ? AND vary_key = ?;"sv));
     statements.remove_entries_accessed_since = TRY(database.prepare_statement("DELETE FROM CacheIndex WHERE last_access_time >= ? RETURNING cache_key, vary_key;"sv));
+    statements.select_all_entries = TRY(database.prepare_statement("SELECT cache_key, vary_key FROM CacheIndex;"sv));
     statements.select_entries = TRY(database.prepare_statement("SELECT * FROM CacheIndex WHERE cache_key = ?;"sv));
     statements.update_response_headers = TRY(database.prepare_statement("UPDATE CacheIndex SET response_headers = ? WHERE cache_key = ? AND vary_key = ?;"sv));
     statements.update_last_access_time = TRY(database.prepare_statement("UPDATE CacheIndex SET last_access_time = ? WHERE cache_key = ? AND vary_key = ?;"sv));
@@ -140,13 +143,14 @@ ErrorOr<CacheIndex> CacheIndex::create(Database::Database& database, LexicalPath
         .maximum_disk_cache_entry_size = compute_maximum_disk_cache_entry_size(maximum_disk_cache_size),
     };
 
-    return CacheIndex { database, statements, limits };
+    return CacheIndex { database, statements, limits, version_was_upgraded };
 }
 
-CacheIndex::CacheIndex(Database::Database& database, Statements statements, Limits limits)
+CacheIndex::CacheIndex(Database::Database& database, Statements statements, Limits limits, bool version_was_upgraded)
     : m_database(database)
     , m_statements(statements)
     , m_limits(limits)
+    , m_version_was_upgraded(version_was_upgraded)
 {
 }
 
@@ -248,9 +252,20 @@ void CacheIndex::update_last_access_time(u64 cache_key, u64 vary_key)
     entry->last_access_time = now;
 }
 
-Optional<CacheIndex::Entry const&> CacheIndex::find_entry(u64 cache_key, HeaderList const& request_headers)
+void CacheIndex::for_each_entry(Function<void(u64 cache_key, u64 vary_key)> callback)
 {
-    auto& entries = m_entries.ensure(cache_key, [&]() {
+    m_database->execute_statement(
+        m_statements.select_all_entries,
+        [&](auto statement_id) {
+            auto cache_key = m_database->result_column<u64>(statement_id, 0);
+            auto vary_key = m_database->result_column<u64>(statement_id, 1);
+            callback(cache_key, vary_key);
+        });
+}
+
+Vector<CacheIndex::Entry>& CacheIndex::ensure_entries(u64 cache_key)
+{
+    return m_entries.ensure(cache_key, [&]() {
         Vector<Entry> entries;
 
         m_database->execute_statement(
@@ -279,6 +294,20 @@ Optional<CacheIndex::Entry const&> CacheIndex::find_entry(u64 cache_key, HeaderL
 
         return entries;
     });
+}
+
+Optional<CacheIndex::Entry const&> CacheIndex::find_entry(u64 cache_key, u64 vary_key)
+{
+    auto& entries = ensure_entries(cache_key);
+
+    return find_value(entries, [&](auto const& entry) {
+        return entry.vary_key == vary_key;
+    });
+}
+
+Optional<CacheIndex::Entry const&> CacheIndex::find_entry(u64 cache_key, HeaderList const& request_headers)
+{
+    auto& entries = ensure_entries(cache_key);
 
     return find_value(entries, [&](auto const& entry) {
         return create_vary_key(request_headers, entry.response_headers) == entry.vary_key;

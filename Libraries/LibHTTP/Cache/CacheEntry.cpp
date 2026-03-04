@@ -58,6 +58,17 @@ u32 CacheFileHeader::hash() const
     return hash;
 }
 
+CacheFileStatus CacheFileHeader::validate() const
+{
+    if (magic != CACHE_MAGIC || header_hash != hash())
+        return CacheFileStatus::Corrupted;
+    if (version < CACHE_VERSION)
+        return CacheFileStatus::VersionOlder;
+    if (version > CACHE_VERSION)
+        return CacheFileStatus::VersionNewer;
+    return CacheFileStatus::Valid;
+}
+
 CacheEntry::CacheEntry(DiskCache& disk_cache, CacheIndex& index, u64 cache_key, u64 vary_key, String url, Optional<LexicalPath> path)
     : m_disk_cache(disk_cache)
     , m_index(index)
@@ -226,12 +237,16 @@ ErrorOr<void> CacheEntryReader::open_file()
 
     auto header = TRY(CacheFileHeader::read_from_stream(*file));
 
-    if (header.header_hash != header.hash())
+    switch (header.validate()) {
+    case CacheFileStatus::Corrupted:
         return Error::from_string_literal("Cache file header is corrupted");
-    if (header.magic != CacheFileHeader::CACHE_MAGIC)
-        return Error::from_string_literal("Magic value mismatch");
-    if (header.version != CACHE_VERSION)
+    case CacheFileStatus::VersionOlder:
+    case CacheFileStatus::VersionNewer:
         return Error::from_string_literal("Version mismatch");
+    case CacheFileStatus::Valid:
+        break;
+    }
+
     if (header.cache_key != m_cache_key)
         return Error::from_string_literal("Cache key mismatch");
     if (header.vary_key != m_vary_key)

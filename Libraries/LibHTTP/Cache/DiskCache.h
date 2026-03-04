@@ -71,6 +71,9 @@ private:
     };
     bool check_if_cache_has_open_entry(CacheRequest&, u64 cache_key, URL::URL const&, CheckReaderEntries);
 
+    void perform_cache_maintenance();
+    void scan_cache_directory();
+    void scan_index_entries();
     void delete_entry(u64 cache_key, u64 vary_key);
 
     Mode m_mode;

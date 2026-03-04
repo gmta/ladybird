@@ -501,6 +501,13 @@ CacheLifetimeStatus cache_lifetime_status(HeaderList const& request_headers, Hea
     return CacheLifetimeStatus::Expired;
 }
 
+CacheLifetimeStatus cache_lifetime_status(u32 status_code, HeaderList const& request_headers, HeaderList const& response_headers, UnixDateTime request_time, UnixDateTime response_time, AK::Duration current_time_offset_for_testing)
+{
+    auto freshness_lifetime = calculate_freshness_lifetime(status_code, response_headers, current_time_offset_for_testing);
+    auto current_age = calculate_age(response_headers, request_time, response_time, current_time_offset_for_testing);
+    return cache_lifetime_status(request_headers, response_headers, freshness_lifetime, current_age);
+}
+
 // https://httpwg.org/specs/rfc9111.html#validation.sent
 RevalidationAttributes RevalidationAttributes::create(HeaderList const& headers)
 {
