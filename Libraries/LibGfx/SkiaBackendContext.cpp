@@ -33,10 +33,10 @@ class SkiaVulkanBackendContext final : public SkiaBackendContext {
     AK_MAKE_NONMOVABLE(SkiaVulkanBackendContext);
 
 public:
-    SkiaVulkanBackendContext(sk_sp<GrDirectContext> context, VulkanContext const& vulkan_context, NonnullOwnPtr<skgpu::VulkanExtensions> extensions)
+    SkiaVulkanBackendContext(sk_sp<GrDirectContext> context, VulkanContext vulkan_context, NonnullOwnPtr<skgpu::VulkanExtensions> extensions)
         : m_context(move(context))
         , m_extensions(move(extensions))
-        , m_vulkan_context(vulkan_context)
+        , m_vulkan_context(move(vulkan_context))
     {
     }
 
@@ -60,10 +60,10 @@ public:
 private:
     sk_sp<GrDirectContext> m_context;
     NonnullOwnPtr<skgpu::VulkanExtensions> m_extensions;
-    VulkanContext const m_vulkan_context;
+    VulkanContext m_vulkan_context;
 };
 
-RefPtr<SkiaBackendContext> SkiaBackendContext::create_vulkan_context(VulkanContext const& vulkan_context)
+RefPtr<SkiaBackendContext> SkiaBackendContext::create_vulkan_context(VulkanContext vulkan_context)
 {
     skgpu::VulkanBackendContext backend_context;
 

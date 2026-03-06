@@ -161,7 +161,7 @@ static RefPtr<Gfx::SkiaBackendContext> get_skia_backend_context()
         }
 
         auto vulkan_context = maybe_vulkan_context.release_value();
-        g_cached_skia_backend_context = Gfx::SkiaBackendContext::create_vulkan_context(vulkan_context);
+        g_cached_skia_backend_context = Gfx::SkiaBackendContext::create_vulkan_context(move(vulkan_context));
 #endif
     }
     return g_cached_skia_backend_context;

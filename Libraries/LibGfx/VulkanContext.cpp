@@ -201,22 +201,20 @@ ErrorOr<VulkanContext> create_vulkan_context()
     }
 #endif
 
-    return VulkanContext {
-        .api_version = api_version,
-        .instance = instance,
-        .physical_device = physical_device,
-        .logical_device = logical_device,
-        .graphics_queue = graphics_queue,
-        .graphics_queue_family = graphics_queue_family,
+    VulkanContext context;
+    context.api_version = api_version;
+    context.instance = instance;
+    context.physical_device = physical_device;
+    context.logical_device = logical_device;
+    context.graphics_queue = graphics_queue;
+    context.graphics_queue_family = graphics_queue_family;
 #ifdef USE_VULKAN_IMAGES
-        .command_pool = command_pool,
-        .command_buffer = command_buffer,
-        .ext_procs = {
-            .get_memory_fd = pfn_vk_get_memory_fd_khr,
-            .get_image_drm_format_modifier_properties = pfn_vk_get_image_drm_format_modifier_properties_khr,
-        },
+    context.command_pool = command_pool;
+    context.command_buffer = command_buffer;
+    context.ext_procs.get_memory_fd = pfn_vk_get_memory_fd_khr;
+    context.ext_procs.get_image_drm_format_modifier_properties = pfn_vk_get_image_drm_format_modifier_properties_khr;
 #endif
-    };
+    return context;
 }
 
 #ifdef USE_VULKAN_IMAGES

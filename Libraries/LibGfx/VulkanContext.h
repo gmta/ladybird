@@ -9,8 +9,10 @@
 #ifdef USE_VULKAN
 
 #    include <AK/Assertions.h>
+#    include <AK/Noncopyable.h>
 #    include <AK/NonnullRefPtr.h>
 #    include <AK/RefCounted.h>
+#    include <AK/StdLibExtras.h>
 #    include <vulkan/vulkan.h>
 #    if defined(USE_VULKAN_IMAGES)
 #        include <libdrm/drm_fourcc.h>
@@ -19,6 +21,9 @@
 namespace Gfx {
 
 struct VulkanContext {
+    AK_MAKE_NONCOPYABLE(VulkanContext);
+
+public:
     uint32_t api_version { VK_API_VERSION_1_0 };
     VkInstance instance { VK_NULL_HANDLE };
     VkPhysicalDevice physical_device { VK_NULL_HANDLE };
@@ -34,6 +39,30 @@ struct VulkanContext {
         PFN_vkGetImageDrmFormatModifierPropertiesEXT get_image_drm_format_modifier_properties { nullptr };
     } ext_procs;
 #    endif
+
+    VulkanContext() = default;
+    VulkanContext(VulkanContext&& other)
+        : api_version(other.api_version)
+        , instance(exchange(other.instance, VK_NULL_HANDLE))
+        , physical_device(exchange(other.physical_device, VK_NULL_HANDLE))
+        , logical_device(exchange(other.logical_device, VK_NULL_HANDLE))
+        , graphics_queue(exchange(other.graphics_queue, VK_NULL_HANDLE))
+        , graphics_queue_family(other.graphics_queue_family)
+#    ifdef USE_VULKAN_IMAGES
+        , command_pool(exchange(other.command_pool, VK_NULL_HANDLE))
+        , command_buffer(exchange(other.command_buffer, VK_NULL_HANDLE))
+        , ext_procs(other.ext_procs)
+#    endif
+    {
+    }
+    VulkanContext& operator=(VulkanContext&&) = delete;
+    ~VulkanContext()
+    {
+        if (logical_device != VK_NULL_HANDLE)
+            vkDestroyDevice(logical_device, nullptr);
+        if (instance != VK_NULL_HANDLE)
+            vkDestroyInstance(instance, nullptr);
+    }
 };
 
 ErrorOr<VulkanContext> create_vulkan_context();
