@@ -39,6 +39,7 @@
 #include <LibGfx/Bitmap.h>
 #include <LibGfx/ImageFormats/ImageDecoder.h>
 #include <LibGfx/ImageFormats/PNGWriter.h>
+#include <LibGfx/SkiaBackendContext.h>
 #include <LibGfx/SystemTheme.h>
 #include <LibURL/Parser.h>
 #include <LibURL/URL.h>
@@ -199,6 +200,7 @@ static void render_live_display()
 
 static RefPtr<Core::Promise<Empty>> s_all_tests_complete;
 static Vector<ByteString> s_skipped_tests;
+static Vector<ByteString> s_requires_gpu_acceleration;
 static Vector<ByteString> s_loaded_from_http_server;
 static HashMap<WebView::ViewImplementation const*, size_t> s_current_test_index_by_view;
 
@@ -385,6 +387,8 @@ static ErrorOr<void> load_test_config(StringView test_root_path)
     for (auto const& group : config->groups()) {
         if (group == "Skipped"sv) {
             TRY(add_config_paths(test_root_path, config->keys(group), s_skipped_tests));
+        } else if (group == "RequiresGPUAcceleration"sv) {
+            TRY(add_config_paths(test_root_path, config->keys(group), s_requires_gpu_acceleration));
         } else if (group == "LoadFromHttpServer"sv) {
             TRY(add_config_paths(test_root_path, config->keys(group), s_loaded_from_http_server));
         } else {
@@ -1471,6 +1475,14 @@ static ErrorOr<int> run_tests(Core::AnonymousBuffer const& theme, Web::DevicePix
     s_fail_fast_triggered = false;
 
     s_total_tests = tests.size();
+
+    if (WebView::Application::web_content_options().force_cpu_painting == WebView::ForceCPUPainting::Yes) {
+        outln("Note: Some tests require GPU acceleration and will be skipped (--force-cpu-painting is set).");
+    } else if (!Gfx::gpu_acceleration_is_available()) {
+        warnln("WARNING: No GPU acceleration available. Tests requiring GPU acceleration will likely fail.");
+        warnln("         Use --force-cpu-painting to skip GPU-requiring tests and suppress this warning.");
+    }
+
     outln("Running {} tests...", tests.size());
 
     // Set up display area for live display
@@ -1691,7 +1703,11 @@ static ErrorOr<int> run_tests(Core::AnonymousBuffer const& theme, Web::DevicePix
             });
 
             Core::deferred_invoke([&, index]() mutable {
-                if (s_skipped_tests.contains_slow(tests[index].input_path))
+                auto const& input_path = tests[index].input_path;
+                bool should_skip = s_skipped_tests.contains_slow(input_path)
+                    || (WebView::Application::web_content_options().force_cpu_painting == WebView::ForceCPUPainting::Yes
+                        && s_requires_gpu_acceleration.contains_slow(input_path));
+                if (should_skip)
                     view->on_test_complete({ index, TestResult::Skipped });
                 else
                     run_test(*view, context, index, app);

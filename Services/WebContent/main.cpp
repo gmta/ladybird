@@ -155,7 +155,6 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     Web::set_browser_process_command_line(command_line);
     Web::set_browser_process_executable_path(executable_path);
 
-    // Always use the CPU backend for tests, as the GPU backend is not deterministic
     WebContent::PageClient::set_use_skia_painter(force_cpu_painting ? WebContent::PageClient::UseSkiaPainter::CPUBackend : WebContent::PageClient::UseSkiaPainter::GPUBackendIfAvailable);
 
     WebContent::PageClient::set_is_headless(is_headless);

@@ -4,10 +4,6 @@
 <script>
 promiseTest(async () => {
     let gl = canvas.getContext("webgl");
-    if (!gl) {
-        println("FIXME: This test relies on having a GPU backend enabled, which it is not in run-tests mode :(");
-        return;
-    }
 
     let framebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
@@ -27,8 +23,6 @@ promiseTest(async () => {
 
     const pixelBuffer = new Uint8Array(4);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
-    console.log(`Framebuffer pixel value: ${pixelBuffer}`);
+    println(`Framebuffer pixel value: ${pixelBuffer}`);
 });
 </script>
-</body>
-</html>

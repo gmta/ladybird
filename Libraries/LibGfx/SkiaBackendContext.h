@@ -26,6 +26,8 @@ namespace Gfx {
 struct VulkanContext;
 class MetalContext;
 
+bool gpu_acceleration_is_available();
+
 class SkiaBackendContext : public AtomicRefCounted<SkiaBackendContext> {
     AK_MAKE_NONCOPYABLE(SkiaBackendContext);
     AK_MAKE_NONMOVABLE(SkiaBackendContext);

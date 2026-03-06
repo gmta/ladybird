@@ -27,6 +27,18 @@
 
 namespace Gfx {
 
+bool gpu_acceleration_is_available()
+{
+#ifdef AK_OS_MACOS
+    static bool available = get_metal_context() != nullptr;
+#elif defined(USE_VULKAN)
+    static bool available = !create_vulkan_context().is_error();
+#else
+    static bool available = false;
+#endif
+    return available;
+}
+
 #ifdef USE_VULKAN
 class SkiaVulkanBackendContext final : public SkiaBackendContext {
     AK_MAKE_NONCOPYABLE(SkiaVulkanBackendContext);
@@ -85,7 +97,7 @@ RefPtr<SkiaBackendContext> SkiaBackendContext::create_vulkan_context(VulkanConte
 
     sk_sp<GrDirectContext> ctx = GrDirectContexts::MakeVulkan(backend_context);
     VERIFY(ctx);
-    return adopt_ref(*new SkiaVulkanBackendContext(ctx, vulkan_context, move(extensions)));
+    return adopt_ref(*new SkiaVulkanBackendContext(ctx, move(vulkan_context), move(extensions)));
 }
 #endif
 

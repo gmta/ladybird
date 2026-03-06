@@ -1,1 +1,1 @@
-FIXME: This test relies on having a GPU backend enabled, which it is not in run-tests mode :(
+Framebuffer pixel value: 255,0,0,255
