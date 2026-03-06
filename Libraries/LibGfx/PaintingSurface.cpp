@@ -101,8 +101,12 @@ NonnullRefPtr<PaintingSurface> PaintingSurface::create_with_size(RefPtr<SkiaBack
     auto image_info = SkImageInfo::Make(size.width(), size.height(), sk_color_type, sk_alpha_type, SkColorSpace::MakeSRGB());
 
     if (context) {
+        // FIXME: Make this max MSAA sample count configurable, as part of a performance/quality setting.
+        static constexpr int max_msaa_sample_count = 8;
+
         context->lock();
-        auto surface = SkSurfaces::RenderTarget(context->sk_context(), skgpu::Budgeted::kNo, image_info);
+        auto msaa_sample_count = min(max_msaa_sample_count, context->sk_context()->maxSurfaceSampleCountForColorType(sk_color_type));
+        auto surface = SkSurfaces::RenderTarget(context->sk_context(), skgpu::Budgeted::kNo, image_info, msaa_sample_count, nullptr);
         context->unlock();
         if (surface)
             return adopt_ref(*new PaintingSurface(make<Impl>(context, size, surface, nullptr)));
