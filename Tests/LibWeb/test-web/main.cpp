@@ -107,6 +107,17 @@ void print_deferred_warnings()
     s_deferred_warnings.clear();
 }
 
+enum class TerminalProgressState : u8 {
+    Remove = 0,
+    Normal = 1,
+    Error = 2,
+};
+
+static void set_terminal_progress(TerminalProgressState state, int percentage)
+{
+    warn("\033]9;4;{};{}\033\\", to_underlying(state), percentage);
+}
+
 static void render_live_display()
 {
     if (!s_is_tty || s_live_display_lines == 0)
@@ -122,8 +133,8 @@ static void render_live_display()
         output.append("\033[A"sv);
     output.append("\r"sv);
 
-    // Print test status lines (not counting empty lines, status counts, and progress bar)
-    size_t num_view_lines = s_live_display_lines - 4;
+    // Print test status lines (not counting empty line and status counts)
+    size_t num_view_lines = s_live_display_lines - 2;
     for (size_t i = 0; i < num_view_lines; ++i) {
         output.append("\033[2K"sv); // Clear line
 
@@ -152,46 +163,25 @@ static void render_live_display()
     // Empty line
     output.append("\033[2K\n"sv);
 
-    // Status counts line (bold colored labels, plain numbers)
+    // Status counts line
     output.append("\033[2K"sv);
-    output.appendff("\033[1;32mPass:\033[0m {}, ", s_pass_count);
+    output.appendff("{}/{}", s_completed_tests, s_total_tests);
+    if (Application::the().repeat_count > 1)
+        output.appendff(" run {}/{}", s_current_run, Application::the().repeat_count);
+    output.appendff(": \033[1;32mPass:\033[0m {}, ", s_pass_count);
     output.appendff("\033[1;31mFail:\033[0m {}, ", s_fail_count);
     output.appendff("\033[1;90mSkipped:\033[0m {}, ", s_skipped_count);
     output.appendff("\033[1;33mTimeout:\033[0m {}, ", s_timeout_count);
     output.appendff("\033[1;35mCrashed:\033[0m {}", s_crashed_count);
     output.append("\n"sv);
 
-    // Empty line
-    output.append("\033[2K\n"sv);
-
-    // Print progress bar
-    output.append("\033[2K"sv);
     if (s_total_tests > 0) {
-        size_t completed = s_completed_tests;
-        size_t total = s_total_tests;
-
-        // Calculate progress bar width (leave room for "completed/total []")
-        auto counter_start = output.length();
-        output.appendff("{}/{} ", completed, total);
-        if (Application::the().repeat_count > 1)
-            output.appendff("run {}/{} ", s_current_run, Application::the().repeat_count);
-        auto counter_length = output.length() - counter_start;
-        size_t bar_width = s_terminal_width > counter_length + 3 ? s_terminal_width - counter_length - 3 : 20;
-
-        size_t filled = total > 0 ? (completed * bar_width) / total : 0;
-        size_t empty = bar_width - filled;
-
-        output.append("\033[32m["sv); // Green color
-        for (size_t j = 0; j < filled; ++j)
-            output.append("█"sv);
-        if (empty > 0 && filled < bar_width) {
-            output.append("\033[33m▓\033[0m\033[90m"sv); // Yellow current position, then dim
-            for (size_t j = 1; j < empty; ++j)
-                output.append("░"sv);
-        }
-        output.append("\033[32m]\033[0m"sv);
+        auto percentage = static_cast<int>(s_completed_tests * 100 / s_total_tests);
+        auto state = (s_fail_count > 0 || s_timeout_count > 0 || s_crashed_count > 0)
+            ? TerminalProgressState::Error
+            : TerminalProgressState::Normal;
+        set_terminal_progress(state, percentage);
     }
-    output.append("\n"sv);
 
     out("{}", output.string_view());
     (void)fflush(stdout);
@@ -1473,7 +1463,7 @@ static ErrorOr<int> run_tests(Core::AnonymousBuffer const& theme, Web::DevicePix
 
     // Set up display area for live display
     if (use_live_display) {
-        s_live_display_lines = concurrency + 4; // +1 empty, +1 status counts, +1 empty, +1 progress bar
+        s_live_display_lines = concurrency + 2; // +1 empty, +1 status counts
         for (size_t i = 0; i < s_live_display_lines; ++i)
             outln();
         (void)fflush(stdout);
@@ -1711,6 +1701,8 @@ static ErrorOr<int> run_tests(Core::AnonymousBuffer const& theme, Web::DevicePix
         s_display_timer->stop();
         s_display_timer = nullptr;
     }
+
+    set_terminal_progress(TerminalProgressState::Remove, 0);
 
     // Clear the live display area and move cursor back up
     if (use_live_display) {
