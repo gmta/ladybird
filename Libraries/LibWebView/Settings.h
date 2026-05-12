@@ -14,12 +14,17 @@
 #include <LibHTTP/Cache/DiskCacheSettings.h>
 #include <LibIPC/Forward.h>
 #include <LibURL/URL.h>
+#include <LibWeb/Page/ContentType.h>
 #include <LibWebView/Autocomplete.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/Options.h>
 #include <LibWebView/SearchEngine.h>
 
 namespace WebView {
+
+using Web::ContentTypeAction;
+using Web::ContentTypeSettings;
+using Web::FileType;
 
 struct BrowsingBehavior {
     bool enable_autoscroll { true };
@@ -57,6 +62,7 @@ public:
     virtual void autoplay_settings_changed() { }
     virtual void browsing_data_settings_changed() { }
     virtual void global_privacy_control_changed() { }
+    virtual void content_type_settings_changed() { }
     virtual void dns_settings_changed() { }
 };
 
@@ -109,6 +115,10 @@ public:
     GlobalPrivacyControl global_privacy_control() const { return m_global_privacy_control; }
     void set_global_privacy_control(GlobalPrivacyControl);
 
+    static ContentTypeSettings parse_content_type_settings(JsonValue const&);
+    ContentTypeSettings const& content_type_settings() const { return m_content_type_settings; }
+    void set_content_type_settings(ContentTypeSettings);
+
     static DNSSettings parse_dns_settings(JsonValue const&);
     DNSSettings const& dns_settings() const { return m_dns_settings; }
     void set_dns_settings(DNSSettings const&, bool override_by_command_line = false);
@@ -137,6 +147,7 @@ private:
     SiteSetting m_autoplay;
     BrowsingDataSettings m_browsing_data_settings;
     GlobalPrivacyControl m_global_privacy_control { GlobalPrivacyControl::No };
+    ContentTypeSettings m_content_type_settings { Web::default_content_type_settings() };
     DNSSettings m_dns_settings { SystemDNS() };
     bool m_dns_override_by_command_line { false };
 

@@ -30,6 +30,9 @@ void SettingsUI::register_interfaces()
     register_interface("setBrowsingBehavior"sv, [this](auto const& data) {
         set_browsing_behavior(data);
     });
+    register_interface("setContentTypeSettings"sv, [this](auto const& data) {
+        set_content_type_settings(data);
+    });
 
     register_interface("loadAvailableEngines"sv, [this](auto const&) {
         load_available_engines();
@@ -84,6 +87,16 @@ void SettingsUI::register_interfaces()
 void SettingsUI::load_current_settings()
 {
     auto settings = WebView::Application::settings().serialize_json();
+
+    JsonArray file_types;
+    for (auto const& definition : Web::file_type_definitions()) {
+        JsonObject file_type;
+        file_type.set("key"sv, definition.settings_key);
+        file_type.set("label"sv, definition.display_name);
+        file_types.must_append(move(file_type));
+    }
+    settings.as_object().set("fileTypes"sv, move(file_types));
+
     async_send_message("loadSettings"sv, settings);
 }
 
@@ -122,6 +135,12 @@ void SettingsUI::set_browsing_behavior(JsonValue const& browsing_behavior)
     WebView::Application::settings().set_browsing_behavior(parsed_browsing_behavior);
 
     load_current_settings();
+}
+
+void SettingsUI::set_content_type_settings(JsonValue const& settings)
+{
+    auto content_type_settings = Settings::parse_content_type_settings(settings);
+    WebView::Application::settings().set_content_type_settings(move(content_type_settings));
 }
 
 void SettingsUI::load_available_engines()

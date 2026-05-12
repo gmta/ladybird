@@ -691,6 +691,7 @@ void ViewImplementation::initialize_client(CreateNewClient create_new_client)
     browsing_behavior_changed();
     autoplay_settings_changed();
     global_privacy_control_changed();
+    content_type_settings_changed();
 
     // If DevTools is connected, notify the new WebContent process.
     if (m_devtools_connected)
@@ -782,6 +783,11 @@ void ViewImplementation::global_privacy_control_changed()
 {
     auto global_privacy_control = Application::settings().global_privacy_control();
     client().async_set_enable_global_privacy_control(page_id(), global_privacy_control == GlobalPrivacyControl::Yes);
+}
+
+void ViewImplementation::content_type_settings_changed()
+{
+    client().async_set_content_type_settings(page_id(), Application::settings().content_type_settings());
 }
 
 void ViewImplementation::bookmarks_changed()

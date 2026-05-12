@@ -45,6 +45,7 @@
 #include <LibWeb/HTML/TokenizedFeatures.h>
 #include <LibWeb/HTML/WebViewHints.h>
 #include <LibWeb/Loader/FileRequest.h>
+#include <LibWeb/Page/ContentType.h>
 #include <LibWeb/Page/EventResult.h>
 #include <LibWeb/Page/InputEvent.h>
 #include <LibWeb/Page/ViewportIsFullscreen.h>
@@ -227,6 +228,13 @@ public:
     Optional<String> const& user_style() const { return m_user_style_sheet_source; }
     void set_user_style(String source);
 
+    ContentTypeSettings const& content_type_settings() const { return m_content_type_settings; }
+    void set_content_type_settings(ContentTypeSettings);
+    ContentTypeAction content_type_action(FileType) const;
+    ContentTypeAction effective_content_type_action(FileType) const;
+    bool should_view_content_type_inline(StringView mime_type) const;
+    bool should_view_content_type_inline(MimeSniff::MimeType const&) const;
+
     bool pdf_viewer_supported() const { return m_pdf_viewer_supported; }
 
     void clear_selection();
@@ -325,6 +333,8 @@ private:
     Web::HTML::MuteState m_mute_state { Web::HTML::MuteState::Unmuted };
 
     Optional<String> m_user_style_sheet_source;
+
+    ContentTypeSettings m_content_type_settings { default_content_type_settings() };
 
     // https://html.spec.whatwg.org/multipage/system-state.html#pdf-viewer-supported
     // Each user agent has a PDF viewer supported boolean, whose value is implementation-defined (and might vary according to user preferences).

@@ -55,7 +55,37 @@ static constexpr auto DISK_CACHE_MAXIMUM_SIZE_KEY = "maxSize"sv;
 
 static constexpr auto GLOBAL_PRIVACY_CONTROL_KEY = "globalPrivacyControl"sv;
 
+static constexpr auto FILE_TYPE_ACTIONS_KEY = "fileTypeActions"sv;
+static constexpr auto CONTENT_TYPE_ACTION_DEFAULT_KEY = "*"sv;
+static constexpr auto CONTENT_TYPE_ACTION_VIEW = "view"sv;
+static constexpr auto CONTENT_TYPE_ACTION_DOWNLOAD = "download"sv;
+static constexpr auto CONTENT_TYPE_ACTION_ASK = "ask"sv;
+
 static constexpr auto DNS_SETTINGS_KEY = "dnsSettings"sv;
+
+static StringView content_type_action_to_string(ContentTypeAction action)
+{
+    switch (action) {
+    case ContentTypeAction::View:
+        return CONTENT_TYPE_ACTION_VIEW;
+    case ContentTypeAction::Download:
+        return CONTENT_TYPE_ACTION_DOWNLOAD;
+    case ContentTypeAction::Ask:
+        return CONTENT_TYPE_ACTION_ASK;
+    }
+    VERIFY_NOT_REACHED();
+}
+
+static Optional<ContentTypeAction> parse_content_type_action(StringView action)
+{
+    if (action == CONTENT_TYPE_ACTION_VIEW)
+        return ContentTypeAction::View;
+    if (action == CONTENT_TYPE_ACTION_DOWNLOAD)
+        return ContentTypeAction::Download;
+    if (action == CONTENT_TYPE_ACTION_ASK)
+        return ContentTypeAction::Ask;
+    return {};
+}
 
 Settings Settings::create(Badge<Application>)
 {
@@ -142,6 +172,9 @@ Settings Settings::create(Badge<Application>)
 
     if (auto global_privacy_control = settings_json.value().get_bool(GLOBAL_PRIVACY_CONTROL_KEY); global_privacy_control.has_value())
         settings.m_global_privacy_control = *global_privacy_control ? GlobalPrivacyControl::Yes : GlobalPrivacyControl::No;
+
+    if (auto content_type_settings = settings_json.value().get(FILE_TYPE_ACTIONS_KEY); content_type_settings.has_value())
+        settings.m_content_type_settings = parse_content_type_settings(*content_type_settings);
 
     if (auto dns_settings = settings_json.value().get(DNS_SETTINGS_KEY); dns_settings.has_value())
         settings.m_dns_settings = parse_dns_settings(*dns_settings);
@@ -235,6 +268,12 @@ JsonValue Settings::serialize_json() const
     settings.set(BROWSING_DATA_KEY, move(browsing_data));
 
     settings.set(GLOBAL_PRIVACY_CONTROL_KEY, m_global_privacy_control == GlobalPrivacyControl::Yes);
+
+    JsonObject content_type_actions;
+    content_type_actions.set(CONTENT_TYPE_ACTION_DEFAULT_KEY, content_type_action_to_string(m_content_type_settings.default_action));
+    for (auto const& [file_type, action] : m_content_type_settings.actions)
+        content_type_actions.set(Web::file_type_to_string(file_type), content_type_action_to_string(action));
+    settings.set(FILE_TYPE_ACTIONS_KEY, move(content_type_actions));
 
     // dnsSettings :: { mode: "system" } | { mode: "custom", server: string, port: u16, type: "udp" | "tls", forciblyEnabled: bool, dnssec: bool }
     JsonObject dns_settings;
@@ -521,6 +560,45 @@ void Settings::set_global_privacy_control(GlobalPrivacyControl global_privacy_co
 
     for (auto& observer : m_observers)
         observer.global_privacy_control_changed();
+}
+
+ContentTypeSettings Settings::parse_content_type_settings(JsonValue const& settings)
+{
+    auto content_type_settings = Web::default_content_type_settings();
+
+    if (!settings.is_object())
+        return content_type_settings;
+
+    settings.as_object().for_each_member([&](auto const& file_type_name, JsonValue const& value) {
+        if (!value.is_string())
+            return;
+
+        auto action = parse_content_type_action(value.as_string());
+        if (!action.has_value())
+            return;
+
+        if (file_type_name == CONTENT_TYPE_ACTION_DEFAULT_KEY) {
+            content_type_settings.default_action = *action;
+            return;
+        }
+
+        auto file_type = Web::file_type_from_string(file_type_name);
+        if (!file_type.has_value())
+            return;
+
+        content_type_settings.actions.set(*file_type, *action);
+    });
+
+    return content_type_settings;
+}
+
+void Settings::set_content_type_settings(ContentTypeSettings content_type_settings)
+{
+    m_content_type_settings = move(content_type_settings);
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.content_type_settings_changed();
 }
 
 DNSSettings Settings::parse_dns_settings(JsonValue const& dns_settings)

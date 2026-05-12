@@ -106,6 +106,7 @@ endpoint WebContentServer
     set_preferred_motion(u64 page_id, Web::CSS::PreferredMotion motion) =|
     set_preferred_languages(u64 page_id, Vector<String> preferred_languages) =|
     set_browsing_behavior(u64 page_id, WebView::BrowsingBehavior browsing_behavior) =|
+    set_content_type_settings(u64 page_id, Web::ContentTypeSettings content_type_settings) =|
     set_enable_global_privacy_control(u64 page_id, bool enable) =|
     set_has_focus(u64 page_id, bool has_focus) =|
     set_is_scripting_enabled(u64 page_id, bool is_scripting_enabled) =|

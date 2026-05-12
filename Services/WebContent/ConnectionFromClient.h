@@ -115,6 +115,7 @@ private:
     virtual void set_preferred_motion(u64 page_id, Web::CSS::PreferredMotion) override;
     virtual void set_preferred_languages(u64 page_id, Vector<String>) override;
     virtual void set_browsing_behavior(u64 page_id, WebView::BrowsingBehavior) override;
+    virtual void set_content_type_settings(u64 page_id, Web::ContentTypeSettings) override;
     virtual void set_enable_global_privacy_control(u64 page_id, bool) override;
     virtual void set_has_focus(u64 page_id, bool) override;
     virtual void set_is_scripting_enabled(u64 page_id, bool) override;

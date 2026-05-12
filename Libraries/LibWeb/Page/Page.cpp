@@ -26,6 +26,7 @@
 #include <LibWeb/HTML/SelectedFile.h>
 #include <LibWeb/HTML/TraversableNavigable.h>
 #include <LibWeb/HTML/Window.h>
+#include <LibWeb/MimeSniff/MimeType.h>
 #include <LibWeb/Page/Page.h>
 #include <LibWeb/Platform/EventLoopPlugin.h>
 #include <LibWeb/Selection/Selection.h>
@@ -108,6 +109,41 @@ void Page::reload()
 void Page::traverse_the_history_by_delta(int delta)
 {
     top_level_traversable()->traverse_the_history_by_delta(delta);
+}
+
+void Page::set_content_type_settings(ContentTypeSettings settings)
+{
+    m_content_type_settings = move(settings);
+}
+
+ContentTypeAction Page::content_type_action(FileType file_type) const
+{
+    if (auto action = m_content_type_settings.actions.get(file_type); action.has_value())
+        return *action;
+    return m_content_type_settings.default_action;
+}
+
+ContentTypeAction Page::effective_content_type_action(FileType file_type) const
+{
+    auto action = content_type_action(file_type);
+    if (action == ContentTypeAction::Ask) {
+        dbgln("FIXME: Implement asking the user how to handle '{}' content", file_type_to_string(file_type));
+        return ContentTypeAction::Download;
+    }
+    return action;
+}
+
+bool Page::should_view_content_type_inline(StringView mime_type) const
+{
+    auto file_type = file_type_from_mime_type(mime_type);
+    if (!file_type.has_value())
+        return false;
+    return effective_content_type_action(*file_type) == ContentTypeAction::View;
+}
+
+bool Page::should_view_content_type_inline(MimeSniff::MimeType const& type) const
+{
+    return should_view_content_type_inline(type.essence());
 }
 
 Gfx::Palette Page::palette() const

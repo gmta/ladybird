@@ -322,6 +322,33 @@
             .tab-panel.active {
                 display: block;
             }
+
+            .file-type-actions-table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .file-type-actions-table th,
+            .file-type-actions-table td {
+                padding: 10px 0;
+                border-bottom: 1px solid var(--border-color);
+                font-size: 14px;
+                text-align: left;
+            }
+
+            .file-type-actions-table th {
+                font-weight: 500;
+                opacity: 0.7;
+            }
+
+            .file-type-actions-table td:last-child,
+            .file-type-actions-table th:last-child {
+                width: 50%;
+            }
+
+            .file-type-actions-table select {
+                width: 100%;
+            }
         </style>
     </head>
     <body>
@@ -336,6 +363,7 @@
         <div class="tab-bar">
             <button class="tab-button active" data-tab="general">General</button>
             <button class="tab-button" data-tab="search">Search</button>
+            <button class="tab-button" data-tab="applications">Applications</button>
             <button class="tab-button" data-tab="permissions">Permissions</button>
             <button class="tab-button" data-tab="privacy">Privacy</button>
             <button class="tab-button" data-tab="network">Network</button>
@@ -409,6 +437,24 @@
                             <option value="">Disable search suggestions</option>
                             <hr />
                         </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-applications">
+            <div class="card">
+                <div class="card-body">
+                    <div class="card-group">
+                        <table class="file-type-actions-table">
+                            <thead>
+                                <tr>
+                                    <th>File Type</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="file-type-actions"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -642,6 +688,7 @@
             };
         </script>
 
+        <script src="resource://ladybird/about-pages/settings/applications.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/browsing-behavior.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/default-zoom-level.js" type="module"></script>
         <script src="resource://ladybird/about-pages/settings/languages.js" type="module"></script>

@@ -1203,6 +1203,12 @@ void ConnectionFromClient::set_browsing_behavior(u64 page_id, WebView::BrowsingB
         page->page().set_enable_autoscroll(browsing_behavior.enable_autoscroll);
 }
 
+void ConnectionFromClient::set_content_type_settings(u64 page_id, Web::ContentTypeSettings content_type_settings)
+{
+    if (auto page = this->page(page_id); page.has_value())
+        page->page().set_content_type_settings(move(content_type_settings));
+}
+
 void ConnectionFromClient::set_enable_global_privacy_control(u64, bool enable)
 {
     Web::ResourceLoader::the().set_enable_global_privacy_control(enable);
