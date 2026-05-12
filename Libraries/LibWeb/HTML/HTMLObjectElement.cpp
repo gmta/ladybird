@@ -33,9 +33,9 @@
 #include <LibWeb/HTML/SharedResourceRequest.h>
 #include <LibWeb/Layout/ImageBox.h>
 #include <LibWeb/Layout/NavigableContainerViewport.h>
-#include <LibWeb/Loader/ResourceLoader.h>
 #include <LibWeb/MimeSniff/MimeType.h>
 #include <LibWeb/MimeSniff/Resource.h>
+#include <LibWeb/Page/Page.h>
 
 namespace Web::HTML {
 
@@ -439,7 +439,7 @@ void HTMLObjectElement::run_object_representation_handler_steps(Fetch::Infrastru
     // 3.9. Handler: Handle the content as given by the first of the following cases that matches:
 
     // -> If the resource type is an XML MIME type, or if the resource type does not start with "image/"
-    if (can_load_document_with_type(resource_type) && (resource_type.is_xml() || !resource_type.is_image())) {
+    if (document().page().can_load_document_with_type(resource_type) && (resource_type.is_xml() || !resource_type.is_image())) {
         // If the object element's content navigable is null, then create a new child navigable for the element.
         if (!m_content_navigable && in_a_document_tree()) {
             create_new_child_navigable();

@@ -146,6 +146,30 @@ bool Page::should_view_content_type_inline(MimeSniff::MimeType const& type) cons
     return should_view_content_type_inline(type.essence());
 }
 
+bool Page::can_load_document_with_type(MimeSniff::MimeType const& type) const
+{
+    if (type.is_html())
+        return true;
+    if (type.is_xml())
+        return true;
+    if (type.is_javascript()
+        || type.is_json()
+        || type.essence() == "text/css"_string
+        || type.essence() == "text/plain"_string
+        || type.essence() == "text/vtt"_string) {
+        return true;
+    }
+    if (type.essence() == "multipart/x-mixed-replace"_string)
+        return true;
+    if (type.is_image() || type.is_audio_or_video())
+        return true;
+    if (type.essence() == "application/pdf"_string || type.essence() == "text/pdf"_string)
+        return should_view_content_type_inline(type);
+    if (type.essence() == "text/markdown"sv)
+        return true;
+    return false;
+}
+
 Gfx::Palette Page::palette() const
 {
     return m_client->palette();

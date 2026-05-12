@@ -31,6 +31,7 @@
 #include <LibWeb/Loader/GeneratedPagesLoader.h>
 #include <LibWeb/MimeSniff/Resource.h>
 #include <LibWeb/Namespace.h>
+#include <LibWeb/Page/Page.h>
 #include <LibWeb/Platform/EventLoopPlugin.h>
 #include <LibWeb/XML/XMLDocumentBuilder.h>
 #include <LibXML/Parser/Parser.h>
@@ -446,30 +447,6 @@ static GC::Ref<DOM::Document> load_pdf_document(HTML::NavigationParams const& na
     return document;
 }
 
-bool can_load_document_with_type(MimeSniff::MimeType const& type)
-{
-    if (type.is_html())
-        return true;
-    if (type.is_xml())
-        return true;
-    if (type.is_javascript()
-        || type.is_json()
-        || type.essence() == "text/css"_string
-        || type.essence() == "text/plain"_string
-        || type.essence() == "text/vtt"_string) {
-        return true;
-    }
-    if (type.essence() == "multipart/x-mixed-replace"_string)
-        return true;
-    if (type.is_image() || type.is_audio_or_video())
-        return true;
-    if (type.essence() == "application/pdf"_string || type.essence() == "text/pdf"_string)
-        return true;
-    if (type.essence() == "text/markdown"sv)
-        return true;
-    return false;
-}
-
 // https://html.spec.whatwg.org/multipage/browsing-the-web.html#loading-a-document
 GC::Ptr<DOM::Document> load_document(HTML::NavigationParams const& navigation_params, ReadonlyBytes sniff_bytes)
 {
@@ -536,7 +513,8 @@ GC::Ptr<DOM::Document> load_document(HTML::NavigationParams const& navigation_pa
     // -> "text/pdf"
     if (type.essence() == "application/pdf"_string
         || type.essence() == "text/pdf"_string) {
-        return load_pdf_document(navigation_params);
+        if (navigation_params.navigable && navigation_params.navigable->page().should_view_content_type_inline(type))
+            return load_pdf_document(navigation_params);
     }
 
     // Otherwise, proceed onward.

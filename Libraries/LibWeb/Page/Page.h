@@ -234,8 +234,13 @@ public:
     ContentTypeAction effective_content_type_action(FileType) const;
     bool should_view_content_type_inline(StringView mime_type) const;
     bool should_view_content_type_inline(MimeSniff::MimeType const&) const;
+    bool can_load_document_with_type(MimeSniff::MimeType const&) const;
 
-    bool pdf_viewer_supported() const { return m_pdf_viewer_supported; }
+    // https://html.spec.whatwg.org/multipage/system-state.html#pdf-viewer-supported
+    // Each user agent has a PDF viewer supported boolean, whose value is implementation-defined (and might vary
+    // according to user preferences).
+    // NOTE: This value also impacts the navigation processing model.
+    bool pdf_viewer_supported() const { return file_type_supports_inline_viewing(FileType::PDF); }
 
     void clear_selection();
 
@@ -335,12 +340,6 @@ private:
     Optional<String> m_user_style_sheet_source;
 
     ContentTypeSettings m_content_type_settings { default_content_type_settings() };
-
-    // https://html.spec.whatwg.org/multipage/system-state.html#pdf-viewer-supported
-    // Each user agent has a PDF viewer supported boolean, whose value is implementation-defined (and might vary according to user preferences).
-    // Spec Note: This value also impacts the navigation processing model.
-    // FIXME: Actually support pdf viewing
-    bool m_pdf_viewer_supported { false };
 
     size_t m_find_in_page_match_index { 0 };
     Optional<FindInPageQuery> m_last_find_in_page_query;
