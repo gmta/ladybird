@@ -9,6 +9,7 @@
 #include <AK/FlyString.h>
 #include <AK/HashMap.h>
 #include <AK/String.h>
+#include <AK/StringBuilder.h>
 #include <LibWeb/Export.h>
 
 namespace Web::CSS::Parser {
@@ -131,6 +132,7 @@ public:
     static ErrorReporter& the();
 
     void report(ParsingError&&);
+    void dump(StringBuilder&) const;
     void dump() const;
 
 private:

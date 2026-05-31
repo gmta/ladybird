@@ -14,6 +14,7 @@ set(SOURCES
     HSTSStore.cpp
     Menu.cpp
     Mutation.cpp
+    PageSnapshot.cpp
     Plugins/ImageCodecPlugin.cpp
     Process.cpp
     ProcessHandle.cpp
@@ -38,6 +39,8 @@ set(SOURCES
     WebUI/VersionUI.cpp
     CompositorClient.cpp
 )
+
+find_package(libzip CONFIG REQUIRED)
 
 set(GENERATED_SOURCES ${CURRENT_LIB_GENERATED})
 
@@ -89,7 +92,7 @@ compile_ipc(${LADYBIRD_SOURCE_DIR}/Services/WebContent/WebUIClient.ipc ${CMAKE_B
 compile_ipc(${LADYBIRD_SOURCE_DIR}/Services/WebContent/WebUIServer.ipc ${CMAKE_BINARY_DIR}/Services/WebContent/WebUIServerEndpoint.h)
 
 ladybird_lib(LibWebView webview EXPLICIT_SYMBOL_EXPORT)
-target_link_libraries(LibWebView PRIVATE LibCore LibDatabase LibDevTools LibFileSystem LibGfx LibHTTP LibImageDecoderClient LibIPC LibRequests LibJS LibWeb LibUnicode LibURL LibSync LibSyntax LibTextCodec)
+target_link_libraries(LibWebView PRIVATE LibCore LibDatabase LibDevTools LibFileSystem LibGfx LibHTTP LibImageDecoderClient LibIPC LibRequests LibJS LibWeb LibUnicode LibURL LibSync LibSyntax LibTextCodec libzip::zip)
 
 # Third-party
 if (HAS_FONTCONFIG)

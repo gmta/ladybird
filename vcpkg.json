@@ -89,6 +89,7 @@
     },
     "libjpeg-turbo",
     "libjxl",
+    "libzip",
     {
       "name": "libpng",
       "features": [
@@ -336,6 +337,10 @@
     {
       "name": "libpng",
       "version": "1.6.50#0"
+    },
+    {
+      "name": "libzip",
+      "version": "1.11.4#0"
     },
     {
       "name": "libproxy",

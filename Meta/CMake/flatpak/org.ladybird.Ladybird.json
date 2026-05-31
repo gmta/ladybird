@@ -107,6 +107,34 @@
       ]
     },
     {
+      "name": "libzip",
+      "buildsystem": "cmake-ninja",
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/nih-at/libzip.git",
+          "tag": "v1.11.4"
+        }
+      ],
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_PREFIX_PATH=/app",
+        "-DCMAKE_INSTALL_LIBDIR=lib",
+        "-DBUILD_DOC=OFF",
+        "-DBUILD_EXAMPLES=OFF",
+        "-DBUILD_REGRESS=OFF",
+        "-DBUILD_TOOLS=OFF",
+        "-DENABLE_BZIP2=OFF",
+        "-DENABLE_COMMONCRYPTO=OFF",
+        "-DENABLE_GNUTLS=OFF",
+        "-DENABLE_LZMA=OFF",
+        "-DENABLE_MBEDTLS=OFF",
+        "-DENABLE_OPENSSL=OFF",
+        "-DENABLE_WINDOWS_CRYPTO=OFF",
+        "-DENABLE_ZSTD=OFF"
+      ]
+    },
+    {
       "name": "gn",
       "buildsystem": "simple",
       "sources": [

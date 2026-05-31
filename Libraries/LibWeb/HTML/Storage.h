@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <AK/StringBuilder.h>
 #include <LibWeb/Bindings/PlatformObject.h>
 #include <LibWeb/Export.h>
 #include <LibWeb/StorageAPI/StorageBottle.h>
@@ -40,6 +41,7 @@ public:
     Type type() const { return m_type; }
 
     void dump() const;
+    void dump(StringBuilder&) const;
 
 private:
     Storage(JS::Realm&, Type, GC::Ref<StorageAPI::StorageBottle>);

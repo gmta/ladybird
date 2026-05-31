@@ -70,10 +70,15 @@ static void dump_session_history_entry(StringBuilder& builder, HTML::SessionHist
 void dump_tree(HTML::TraversableNavigable& traversable)
 {
     StringBuilder builder;
+    dump_tree(builder, traversable);
+    dbgln("{}", builder.string_view());
+}
+
+void dump_tree(StringBuilder& builder, HTML::TraversableNavigable& traversable)
+{
     for (auto const& she : traversable.session_history_entries()) {
         dump_session_history_entry(builder, *she, 0);
     }
-    dbgln("{}", builder.string_view());
 }
 
 void dump_tree(DOM::Node const& node)

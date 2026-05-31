@@ -19,6 +19,7 @@
 #include <LibWeb/Infra/Strings.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/BookmarkStore.h>
+#include <LibWebView/CookieJar.h>
 #include <LibWebView/ErrorHTML.h>
 #include <LibWebView/HelperProcess.h>
 #include <LibWebView/HistoryStore.h>
@@ -26,6 +27,7 @@
 #include <LibWebView/URL.h>
 #include <LibWebView/UserAgent.h>
 #include <LibWebView/ViewImplementation.h>
+#include <zip.h>
 
 namespace WebView {
 
@@ -1063,11 +1065,39 @@ static ErrorOr<LexicalPath> save_screenshot(Gfx::Bitmap const* bitmap)
     return path;
 }
 
+static ErrorOr<LexicalPath> save_screenshot(Gfx::Bitmap const& bitmap)
+{
+    return save_screenshot(&bitmap);
+}
+
 NonnullRefPtr<Core::Promise<LexicalPath>> ViewImplementation::take_screenshot(ScreenshotType type)
 {
     auto promise = Core::Promise<LexicalPath>::construct();
 
-    if (m_pending_screenshot) {
+    take_screenshot_bitmap(type)
+        ->when_resolved([promise](RefPtr<Gfx::Bitmap const> bitmap) {
+            if (!bitmap) {
+                promise->reject(Error::from_string_literal("Failed to take a screenshot"));
+                return;
+            }
+
+            if (auto result = save_screenshot(*bitmap); result.is_error())
+                promise->reject(result.release_error());
+            else
+                promise->resolve(result.release_value());
+        })
+        .when_rejected([promise](Error& error) {
+            promise->reject(move(error));
+        });
+
+    return promise;
+}
+
+NonnullRefPtr<Core::Promise<RefPtr<Gfx::Bitmap const>>> ViewImplementation::take_screenshot_bitmap(ScreenshotType type)
+{
+    auto promise = Core::Promise<RefPtr<Gfx::Bitmap const>>::construct();
+
+    if (m_pending_screenshot_bitmap) {
         // For simplicity, only allow taking one screenshot at a time for now. Revisit if we need
         // to allow spamming screenshot requests for some reason.
         promise->reject(Error::from_string_literal("A screenshot request is already in progress"));
@@ -1076,24 +1106,22 @@ NonnullRefPtr<Core::Promise<LexicalPath>> ViewImplementation::take_screenshot(Sc
 
     switch (type) {
     case ScreenshotType::Visible: {
-        Gfx::Bitmap const* visible_bitmap = nullptr;
+        RefPtr<Gfx::Bitmap const> visible_bitmap;
         if (m_client_state.has_usable_bitmap) {
             VERIFY(m_client_state.front_bitmap.shared_image_buffer);
-            visible_bitmap = m_client_state.front_bitmap.shared_image_buffer->bitmap().ptr();
+            visible_bitmap = m_client_state.front_bitmap.shared_image_buffer->bitmap();
         } else if (m_backup_shared_image_buffer) {
-            visible_bitmap = m_backup_shared_image_buffer->bitmap().ptr();
+            visible_bitmap = m_backup_shared_image_buffer->bitmap();
         }
-        if (visible_bitmap) {
-            if (auto result = save_screenshot(visible_bitmap); result.is_error())
-                promise->reject(result.release_error());
-            else
-                promise->resolve(result.release_value());
-        }
+        if (visible_bitmap)
+            promise->resolve(visible_bitmap);
+        else
+            promise->reject(Error::from_string_literal("Failed to take a screenshot"));
         break;
     }
 
     case ScreenshotType::Full:
-        m_pending_screenshot = promise;
+        m_pending_screenshot_bitmap = promise;
         client().async_take_document_screenshot(page_id());
         break;
     }
@@ -1105,14 +1133,37 @@ NonnullRefPtr<Core::Promise<LexicalPath>> ViewImplementation::take_dom_node_scre
 {
     auto promise = Core::Promise<LexicalPath>::construct();
 
-    if (m_pending_screenshot) {
+    take_dom_node_screenshot_bitmap(node_id)
+        ->when_resolved([promise](RefPtr<Gfx::Bitmap const> bitmap) {
+            if (!bitmap) {
+                promise->reject(Error::from_string_literal("Failed to take a screenshot"));
+                return;
+            }
+
+            if (auto result = save_screenshot(*bitmap); result.is_error())
+                promise->reject(result.release_error());
+            else
+                promise->resolve(result.release_value());
+        })
+        .when_rejected([promise](Error& error) {
+            promise->reject(move(error));
+        });
+
+    return promise;
+}
+
+NonnullRefPtr<Core::Promise<RefPtr<Gfx::Bitmap const>>> ViewImplementation::take_dom_node_screenshot_bitmap(Web::UniqueNodeID node_id)
+{
+    auto promise = Core::Promise<RefPtr<Gfx::Bitmap const>>::construct();
+
+    if (m_pending_screenshot_bitmap) {
         // For simplicity, only allow taking one screenshot at a time for now. Revisit if we need
         // to allow spamming screenshot requests for some reason.
         promise->reject(Error::from_string_literal("A screenshot request is already in progress"));
         return promise;
     }
 
-    m_pending_screenshot = promise;
+    m_pending_screenshot_bitmap = promise;
     client().async_take_dom_node_screenshot(page_id(), node_id);
 
     return promise;
@@ -1120,14 +1171,10 @@ NonnullRefPtr<Core::Promise<LexicalPath>> ViewImplementation::take_dom_node_scre
 
 void ViewImplementation::did_receive_screenshot(Badge<WebContentClient>, Gfx::ShareableBitmap const& screenshot)
 {
-    VERIFY(m_pending_screenshot);
+    VERIFY(m_pending_screenshot_bitmap);
 
-    if (auto result = save_screenshot(screenshot.bitmap()); result.is_error())
-        m_pending_screenshot->reject(result.release_error());
-    else
-        m_pending_screenshot->resolve(result.release_value());
-
-    m_pending_screenshot = nullptr;
+    m_pending_screenshot_bitmap->resolve(screenshot.bitmap());
+    m_pending_screenshot_bitmap = nullptr;
 }
 
 NonnullRefPtr<Core::Promise<String>> ViewImplementation::request_internal_page_info(PageInfoType type)
@@ -1160,6 +1207,29 @@ void ViewImplementation::did_receive_internal_page_info(Badge<WebContentClient>,
     m_pending_info_request = nullptr;
 }
 
+NonnullRefPtr<Core::Promise<PageSnapshot>> ViewImplementation::request_page_snapshot()
+{
+    auto promise = Core::Promise<PageSnapshot>::construct();
+
+    if (m_pending_page_snapshot_request) {
+        promise->reject(Error::from_string_literal("A page snapshot request is already in progress"));
+        return promise;
+    }
+
+    m_pending_page_snapshot_request = promise;
+    client().async_request_page_snapshot(page_id());
+
+    return promise;
+}
+
+void ViewImplementation::did_receive_page_snapshot(Badge<WebContentClient>, PageSnapshot snapshot)
+{
+    VERIFY(m_pending_page_snapshot_request);
+
+    m_pending_page_snapshot_request->resolve(move(snapshot));
+    m_pending_page_snapshot_request = nullptr;
+}
+
 ErrorOr<LexicalPath> ViewImplementation::dump_gc_graph()
 {
     auto promise = request_internal_page_info(PageInfoType::GCGraph);
@@ -1173,6 +1243,126 @@ ErrorOr<LexicalPath> ViewImplementation::dump_gc_graph()
     TRY(dump_file->write_until_depleted("var GC_GRAPH_DUMP = "sv.bytes()));
     TRY(dump_file->write_until_depleted(gc_graph_json.bytes()));
     TRY(dump_file->write_until_depleted(";\n"sv.bytes()));
+
+    return path;
+}
+
+static ErrorOr<void> add_file_to_zip(zip_t* archive, Vector<ByteBuffer>& source_buffers, StringView path, ReadonlyBytes bytes)
+{
+    auto path_bytes = path.to_byte_string();
+    TRY(source_buffers.try_append(TRY(ByteBuffer::copy(bytes))));
+    auto const& buffer = source_buffers.last();
+
+    auto* source = zip_source_buffer(archive, buffer.data(), buffer.size(), 0);
+    if (!source)
+        return Error::from_string_literal("Failed to create ZIP source");
+
+    if (zip_file_add(archive, path_bytes.characters(), source, ZIP_FL_OVERWRITE) < 0) {
+        zip_source_free(source);
+        return Error::from_string_literal("Failed to add file to ZIP");
+    }
+
+    return {};
+}
+
+static ErrorOr<ByteBuffer> json_to_byte_buffer(JsonObject const& object)
+{
+    auto serialized = object.serialized();
+    return ByteBuffer::copy(serialized.bytes());
+}
+
+static ErrorOr<ByteBuffer> string_builder_to_byte_buffer(StringBuilder& builder)
+{
+    auto string = TRY(builder.to_string());
+    return ByteBuffer::copy(string.bytes());
+}
+
+static ErrorOr<ByteBuffer> frame_metadata_json(PageSnapshotFrame const& frame)
+{
+    JsonObject object;
+    object.set("index"sv, frame.index);
+    if (frame.parent_index.has_value())
+        object.set("parent_index"sv, *frame.parent_index);
+    object.set("url"sv, frame.url);
+    object.set("base_url"sv, frame.base_url);
+    object.set("title"sv, frame.title);
+    return json_to_byte_buffer(object);
+}
+
+static ErrorOr<ByteBuffer> snapshot_manifest_json(PageSnapshot const& snapshot)
+{
+    JsonObject root;
+    root.set("format"sv, "ladybird-page-snapshot-v1"sv);
+
+    JsonArray frames;
+    for (auto const& frame : snapshot.frames) {
+        JsonObject frame_object;
+        frame_object.set("index"sv, frame.index);
+        if (frame.parent_index.has_value())
+            frame_object.set("parent_index"sv, *frame.parent_index);
+        frame_object.set("url"sv, frame.url);
+        frame_object.set("base_url"sv, frame.base_url);
+        frame_object.set("title"sv, frame.title);
+
+        JsonArray dumps;
+        for (auto const& dump : frame.dumps)
+            dumps.must_append(dump.name);
+        frame_object.set("dumps"sv, move(dumps));
+
+        frames.must_append(move(frame_object));
+    }
+    root.set("frames"sv, move(frames));
+
+    return json_to_byte_buffer(root);
+}
+
+ErrorOr<LexicalPath> ViewImplementation::dump_page_snapshot_zip()
+{
+    auto snapshot = TRY(request_page_snapshot()->await());
+    auto screenshot = TRY(take_screenshot_bitmap(ScreenshotType::Full)->await());
+    if (!screenshot)
+        return Error::from_string_literal("Failed to take a screenshot");
+
+    auto screenshot_png = TRY(Gfx::PNGWriter::encode(*screenshot));
+
+    auto file = AK::UnixDateTime::now().to_byte_string("page-snapshot-%Y-%m-%d-%H-%M-%S.zip"sv);
+    auto path = TRY(Application::the().path_for_downloaded_file(file));
+    auto path_string = path.string();
+
+    int zip_error = 0;
+    auto* archive = zip_open(path_string.characters(), ZIP_CREATE | ZIP_TRUNCATE, &zip_error);
+    if (!archive)
+        return Error::from_string_literal("Failed to create page snapshot ZIP");
+
+    auto close_archive = ArmedScopeGuard([&] {
+        zip_discard(archive);
+    });
+
+    Vector<ByteBuffer> source_buffers;
+
+    auto manifest = TRY(snapshot_manifest_json(snapshot));
+    TRY(add_file_to_zip(archive, source_buffers, "manifest.json"sv, manifest.bytes()));
+    TRY(add_file_to_zip(archive, source_buffers, "screenshot.png"sv, screenshot_png.bytes()));
+
+    StringBuilder cookies;
+    Application::cookie_jar().dump_cookies_for_url(cookies, url());
+    auto cookies_data = TRY(string_builder_to_byte_buffer(cookies));
+    TRY(add_file_to_zip(archive, source_buffers, "cookies.txt"sv, cookies_data.bytes()));
+
+    for (auto const& frame : snapshot.frames) {
+        auto directory = ByteString::formatted("frame-{}", frame.index);
+        auto metadata = TRY(frame_metadata_json(frame));
+        TRY(add_file_to_zip(archive, source_buffers, ByteString::formatted("{}/metadata.json", directory), metadata.bytes()));
+
+        for (auto const& dump : frame.dumps)
+            TRY(add_file_to_zip(archive, source_buffers, ByteString::formatted("{}/{}", directory, dump.name), dump.data.bytes()));
+    }
+
+    close_archive.disarm();
+    if (zip_close(archive) < 0) {
+        zip_discard(archive);
+        return Error::from_string_literal("Failed to finish page snapshot ZIP");
+    }
 
     return path;
 }

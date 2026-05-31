@@ -291,12 +291,19 @@ WebIDL::ExceptionOr<void> Storage::set_value_of_named_property(String const& key
 
 void Storage::dump() const
 {
+    StringBuilder builder;
+    dump(builder);
+    dbgln("{}", builder.string_view());
+}
+
+void Storage::dump(StringBuilder& builder) const
+{
     auto keys = m_storage_bottle->keys();
-    dbgln("Storage ({} key(s))", keys.size());
+    builder.appendff("Storage ({} key(s))\n", keys.size());
     size_t i = 0;
     for (auto const& key : keys) {
         auto value = m_storage_bottle->get(key);
-        dbgln("[{}] \"{}\": \"{}\"", i, key, value.value());
+        builder.appendff("[{}] \"{}\": \"{}\"\n", i, key, value.value());
         ++i;
     }
 }

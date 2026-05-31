@@ -43,6 +43,7 @@
 #include <LibWebView/DOMNodeProperties.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/PageInfo.h>
+#include <LibWebView/PageSnapshot.h>
 #include <LibWebView/Settings.h>
 #include <LibWebView/WebContentClient.h>
 
@@ -201,11 +202,17 @@ public:
         Full,
     };
     NonnullRefPtr<Core::Promise<LexicalPath>> take_screenshot(ScreenshotType);
+    NonnullRefPtr<Core::Promise<RefPtr<Gfx::Bitmap const>>> take_screenshot_bitmap(ScreenshotType);
     NonnullRefPtr<Core::Promise<LexicalPath>> take_dom_node_screenshot(Web::UniqueNodeID);
+    NonnullRefPtr<Core::Promise<RefPtr<Gfx::Bitmap const>>> take_dom_node_screenshot_bitmap(Web::UniqueNodeID);
     virtual void did_receive_screenshot(Badge<WebContentClient>, Gfx::ShareableBitmap const&);
 
     NonnullRefPtr<Core::Promise<String>> request_internal_page_info(PageInfoType);
     void did_receive_internal_page_info(Badge<WebContentClient>, PageInfoType, Optional<Core::AnonymousBuffer> const&);
+
+    NonnullRefPtr<Core::Promise<PageSnapshot>> request_page_snapshot();
+    void did_receive_page_snapshot(Badge<WebContentClient>, PageSnapshot);
+    ErrorOr<LexicalPath> dump_page_snapshot_zip();
 
     ErrorOr<LexicalPath> dump_gc_graph();
 
@@ -437,8 +444,9 @@ protected:
     size_t m_crash_count = 0;
     RefPtr<Core::Timer> m_repeated_crash_timer;
 
-    RefPtr<Core::Promise<LexicalPath>> m_pending_screenshot;
+    RefPtr<Core::Promise<RefPtr<Gfx::Bitmap const>>> m_pending_screenshot_bitmap;
     RefPtr<Core::Promise<String>> m_pending_info_request;
+    RefPtr<Core::Promise<PageSnapshot>> m_pending_page_snapshot_request;
 
     Web::HTML::VisibilityState m_system_visibility_state { Web::HTML::VisibilityState::Hidden };
 

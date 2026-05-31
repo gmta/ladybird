@@ -89,6 +89,7 @@ private:
     virtual void drag_event(u64 page_id, Web::DragEvent) override;
     virtual void pinch_event(u64 page_id, Web::PinchEvent) override;
     virtual void debug_request(u64 page_id, ByteString, ByteString) override;
+    virtual void request_page_snapshot(u64 page_id) override;
     virtual void get_source(u64 page_id) override;
     virtual void inspect_dom_tree(u64 page_id) override;
     virtual void inspect_dom_node(u64 page_id, WebView::DOMNodeProperties::Type, Web::UniqueNodeID node_id, Optional<Web::CSS::PseudoElement> pseudo_element) override;

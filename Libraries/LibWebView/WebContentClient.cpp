@@ -791,6 +791,12 @@ void WebContentClient::did_get_internal_page_info(u64 page_id, WebView::PageInfo
         view->did_receive_internal_page_info({}, type, info);
 }
 
+void WebContentClient::did_get_page_snapshot(u64 page_id, WebView::PageSnapshot snapshot)
+{
+    if (auto view = view_for_page_id(page_id); view.has_value())
+        view->did_receive_page_snapshot({}, move(snapshot));
+}
+
 void WebContentClient::did_execute_js_console_input(u64 page_id, JsonValue result)
 {
     if (auto view = view_for_page_id(page_id); view.has_value()) {

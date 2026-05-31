@@ -10,6 +10,7 @@
 #include <AK/HashMap.h>
 #include <AK/Optional.h>
 #include <AK/String.h>
+#include <AK/StringBuilder.h>
 #include <AK/StringView.h>
 #include <AK/Traits.h>
 #include <LibCore/Timer.h>
@@ -40,6 +41,8 @@ public:
     String get_cookie(URL::URL const& url, HTTP::Cookie::Source source);
     void set_cookie(URL::URL const& url, HTTP::Cookie::ParsedCookie const& parsed_cookie, HTTP::Cookie::Source source);
     void update_cookie(HTTP::Cookie::Cookie);
+    void dump_cookies(StringBuilder&);
+    void dump_cookies_for_url(StringBuilder&, URL::URL const&);
     void dump_cookies();
     Vector<HTTP::Cookie::Cookie> get_all_cookies();
     Vector<HTTP::Cookie::Cookie> get_all_cookies_webdriver(URL::URL const& url);

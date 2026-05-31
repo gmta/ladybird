@@ -32,6 +32,7 @@
 #include <LibWebView/StorageSetResult.h>
 #include <LibWebView/Mutation.h>
 #include <LibWebView/PageInfo.h>
+#include <LibWebView/PageSnapshot.h>
 #include <LibWebView/ProcessHandle.h>
 
 endpoint WebContentClient
@@ -84,6 +85,7 @@ endpoint WebContentClient
     did_take_screenshot(u64 page_id, Gfx::ShareableBitmap screenshot) =|
 
     did_get_internal_page_info(u64 page_id, WebView::PageInfoType type, Optional<Core::AnonymousBuffer> info) =|
+    did_get_page_snapshot(u64 page_id, WebView::PageSnapshot snapshot) =|
 
     did_change_favicon(u64 page_id, Gfx::ShareableBitmap favicon) =|
 

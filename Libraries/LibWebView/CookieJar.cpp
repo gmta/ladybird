@@ -415,31 +415,64 @@ void CookieJar::update_cookie(HTTP::Cookie::Cookie cookie)
     m_transient_storage.purge_expired_cookies();
 }
 
+static void dump_cookie(StringBuilder& builder, HTTP::Cookie::Cookie const& cookie, bool use_color)
+{
+    auto key_color = use_color ? "\033[34;1m"sv : ""sv;
+    auto attribute_color = use_color ? "\033[33m"sv : ""sv;
+    auto no_color = use_color ? "\033[0m"sv : ""sv;
+
+    builder.appendff("{}{}{} - ", key_color, cookie.name, no_color);
+    builder.appendff("{}{}{} - ", key_color, cookie.domain, no_color);
+    builder.appendff("{}{}{}\n", key_color, cookie.path, no_color);
+
+    builder.appendff("\t{}Value{} = {}\n", attribute_color, no_color, cookie.value);
+    builder.appendff("\t{}CreationTime{} = {}\n", attribute_color, no_color, cookie.creation_time_to_string());
+    builder.appendff("\t{}LastAccessTime{} = {}\n", attribute_color, no_color, cookie.last_access_time_to_string());
+    builder.appendff("\t{}ExpiryTime{} = {}\n", attribute_color, no_color, cookie.expiry_time_to_string());
+    builder.appendff("\t{}Secure{} = {:s}\n", attribute_color, no_color, cookie.secure);
+    builder.appendff("\t{}HttpOnly{} = {:s}\n", attribute_color, no_color, cookie.http_only);
+    builder.appendff("\t{}HostOnly{} = {:s}\n", attribute_color, no_color, cookie.host_only);
+    builder.appendff("\t{}Persistent{} = {:s}\n", attribute_color, no_color, cookie.persistent);
+    builder.appendff("\t{}SameSite{} = {:s}\n", attribute_color, no_color, HTTP::Cookie::same_site_to_string(cookie.same_site));
+}
+
+void CookieJar::dump_cookies(StringBuilder& builder)
+{
+    builder.appendff("{} cookies stored\n", m_transient_storage.size());
+    m_transient_storage.for_each_cookie([&](auto const& cookie) {
+        dump_cookie(builder, cookie, true);
+    });
+}
+
+void CookieJar::dump_cookies_for_url(StringBuilder& builder, URL::URL const& url)
+{
+    m_transient_storage.purge_expired_cookies();
+
+    auto retrieval_host_canonical = HTTP::Cookie::canonicalize_domain(url);
+    if (!retrieval_host_canonical.has_value()) {
+        builder.appendff("0 cookies matching {}\n", url.serialize());
+        return;
+    }
+
+    Vector<HTTP::Cookie::Cookie> cookies;
+    m_transient_storage.for_each_cookie([&](auto const& cookie) {
+        auto matches_host_only_cookie = cookie.host_only && *retrieval_host_canonical == cookie.domain;
+        auto matches_domain_cookie = !cookie.host_only && HTTP::Cookie::domain_matches(*retrieval_host_canonical, cookie.domain) && !URL::is_public_suffix(cookie.domain);
+        if (matches_host_only_cookie || matches_domain_cookie)
+            cookies.append(cookie);
+    });
+
+    builder.appendff("{} cookies matching {}\n", cookies.size(), url.serialize());
+    for (auto const& cookie : cookies) {
+        dump_cookie(builder, cookie, false);
+    }
+}
+
 void CookieJar::dump_cookies()
 {
     StringBuilder builder;
-
-    m_transient_storage.for_each_cookie([&](auto const& cookie) {
-        static constexpr auto key_color = "\033[34;1m"sv;
-        static constexpr auto attribute_color = "\033[33m"sv;
-        static constexpr auto no_color = "\033[0m"sv;
-
-        builder.appendff("{}{}{} - ", key_color, cookie.name, no_color);
-        builder.appendff("{}{}{} - ", key_color, cookie.domain, no_color);
-        builder.appendff("{}{}{}\n", key_color, cookie.path, no_color);
-
-        builder.appendff("\t{}Value{} = {}\n", attribute_color, no_color, cookie.value);
-        builder.appendff("\t{}CreationTime{} = {}\n", attribute_color, no_color, cookie.creation_time_to_string());
-        builder.appendff("\t{}LastAccessTime{} = {}\n", attribute_color, no_color, cookie.last_access_time_to_string());
-        builder.appendff("\t{}ExpiryTime{} = {}\n", attribute_color, no_color, cookie.expiry_time_to_string());
-        builder.appendff("\t{}Secure{} = {:s}\n", attribute_color, no_color, cookie.secure);
-        builder.appendff("\t{}HttpOnly{} = {:s}\n", attribute_color, no_color, cookie.http_only);
-        builder.appendff("\t{}HostOnly{} = {:s}\n", attribute_color, no_color, cookie.host_only);
-        builder.appendff("\t{}Persistent{} = {:s}\n", attribute_color, no_color, cookie.persistent);
-        builder.appendff("\t{}SameSite{} = {:s}\n", attribute_color, no_color, HTTP::Cookie::same_site_to_string(cookie.same_site));
-    });
-
-    dbgln("{} cookies stored\n{}", m_transient_storage.size(), builder.string_view());
+    dump_cookies(builder);
+    dbgln("{}", builder.string_view());
 }
 
 Vector<HTTP::Cookie::Cookie> CookieJar::get_all_cookies()

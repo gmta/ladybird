@@ -66,10 +66,17 @@ void ErrorReporter::report(ParsingError&& error)
 
 void ErrorReporter::dump() const
 {
+    StringBuilder builder;
+    dump(builder);
+    dbgln("{}", builder.string_view());
+}
+
+void ErrorReporter::dump(StringBuilder& builder) const
+{
     // TODO: Organise this in some way?
-    dbgln("{} CSS errors reported:", m_errors.size());
+    builder.appendff("{} CSS errors reported:\n", m_errors.size());
     for (auto const& [error, metadata] : m_errors) {
-        dbgln("- {} ({} occurrences)", serialize_parsing_error(error), metadata.occurrences);
+        builder.appendff("- {} ({} occurrences)\n", serialize_parsing_error(error), metadata.occurrences);
     }
 }
 
