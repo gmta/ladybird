@@ -312,6 +312,7 @@ static NSImage* location_field_globe_icon()
 
     bool m_fullscreen_requested_for_web_content;
     bool m_fullscreen_exit_was_ui_initiated;
+    bool m_fullscreen_should_restore_toolbar;
     bool m_fullscreen_should_restore_tab_bar;
     Function<void()> m_pending_immediate_close;
 }
@@ -382,6 +383,7 @@ static NSImage* location_field_globe_icon()
         m_should_suppress_inline_autocomplete_on_next_change = false;
         m_fullscreen_requested_for_web_content = false;
         m_fullscreen_exit_was_ui_initiated = true;
+        m_fullscreen_should_restore_toolbar = false;
         m_fullscreen_should_restore_tab_bar = false;
 
         self.autocomplete = [[Autocomplete alloc] init:self withToolbarItem:self.location_toolbar_item];
@@ -419,6 +421,7 @@ static NSImage* location_field_globe_icon()
         m_page_index = page_index;
         m_fullscreen_requested_for_web_content = false;
         m_fullscreen_exit_was_ui_initiated = true;
+        m_fullscreen_should_restore_toolbar = false;
         m_fullscreen_should_restore_tab_bar = false;
     }
 
@@ -1060,10 +1063,13 @@ static NSImage* location_field_globe_icon()
 
 - (void)windowWillEnterFullScreen:(NSNotification*)notification
 {
-    if (m_fullscreen_requested_for_web_content) {
+    m_fullscreen_should_restore_toolbar = [self.toolbar isVisible];
+    if (m_fullscreen_should_restore_toolbar)
         [self.toolbar setVisible:NO];
-        [[self tab] updateBookmarksBarDisplay:NO];
 
+    [[self tab] updateBookmarksBarDisplay:NO];
+
+    if (m_fullscreen_requested_for_web_content) {
         m_fullscreen_should_restore_tab_bar = [[self.window tabGroup] isTabBarVisible];
         if (m_fullscreen_should_restore_tab_bar) {
             [self.window toggleTabBar:nil];
@@ -1079,22 +1085,23 @@ static NSImage* location_field_globe_icon()
 
 - (void)windowWillExitFullScreen:(NSNotification*)notification
 {
-    if (exchange(m_fullscreen_exit_was_ui_initiated, true))
+    if (m_fullscreen_requested_for_web_content && exchange(m_fullscreen_exit_was_ui_initiated, true))
         [[[self tab] web_view] handleExitFullScreen];
 }
 
 - (void)windowDidExitFullScreen:(NSNotification*)notification
 {
-    if (exchange(m_fullscreen_requested_for_web_content, false)) {
+    if (exchange(m_fullscreen_should_restore_toolbar, false))
         [self.toolbar setVisible:YES];
-        [[self tab] updateBookmarksBarDisplay:WebView::Application::settings().show_bookmarks_bar()];
 
+    [[self tab] updateBookmarksBarDisplay:WebView::Application::settings().show_bookmarks_bar()];
+
+    if (exchange(m_fullscreen_requested_for_web_content, false)) {
         if (m_fullscreen_should_restore_tab_bar && ![[self.window tabGroup] isTabBarVisible]) {
             [self.window toggleTabBar:nil];
         }
+        [[[self tab] web_view] handleExitedFullScreen];
     }
-
-    [[[self tab] web_view] handleExitedFullScreen];
 }
 
 - (NSApplicationPresentationOptions)window:(NSWindow*)window
