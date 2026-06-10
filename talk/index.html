@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CSS, From Text to Pixels in Ladybird</title>
+    <link rel="stylesheet" href="assets/deck.css">
+</head>
+<body>
+    <main class="deck" aria-live="polite">
+        <section class="slide center active intro-slide" data-title="Ladybird Intro">
+            <video
+                class="intro-video"
+                data-intro-video
+                src="assets/logo-anim-black.mp4"
+                preload="auto"
+                playsinline
+                muted
+                aria-label="Ladybird intro animation"></video>
+            <div class="intro-event">CSS Day 2026 - Zuiderkerk, Amsterdam</div>
+        </section>
+
+        <section class="slide center" data-title="Title">
+            <div class="content">
+                <h1>CSS, From Text to Pixels in Ladybird</h1>
+                <p class="lead">A tour through the machinery that turns CSS values into something a browser can use.</p>
+            </div>
+        </section>
+
+        <section class="slide split personal-slide" data-title="Jelle">
+            <div class="content">
+                <h2>Jelle Raaijmakers</h2>
+                <p class="lead">COO of the Ladybird Browser Initiative, a 501(c)(3) non-profit based in San Francisco.</p>
+                <p class="lead">Building a new browser with a team of amazing people.</p>
+            </div>
+            <img class="headshot" src="assets/jelle-headshot.jpeg" alt="Jelle Raaijmakers">
+        </section>
+
+        <section class="slide split ladybird-title-slide" data-title="What Ladybird Is">
+            <div class="content">
+                <h2>Ladybird: new engine, not a fork</h2>
+                <ul>
+                    <li>Built from scratch.</li>
+                    <li>Based on web standards.</li>
+                    <li>Written mostly in C++ and Rust.</li>
+                    <li>Backed by a non-profit, 100% supported by donations and sponsorships.</li>
+                </ul>
+            </div>
+            <img class="brand-mark" src="assets/ladybird-logomark.png" alt="Ladybird logomark">
+        </section>
+
+        <section class="slide center history-slide zoom-slide" data-title="SerenityOS History">
+            <div class="content">
+                <h2>Before Ladybird was Ladybird</h2>
+                <div class="history-grid">
+                    <figure class="history-card zoomable-media">
+                        <img src="assets/serenityos-beginnings.png" alt="Early SerenityOS browser beginnings">
+                        <figcaption>Browser experiments inside SerenityOS</figcaption>
+                    </figure>
+                    <figure class="history-card zoomable-media">
+                        <img src="assets/serenityos-reddit.png" alt="SerenityOS browser rendering Reddit">
+                        <figcaption>The real web starts showing up</figcaption>
+                    </figure>
+                    <figure class="history-card zoomable-media">
+                        <img src="assets/serenityos-acid3.png" alt="SerenityOS browser Acid3 result">
+                        <figcaption>Acid3 as an early milestone</figcaption>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center score-slide zoom-slide" data-title="Standards Progress">
+            <div class="content">
+                <h2>Synthetic tests &amp; the real web</h2>
+                <div class="score-grid">
+                    <figure class="score-card zoomable-media wpt-score">
+                        <img src="assets/wpt-relative-scores.png" alt="Relative Web Platform Tests scores for browser engines">
+                        <figcaption>Web Platform Tests, relative suite scores</figcaption>
+                    </figure>
+                    <figure class="score-card zoomable-media">
+                        <img src="assets/test262-leaders.png" alt="Test262 pass percentages for JavaScript engines">
+                        <figcaption>Test262, percent passing</figcaption>
+                    </figure>
+                </div>
+                <p class="score-date">Scores measured June 10, 2026.</p>
+            </div>
+        </section>
+
+        <section class="slide center reveal-slide" data-title="Well In Fact">
+            <div class="content">
+                <h2>Well, in fact...</h2>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Browser Architecture">
+            <div class="content">
+                <h2>Cooperating processes</h2>
+                <div class="ipc-frame">
+                    <div class="architecture">
+                        <div class="process-column">
+                            <p class="process-label">User-facing</p>
+                            <div class="process-box">
+                                <h3>Browser UI</h3>
+                                <p>Windows, tabs, address bar, input, platform frontend</p>
+                            </div>
+                            <div class="process-box">
+                                <h3>WebView</h3>
+                                <p>Embeds web content and talks to sandboxed processes</p>
+                            </div>
+                        </div>
+                        <div class="process-column">
+                            <p class="process-label">Web platform</p>
+                            <div class="process-box primary">
+                                <h3>WebContent</h3>
+                                <p>LibWeb, DOM, CSS, JavaScript, style, layout, paint</p>
+                            </div>
+                        </div>
+                        <div class="process-column">
+                            <p class="process-label">Sandboxed processes</p>
+                            <div class="process-box"><h3>RequestServer</h3><p>Network loading</p></div>
+                            <div class="process-box"><h3>ImageDecoder</h3><p>Image decoding</p></div>
+                            <div class="process-box"><h3>WebWorker</h3><p>Worker execution</p></div>
+                            <div class="process-box"><h3>Compositor</h3><p>Async scrolling and composition</p></div>
+                        </div>
+                    </div>
+                    <div class="ipc-title">Connected through IPC</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="CSS Lives Here">
+            <div class="content">
+                <h2>CSS inside LibWeb</h2>
+                <div class="webcontent-map">
+                    <div class="webcontent-title">WebContent / LibWeb</div>
+                    <div class="webcontent-grid">
+                        <div class="process-box"><h3>DOM</h3><p>Elements, attributes, tree mutation</p></div>
+                        <div class="process-box highlight"><h3>CSS Parser</h3><p>Tokens become rules, selectors, and values</p></div>
+                        <div class="process-box highlight"><h3>StyleComputer</h3><p>Matches selectors, cascades, defaults, computes</p></div>
+                        <div class="process-box"><h3>Layout</h3><p>Boxes become sizes and positions</p></div>
+                        <div class="process-box"><h3>Painting</h3><p>Display commands are generated</p></div>
+                        <div class="process-box"><h3>JavaScript</h3><p>CSSOM reads and mutations enter the same machinery</p></div>
+                        <div class="process-box specs-box"><h3>Web specs</h3><p>Editing, Fetch, IndexedDB, HTML, Web IDL, Storage, and more</p></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Inside WebContent">
+            <div class="content">
+                <h2>The page pipeline around CSS</h2>
+                <div class="rendering-pipeline">
+                    <div class="stage-box"><h3>Load</h3><p>RequestServer fetches HTML, CSS, images, scripts</p></div>
+                    <div class="stage-box"><h3>Parse</h3><p>HTML becomes DOM. CSS becomes CSSOM and style values</p></div>
+                    <div class="stage-box highlight"><h3>Style</h3><p>Selectors match. Values cascade, default, and compute</p></div>
+                    <div class="stage-box"><h3>Layout</h3><p>Boxes get sizes and positions</p></div>
+                    <div class="stage-box"><h3>Paintable tree</h3><p>Layout boxes get paintable counterparts</p></div>
+                    <div class="stage-box"><h3>Display list</h3><p>Paintables record drawing commands</p></div>
+                    <div class="stage-box"><h3>Composite</h3><p>Output reaches the screen</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="One CSS Value">
+            <div class="content">
+                <h2>One CSS value, many stages</h2>
+                <p class="pipeline-example">width: 50%;</p>
+                <p class="lead">Simple enough, right?</p>
+            </div>
+        </section>
+
+        <section class="slide center pipeline-overview" data-title="Six CSS Value Stages">
+            <div class="content">
+                <h2>Six CSS value stages</h2>
+                <div class="value-pipeline">
+                    <span class="pipeline-extra">Stylesheet text</span>
+                    <span>Declared</span><span>Cascaded</span><span>Specified</span>
+                    <span>Computed</span><span>Used</span><span>Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split pipeline-slide" data-title="Stylesheet Text">
+            <div class="content">
+                <h2>Stylesheet text</h2>
+                <pre class="code code-colored"><code><span class="code-selector">.card</span> {
+    <span class="code-property">width</span>: <span class="code-literal">50%</span>;
+}</code></pre>
+            </div>
+            <div class="pipeline-side">
+                <div class="value-pipeline">
+                    <span class="pipeline-extra highlight">Stylesheet text</span>
+                    <span>Declared</span><span>Cascaded</span><span>Specified</span>
+                    <span>Computed</span><span>Used</span><span>Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split pipeline-slide" data-title="Declared">
+            <div class="content">
+                <h2>Declared values: valid declarations</h2>
+                <p class="pipeline-note">If the property is unknown, the selector does not match, or the value is invalid, it does not enter the pipeline for this element.</p>
+            </div>
+            <div class="pipeline-side">
+                <div class="value-pipeline">
+                    <span class="pipeline-extra">Stylesheet text</span>
+                    <span class="highlight">Declared</span><span>Cascaded</span><span>Specified</span>
+                    <span>Computed</span><span>Used</span><span>Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Properties.json">
+            <div class="content">
+                <h2>Property metadata</h2>
+                <pre class="code code-colored"><code><span class="code-comment">// Libraries/LibWeb/CSS/Properties.json</span>
+<span class="code-string">"width"</span>: {
+    <span class="code-string">"animation-type"</span>: <span class="code-string">"by-computed-value"</span>,
+    <span class="code-string">"inherited"</span>: <span class="code-literal">false</span>,
+    <span class="code-string">"initial"</span>: <span class="code-string">"auto"</span>,
+    <span class="code-string">"requires-computation"</span>: <span class="code-string">"cascaded-value"</span>,
+    <span class="code-string">"valid-types"</span>: [
+        <span class="code-string">"length [0,&infin;]"</span>,
+        <span class="code-string">"percentage [0,&infin;]"</span>
+    ],
+    <span class="code-string">"valid-identifiers"</span>: [
+        <span class="code-string">"auto"</span>, <span class="code-string">"max-content"</span>, <span class="code-string">"min-content"</span>
+    ],
+    <span class="code-string">"needs-layout-for-getcomputedstyle"</span>: <span class="code-literal">true</span>
+}</code></pre>
+            </div>
+        </section>
+
+        <section class="slide split" data-title="Grammar Demo">
+            <div class="content">
+                <h2>Parser as filter</h2>
+                <p class="lead">Only recognized properties with values matching that property's syntax become declared values.</p>
+            </div>
+            <div class="demo panel">
+                <h3>Grammar demo</h3>
+                <div class="controls">
+                    <label class="control-row">
+                        <span>property</span>
+                        <select data-grammar-property>
+                            <option>font-size</option>
+                            <option>width</option>
+                            <option>color</option>
+                            <option>display</option>
+                        </select>
+                        <span></span>
+                    </label>
+                    <label class="control-row">
+                        <span>value</span>
+                        <input data-grammar-value type="text" value="2em">
+                        <span></span>
+                    </label>
+                </div>
+                <div class="result" data-grammar-output></div>
+            </div>
+        </section>
+
+        <section class="slide split code-slide" data-title="CSS.supports Source">
+            <div class="content">
+                <h2>The parser gate in LibWeb</h2>
+                <p class="lead">The grammar demo is calling into the same kind of question a browser has to answer before a value can become declared.</p>
+                <p class="api-note">Demo API: <code>CSS.supports(property, value)</code></p>
+            </div>
+            <pre class="code code-colored"><code><span class="code-comment">// Libraries/LibWeb/CSS/CSS.cpp</span>
+<span class="code-keyword">bool</span> <span class="code-method">supports</span>(<span class="code-namespace">JS</span>::<span class="code-type">VM</span>&amp;, <span class="code-type">Utf16FlyString</span> <span class="code-keyword">const</span>&amp; <span class="code-variable">property_name</span>, <span class="code-type">StringView</span> <span class="code-variable">value</span>)
+{
+    <span class="code-keyword">if</span> (<span class="code-keyword">auto</span> <span class="code-variable">property</span> = <span class="code-type">PropertyNameAndID</span>::<span class="code-method">from_name</span>(<span class="code-variable">property_name</span>); <span class="code-variable">property</span>.<span class="code-method">has_value</span>()) {
+        <span class="code-keyword">if</span> (<span class="code-method">parse_css_value</span>(<span class="code-namespace">Parser</span>::<span class="code-type">ParsingParams</span> {}, <span class="code-variable">value</span>, <span class="code-variable">property</span>-&gt;<span class="code-method">id</span>()))
+            <span class="code-keyword">return</span> <span class="code-literal">true</span>;
+    }
+
+    <span class="code-keyword">return</span> <span class="code-literal">false</span>;
+}</code></pre>
+        </section>
+
+        <section class="slide split pipeline-slide" data-title="Cascaded">
+            <div class="content">
+                <h2>Cascaded value: one winner</h2>
+                <p class="pipeline-note">There can be many declared values for one property. The cascade chooses at most one.</p>
+            </div>
+            <div class="pipeline-side">
+                <div class="value-pipeline">
+                    <span class="pipeline-extra">Stylesheet text</span>
+                    <span>Declared</span><span class="highlight">Cascaded</span><span>Specified</span>
+                    <span>Computed</span><span>Used</span><span>Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split code-slide mixed-code-slide" data-title="Cascade Demo">
+            <div class="content">
+                <h2>One property, one winner</h2>
+                <p class="lead">LibWeb applies declarations in cascade order. Later passes can replace earlier winners.</p>
+                <pre class="code code-colored compact-code"><code><span class="code-comment">// Libraries/LibWeb/CSS/StyleComputer.cpp</span>
+<span class="code-comment">// Normal author declarations, with inner contexts first so outer contexts win.</span>
+<span class="code-keyword">for</span> (<span class="code-keyword">auto const</span>&amp; <span class="code-variable">context</span> : <span class="code-variable">matching_rule_set</span>.author_contexts.<span class="code-method">in_reverse</span>()) {
+    <span class="code-keyword">for</span> (<span class="code-keyword">auto const</span>&amp; <span class="code-variable">layer</span> : <span class="code-variable">context</span>.author_rules)
+        <span class="code-method">cascade_declarations</span>(<span class="code-variable">cascaded_properties</span>, <span class="code-variable">abstract_element</span>, <span class="code-variable">layer</span>.rules, <span class="code-type">CascadeOrigin</span>::<span class="code-enum">Author</span>, <span class="code-type">Important</span>::<span class="code-enum">No</span>, <span class="code-variable">layer</span>.qualified_layer_name, <span class="code-literal">false</span>);
+    <span class="code-keyword">if</span> (<span class="code-variable">context</span>.shadow_root == <span class="code-variable">element_context_shadow_root</span>)
+        <span class="code-variable">cascade_inline_style</span>(<span class="code-type">Important</span>::<span class="code-enum">No</span>);
+}
+
+<span class="code-comment">// Important author declarations, with outer contexts first so inner contexts win.</span>
+<span class="code-keyword">for</span> (<span class="code-keyword">auto const</span>&amp; <span class="code-variable">context</span> : <span class="code-variable">matching_rule_set</span>.author_contexts) {
+    <span class="code-keyword">for</span> (<span class="code-keyword">auto const</span>&amp; <span class="code-variable">layer</span> : <span class="code-variable">context</span>.author_rules.<span class="code-method">in_reverse</span>())
+        <span class="code-method">cascade_declarations</span>(<span class="code-variable">cascaded_properties</span>, <span class="code-variable">abstract_element</span>, <span class="code-variable">layer</span>.rules, <span class="code-type">CascadeOrigin</span>::<span class="code-enum">Author</span>, <span class="code-type">Important</span>::<span class="code-enum">Yes</span>, {}, <span class="code-literal">false</span>);
+    <span class="code-keyword">if</span> (<span class="code-variable">context</span>.shadow_root == <span class="code-variable">element_context_shadow_root</span>)
+        <span class="code-variable">cascade_inline_style</span>(<span class="code-type">Important</span>::<span class="code-enum">Yes</span>);
+}
+
+<span class="code-method">cascade_declarations</span>(<span class="code-variable">cascaded_properties</span>, <span class="code-variable">abstract_element</span>, <span class="code-variable">matching_rule_set</span>.user_rules, <span class="code-type">CascadeOrigin</span>::<span class="code-enum">User</span>, <span class="code-type">Important</span>::<span class="code-enum">Yes</span>, {}, <span class="code-literal">false</span>);
+<span class="code-method">cascade_declarations</span>(<span class="code-variable">cascaded_properties</span>, <span class="code-variable">abstract_element</span>, <span class="code-variable">matching_rule_set</span>.user_agent_rules, <span class="code-type">CascadeOrigin</span>::<span class="code-enum">UserAgent</span>, <span class="code-type">Important</span>::<span class="code-enum">Yes</span>, {}, <span class="code-literal">false</span>);</code></pre>
+            </div>
+            <div class="demo panel">
+                <h3>Cascade demo</h3>
+                <div class="controls">
+                    <label class="control-row">
+                        <span>candidate selector</span>
+                        <input data-cascade-specificity type="range" min="0" max="3" value="1">
+                        <span data-cascade-specificity-value>.action</span>
+                    </label>
+                    <label class="control-row">
+                        <span>later in CSS</span>
+                        <input data-cascade-source-order type="checkbox">
+                        <span data-cascade-source-order-value>no</span>
+                    </label>
+                    <label class="control-row">
+                        <span>important</span>
+                        <input data-cascade-important type="checkbox">
+                        <span>!important</span>
+                    </label>
+                </div>
+                <div class="result" data-cascade-output></div>
+                <button class="cascade-target" data-cascade-target type="button">button.action</button>
+            </div>
+        </section>
+
+        <section class="slide split pipeline-slide code-slide mixed-code-slide" data-title="Specified">
+            <div class="content">
+                <h2>Specified values: blanks filled</h2>
+                <p class="pipeline-note">For <code>width</code>, the specified value is the cascaded value if one wins. Otherwise it is the initial value: <code>auto</code>.</p>
+                <pre class="code code-colored compact-code"><code><span class="code-comment">// Libraries/LibWeb/CSS/StyleComputer.cpp</span>
+<span class="code-keyword">if</span> (<span class="code-variable">should_inherit</span> &amp;&amp; <span class="code-variable">computed_properties_to_inherit_from</span>) {
+    <span class="code-variable">computed_style</span>-&gt;<span class="code-method">set_property_inherited</span>(<span class="code-variable">property_id</span>, <span class="code-type">ComputedProperties</span>::<span class="code-enum">Inherited</span>::<span class="code-enum">Yes</span>);
+    <span class="code-variable">value</span> = <span class="code-variable">computed_properties_to_inherit_from</span>-&gt;<span class="code-method">property</span>(
+        <span class="code-variable">inherited_property_id</span>,
+        <span class="code-type">ComputedProperties</span>::<span class="code-enum">WithAnimationsApplied</span>::<span class="code-enum">No</span>);
+    <span class="code-variable">requires_computation</span> = <span class="code-method">property_requires_computation_with_inherited_value</span>(<span class="code-variable">property_id</span>);
+}
+
+<span class="code-keyword">if</span> (!<span class="code-variable">value</span> || <span class="code-variable">value</span>-&gt;<span class="code-method">is_initial</span>() || <span class="code-variable">value</span>-&gt;<span class="code-method">is_unset</span>()
+    || (<span class="code-variable">should_inherit</span> &amp;&amp; !<span class="code-variable">computed_properties_to_inherit_from</span>)) {
+    <span class="code-variable">value</span> = <span class="code-method">property_initial_value</span>(<span class="code-variable">property_id</span>);
+    <span class="code-variable">requires_computation</span> = <span class="code-method">property_requires_computation_with_initial_value</span>(<span class="code-variable">property_id</span>);
+}</code></pre>
+            </div>
+            <div class="pipeline-side">
+                <div class="value-pipeline">
+                    <span class="pipeline-extra">Stylesheet text</span>
+                    <span>Declared</span><span>Cascaded</span><span class="highlight">Specified</span>
+                    <span>Computed</span><span>Used</span><span>Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="CSS-Wide Keywords">
+            <div class="content">
+                <h2>CSS-wide keywords</h2>
+                <div class="flow">
+                    <span>inherit</span><span>initial</span><span>unset</span><span>revert</span><span>revert-layer</span>
+                </div>
+                <p class="lead">They tell the browser which part of inheritance, initial values, or cascade history to consult.</p>
+            </div>
+        </section>
+
+        <section class="slide split pipeline-slide code-slide mixed-code-slide" data-title="Computed">
+            <div class="content">
+                <h2>Computed values before layout</h2>
+                <p class="pipeline-note">For <code>width: 50%</code>, the computed value can still be <code>50%</code>. For <code>border-left-width: calc(0.8em + 2px)</code>, font-size is enough to compute pixels.</p>
+                <pre class="code code-colored compact-code"><code><span class="code-comment">// Libraries/LibWeb/CSS/StyleComputer.cpp</span>
+<span class="code-keyword">auto const</span>&amp; <span class="code-variable">absolutized_value</span> = <span class="code-variable">specified_value</span>-&gt;<span class="code-method">absolutized</span>(<span class="code-variable">computation_context</span>);
+
+<span class="code-keyword">switch</span> (<span class="code-variable">property_id</span>) {
+<span class="code-keyword">case</span> <span class="code-type">PropertyID</span>::<span class="code-enum">FontSize</span>:
+    <span class="code-keyword">return</span> <span class="code-method">compute_font_size</span>(
+        <span class="code-variable">absolutized_value</span>,
+        <span class="code-method">get_property_specified_value</span>(<span class="code-type">PropertyID</span>::<span class="code-enum">MathDepth</span>)-&gt;<span class="code-method">as_integer</span>().<span class="code-method">integer</span>(),
+        <span class="code-method">inheritance_parent</span>());
+<span class="code-keyword">case</span> <span class="code-type">PropertyID</span>::<span class="code-enum">LineHeight</span>:
+    <span class="code-keyword">return</span> <span class="code-method">compute_line_height</span>(<span class="code-variable">absolutized_value</span>, <span class="code-variable">computation_context</span>.length_resolution_context.font_metrics.font_size);
+<span class="code-keyword">default</span>:
+    <span class="code-keyword">return</span> <span class="code-variable">absolutized_value</span>;
+}</code></pre>
+            </div>
+            <div class="pipeline-side">
+                <div class="value-pipeline">
+                    <span class="pipeline-extra">Stylesheet text</span>
+                    <span>Declared</span><span>Cascaded</span><span>Specified</span>
+                    <span class="highlight">Computed</span><span>Used</span><span>Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split" data-title="Calc Demo">
+            <div class="content">
+                <h2><code>calc()</code> and its available inputs</h2>
+                <p class="lead">Change font-size and the absolute part of <code>calc(0.8em + 2px)</code> changes with it. Percentages still need layout.</p>
+            </div>
+            <div class="demo panel">
+                <h3>calc() demo</h3>
+                <label class="control-row">
+                    <span>font-size</span>
+                    <input data-font-size type="range" min="12" max="42" value="16">
+                    <span>px</span>
+                </label>
+                <div class="shape-stage calc-visual">
+                    <div class="border-width-box" data-border-box>
+                        <code class="calc-demo-label">border-left-width: calc(0.8em + 2px)</code>
+                    </div>
+                </div>
+                <div class="result" data-em-output></div>
+            </div>
+        </section>
+
+        <section class="slide split pipeline-slide" data-title="Used">
+            <div class="content">
+                <h2>Used values with layout context</h2>
+                <p class="pipeline-note">For <code>width: 50%</code>, the containing block decides the used pixel value.</p>
+            </div>
+            <div class="pipeline-side">
+                <div class="value-pipeline">
+                    <span class="pipeline-extra">Stylesheet text</span>
+                    <span>Declared</span><span>Cascaded</span><span>Specified</span>
+                    <span>Computed</span><span class="highlight">Used</span><span>Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split" data-title="Layout Demo">
+            <div class="content">
+                <h2>Percentages and geometry</h2>
+                <p class="lead">The same computed percentage can produce different used pixel widths.</p>
+            </div>
+            <div class="demo panel">
+                <h3>Layout demo</h3>
+                <label class="control-row">
+                    <span>container</span>
+                    <input data-container-width type="range" min="220" max="900" value="640">
+                    <span>px</span>
+                </label>
+                <div class="shape-stage">
+                    <div class="layout-stage" data-layout-stage>
+                        <div class="layout-child">width: 50%; max-width: 400px;</div>
+                    </div>
+                </div>
+                <div class="result" data-layout-output></div>
+            </div>
+        </section>
+
+        <section class="slide split pipeline-slide" data-title="Actual">
+            <div class="content">
+                <h2>Actual values and the output device</h2>
+                <p class="pipeline-note">The used value may still need output-environment adjustments: rounding, device pixels, font substitution, and similar constraints.</p>
+            </div>
+            <div class="pipeline-side">
+                <div class="value-pipeline">
+                    <span class="pipeline-extra">Stylesheet text</span>
+                    <span>Declared</span><span>Cascaded</span><span>Specified</span>
+                    <span>Computed</span><span>Used</span><span class="highlight">Actual</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split" data-title="getComputedStyle">
+            <div class="content">
+                <h2><code>getComputedStyle()</code> and resolved values</h2>
+                <p class="lead">For compatibility, resolved values may expose computed values for some properties and used values for others.</p>
+            </div>
+            <div class="demo panel">
+                <div class="cssom-resolution">
+                    <div class="cssom-node cssom-api"><code>getComputedStyle()</code><span>resolved value</span></div>
+                    <svg class="cssom-connectors" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden="true">
+                        <line x1="50" y1="5" x2="25" y2="37"></line>
+                        <line x1="50" y1="5" x2="75" y2="37"></line>
+                    </svg>
+                    <div class="cssom-paths">
+                        <div class="cssom-node">
+                            <strong>Computed data</strong>
+                            <span>Example: <code>line-height: normal</code></span>
+                            <em><code>normal</code> stays <code>normal</code></em>
+                        </div>
+                        <div class="cssom-node">
+                            <strong>Used/layout data</strong>
+                            <span>Example: <code>width: 50%</code></span>
+                            <em>layout returns a pixel width</em>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split code-slide" data-title="CSSOM Source">
+            <div class="content">
+                <h2>Resolved values as a CSSOM decision</h2>
+                <p class="lead">Some properties can be serialized from style. Others need a layout node or up-to-date layout before CSSOM can answer.</p>
+            </div>
+            <pre class="code code-colored"><code><span class="code-comment">// Libraries/LibWeb/CSS/CSSStyleProperties.cpp</span>
+<span class="code-namespace">Layout</span>::<span class="code-type">NodeWithStyle</span>* <span class="code-variable">layout_node</span> = <span class="code-variable">abstract_element</span>.<span class="code-method">unsafe_layout_node</span>();
+
+<span class="code-keyword">bool const</span> <span class="code-variable">needs_layout</span> = <span class="code-method">property_needs_layout_for_getcomputedstyle</span>(<span class="code-variable">property_id</span>);
+<span class="code-keyword">bool const</span> <span class="code-variable">needs_layout_node</span> = <span class="code-method">property_needs_layout_node_for_resolved_value</span>(<span class="code-variable">property_id</span>);
+
+<span class="code-keyword">if</span> (<span class="code-variable">needs_layout</span> || <span class="code-variable">needs_layout_node</span>) {
+    <span class="code-variable">abstract_element</span>.<span class="code-method">document</span>().<span class="code-method">update_layout</span>(<span class="code-namespace">DOM</span>::<span class="code-type">UpdateLayoutReason</span>::<span class="code-enum">ResolvedCSSStyleDeclarationProperty</span>);
+    <span class="code-variable">layout_node</span> = <span class="code-variable">abstract_element</span>.<span class="code-method">layout_node</span>();
+}
+
+<span class="code-keyword">auto</span> <span class="code-variable">value</span> = <span class="code-method">style_value_for_computed_property</span>(*<span class="code-variable">layout_node</span>, <span class="code-variable">property_id</span>);
+
+<span class="code-keyword">return</span> <span class="code-type">StyleProperty</span> {
+    .property_id = <span class="code-variable">property_id</span>,
+    .value = *<span class="code-variable">value</span>,
+};</code></pre>
+        </section>
+
+        <section class="slide center" data-title="Width Recap">
+            <div class="content">
+                <h2><code>width: 50%</code>, stage by stage</h2>
+                <div class="value-pipeline annotated">
+                    <span class="pipeline-extra"><strong>Stylesheet text</strong><em>width: 50%;</em></span>
+                    <span><strong>Declared</strong><em>valid width value</em></span>
+                    <span><strong>Cascaded</strong><em>this declaration wins</em></span>
+                    <span><strong>Specified</strong><em>50%, or initial auto</em></span>
+                    <span><strong>Computed</strong><em>50%</em></span>
+                    <span><strong>Used</strong><em>640px container -> 320px</em></span>
+                    <span><strong>Actual</strong><em>after output adjustments, often still 320px</em></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="A Busier Value">
+            <div class="content">
+                <h2><code>padding-left</code>, stage by stage</h2>
+                <div class="value-pipeline annotated complex-pipeline">
+                    <span class="pipeline-extra"><strong>Stylesheet text</strong><em>base: <code>calc(50% - var(--gap))</code>; theme: <code>revert-layer</code></em></span>
+                    <span><strong>Declared</strong><em>both declarations parse and apply</em></span>
+                    <span><strong>Cascaded</strong><em>later layer wins: <code>revert-layer</code></em></span>
+                    <span><strong>Specified</strong><em>rollback exposes base value: <code>calc(50% - var(--gap))</code></em></span>
+                    <span><strong>Computed</strong><em><code>--gap: 1.5em</code>, font-size 16px -> <code>calc(50% - 24px)</code></em></span>
+                    <span><strong>Used</strong><em>333px containing block -> <code>166.5px - 24px = 142.5px</code></em></span>
+                    <span><strong>Actual</strong><em>paint may snap to device pixels, e.g. <code>143px</code> at DPR 1</em></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Then CSS Gets Interesting">
+            <div class="content">
+                <h2>Context-sensitive values</h2>
+                <div class="two-col">
+                    <div class="panel"><h3><code>width: 50%</code></h3><p>Needs containing-block geometry</p></div>
+                    <div class="panel"><h3><code>calc(0.8em + 2px)</code></h3><p>Needs computed font metrics</p></div>
+                    <div class="panel"><h3><code>color: currentColor</code></h3><p>Needs another property</p></div>
+                    <div class="panel"><h3><code>var(--x)</code></h3><p>Needs cascade and substitution</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Custom Properties">
+            <div class="content">
+                <h2>Custom properties and deferred substitution</h2>
+                <pre class="code code-colored"><code><span class="code-selector">.box</span> {
+    <span class="code-property">--space</span>: <span class="code-literal">2em</span>;
+    <span class="code-property">padding</span>: <span class="code-function">var</span>(<span class="code-property">--space</span>);
+}</code></pre>
+                <p class="lead">The custom property cascades first. Substitution happens later, when the browser finally knows where the value is being used.</p>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Style Storage">
+            <div class="content">
+                <h2>Style storage changes shape</h2>
+                <div class="storage-flow">
+                    <div class="storage-card">
+                        <span>Declared</span>
+                        <strong><code>StyleProperty</code> lists</strong>
+                        <p>Only what authors wrote</p>
+                    </div>
+                    <div class="storage-card">
+                        <span>Cascaded</span>
+                        <strong>sparse map</strong>
+                        <p>Only properties with candidates</p>
+                    </div>
+                    <div class="storage-card">
+                        <span>Computed</span>
+                        <strong>dense longhand array</strong>
+                        <p>Every longhand gets an answer</p>
+                    </div>
+                    <div class="storage-card">
+                        <span>Used</span>
+                        <strong>typed layout data</strong>
+                        <p>Sizes, boxes, paintables</p>
+                    </div>
+                    <div class="storage-card">
+                        <span>Custom properties</span>
+                        <strong>shared chains</strong>
+                        <p>Inherited variables without full copies</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split code-slide" data-title="Style Memory">
+            <div class="content">
+                <h2>Sparse, dense, shared</h2>
+                <div class="storage-notes">
+                    <div class="panel"><h3>Sparse while deciding</h3><p>The cascade stores only properties that have declarations to compare</p></div>
+                    <div class="panel"><h3>Dense once computed</h3><p>Computed style is indexed by longhand property ID</p></div>
+                    <div class="panel"><h3>Shared for variables</h3><p>Custom properties form inherited parent chains</p></div>
+                    <div class="panel"><h3>Thrown away</h3><p>The temporary cascade object does not need to live with the page</p></div>
+                </div>
+            </div>
+            <pre class="code code-colored"><code><span class="code-comment">// Libraries/LibWeb/CSS/CascadedProperties.h</span>
+<span class="code-type">HashMap</span>&lt;<span class="code-type">PropertyID</span>, <span class="code-type">Vector</span>&lt;<span class="code-type">Entry</span>&gt;&gt; <span class="code-member">m_properties</span>;
+<span class="code-namespace">AK</span>::<span class="code-type">FixedBitmap</span>&lt;<span class="code-method">to_underlying</span>(<span class="code-variable">last_longhand_property_id</span>) + <span class="code-literal">1</span>&gt;
+    <span class="code-member">m_contained_properties_cache</span> { <span class="code-literal">false</span> };
+
+<span class="code-comment">// Libraries/LibWeb/CSS/ComputedProperties.h</span>
+<span class="code-type">Array</span>&lt;<span class="code-type">RefPtr</span>&lt;<span class="code-type">StyleValue</span> <span class="code-keyword">const</span>&gt;, <span class="code-variable">number_of_longhand_properties</span>&gt;
+    <span class="code-member">m_property_values</span>;
+<span class="code-type">Array</span>&lt;<span class="code-type">u8</span>, <span class="code-method">ceil_div</span>(<span class="code-variable">number_of_longhand_properties</span>, <span class="code-literal">8uz</span>)&gt;
+    <span class="code-member">m_property_inherited</span> {};</code></pre>
+        </section>
+
+        <section class="slide split code-slide time-travel-slide" data-title="Time Travelling Font Size">
+            <div class="content">
+                <h2>Time-travelling <code>font-size</code></h2>
+                <pre class="code code-colored compact-code no-source-zoom"><code><span class="code-selector">html</span> { <span class="code-property">font-size</span>: <span class="code-literal">medium</span>; }
+<span class="code-selector">body</span> { <span class="code-property">font-size</span>: <span class="code-literal">200%</span>; }
+<span class="code-selector">main</span> { <span class="code-property">font-size</span>: <span class="code-literal">2em</span>; }
+<span class="code-selector">article</span> { <span class="code-property">font-family</span>: <span class="code-literal">monospace</span>; }</code></pre>
+                <div class="time-result-grid">
+                    <div class="panel"><h3>Usual inheritance</h3><p><code>16px -> 32px -> 64px</code></p></div>
+                    <div class="panel"><h3>Monospace inheritance</h3><p><code>13px -> 26px -> 52px</code></p></div>
+                </div>
+                <p class="lead">A later <code>font-family</code> result changes how earlier inherited <code>font-size</code> values are interpreted.</p>
+            </div>
+            <pre class="code code-colored"><code><span class="code-comment">// Libraries/LibWeb/CSS/StyleComputer.cpp</span>
+<span class="code-keyword">auto</span> <span class="code-variable">font_family_value</span> =
+    <span class="code-variable">cascaded_properties</span>.<span class="code-method">property</span>(<span class="code-namespace">CSS</span>::<span class="code-type">PropertyID</span>::<span class="code-enum">FontFamily</span>);
+<span class="code-keyword">if</span> (!<span class="code-variable">font_family_value</span> || !<span class="code-method">is_monospace</span>(*<span class="code-variable">font_family_value</span>))
+    <span class="code-keyword">return</span> <span class="code-literal">nullptr</span>;
+
+<span class="code-keyword">for</span> (<span class="code-keyword">auto</span>&amp; <span class="code-variable">ancestor</span> : <span class="code-variable">ancestors</span>.<span class="code-method">in_reverse</span>()) {
+    <span class="code-keyword">auto</span> <span class="code-variable">font_size_value</span> = <span class="code-variable">ancestor</span>.<span class="code-method">computed_properties</span>()-&gt;<span class="code-method">raw_cascaded_font_size</span>();
+
+    <span class="code-keyword">if</span> (<span class="code-keyword">auto</span> <span class="code-variable">absolute_size</span> = <span class="code-method">keyword_to_absolute_size</span>(<span class="code-variable">font_size_value</span>-&gt;<span class="code-method">to_keyword</span>()); <span class="code-variable">absolute_size</span>.<span class="code-method">has_value</span>())
+        <span class="code-variable">current_size_in_px</span> = <span class="code-method">absolute_size_mapping</span>(<span class="code-variable">absolute_size</span>.<span class="code-method">value</span>(), <span class="code-variable">default_monospace_font_size_in_px</span>);
+
+    <span class="code-keyword">if</span> (<span class="code-variable">font_size_value</span>-&gt;<span class="code-method">is_percentage</span>())
+        <span class="code-variable">current_size_in_px</span> = <span class="code-variable">font_size_value</span>-&gt;<span class="code-method">as_percentage</span>().<span class="code-method">percentage</span>().<span class="code-method">as_fraction</span>() * <span class="code-variable">current_size_in_px</span>;
+}</code></pre>
+        </section>
+
+        <section class="slide center" data-title="StyleComputer">
+            <div class="content">
+                <h2>Ladybird concepts for the six stages</h2>
+                <div class="stage-map">
+                    <div class="stage-box"><h3>Declared</h3><p><code>Parser::Declaration</code> and <code>StyleProperty</code></p></div>
+                    <div class="stage-box"><h3>Cascaded</h3><p><code>CascadedProperties</code> tracks winners and sources</p></div>
+                    <div class="stage-box"><h3>Specified</h3><p><code>StyleComputer</code> applies inheritance, initial values, CSS-wide keywords</p></div>
+                    <div class="stage-box"><h3>Computed</h3><p><code>ComputedProperties</code> stores computed longhand <code>StyleValue</code>s</p></div>
+                    <div class="stage-box"><h3>Used</h3><p>Layout resolves percentages, constraints, and geometry</p></div>
+                    <div class="stage-box"><h3>Actual</h3><p>Painting and compositing turn style into device output</p></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="slide split code-slide" data-title="StyleComputer Source">
+            <div class="content">
+                <h2>Specified and computed values in <code>StyleComputer</code></h2>
+                <p class="lead">The real function handles logical properties, inheritance, animations, viewport units, custom properties, and more.</p>
+            </div>
+            <pre class="code code-colored"><code><span class="code-comment">// Libraries/LibWeb/CSS/StyleComputer.cpp</span>
+<span class="code-keyword">auto</span> <span class="code-variable">device_pixels_per_css_pixel</span> =
+    <span class="code-member">m_document</span>-&gt;<span class="code-method">page</span>().<span class="code-method">client</span>().<span class="code-method">device_pixels_per_css_pixel</span>();
+
+<span class="code-keyword">for</span> (<span class="code-keyword">auto const</span>&amp; <span class="code-variable">property_id</span> : <span class="code-method">property_computation_order</span>()) {
+    <span class="code-keyword">auto const</span>&amp; <span class="code-variable">computation_context</span> =
+        <span class="code-method">get_computation_context_for_property</span>(<span class="code-variable">property_id</span>, <span class="code-variable">style</span>, <span class="code-variable">abstract_element</span>);
+    <span class="code-keyword">auto const</span>&amp; <span class="code-variable">specified_value</span> =
+        <span class="code-variable">style</span>.<span class="code-method">property</span>(<span class="code-variable">property_id</span>, <span class="code-type">ComputedProperties</span>::<span class="code-enum">WithAnimationsApplied</span>::<span class="code-enum">No</span>);
+
+    <span class="code-keyword">auto const</span>&amp; <span class="code-variable">computed_value</span> =
+        <span class="code-method">compute_value_of_property</span>(
+            <span class="code-variable">property_id</span>,
+            <span class="code-variable">specified_value</span>,
+            <span class="code-variable">get_property_specified_value</span>,
+            <span class="code-variable">computation_context</span>,
+            <span class="code-variable">device_pixels_per_css_pixel</span>);
+
+    <span class="code-variable">style</span>.<span class="code-method">set_property_without_modifying_flags</span>(<span class="code-variable">property_id</span>, <span class="code-variable">computed_value</span>);
+}</code></pre>
+        </section>
+
+        <section class="slide split code-slide" data-title="Container Queries">
+            <div class="content">
+                <h2><code>@container</code> and the page tree</h2>
+                <p class="lead">The rule parses early, but matching it for an element depends on an eligible ancestor, its computed <code>container-type</code>, writing mode, and measured container features.</p>
+            </div>
+            <div class="code-stack">
+                <pre class="code code-colored compact-code"><code><span class="code-atrule">@container</span> <span class="code-selector">card</span> (<span class="code-property">inline-size</span> &gt; <span class="code-literal">40rem</span>) {
+    <span class="code-selector">.title</span> { <span class="code-property">font-size</span>: <span class="code-literal">2rem</span>; }
+}</code></pre>
+                <pre class="code code-colored compact-code"><code><span class="code-comment">// Libraries/LibWeb/CSS/ContainerQuery.cpp</span>
+<span class="code-keyword">for</span> (<span class="code-keyword">auto const</span>* <span class="code-variable">container</span> = <span class="code-variable">element</span>.<span class="code-method">element</span>().<span class="code-method">flat_tree_parent_element</span>();
+    <span class="code-variable">container</span>;
+    <span class="code-variable">container</span> = <span class="code-variable">container</span>-&gt;<span class="code-method">flat_tree_parent_element</span>()) {
+    <span class="code-keyword">if</span> (!<span class="code-method">container_name_matches</span>(*<span class="code-variable">container</span>, <span class="code-variable">container_name</span>))
+        <span class="code-keyword">continue</span>;
+
+    <span class="code-keyword">if</span> (!<span class="code-method">container_satisfies_requirements</span>(*<span class="code-variable">container</span>, <span class="code-member">m_feature_requirements</span>))
+        <span class="code-keyword">continue</span>;
+
+    <span class="code-keyword">return</span> <span class="code-member">m_condition</span>-&gt;<span class="code-method">evaluate</span>({
+        .document = &amp;<span class="code-variable">element</span>.<span class="code-method">document</span>(),
+        .query_container = <span class="code-variable">container</span>,
+    });
+}
+
+<span class="code-keyword">return</span> <span class="code-type">MatchResult</span>::<span class="code-enum">Unknown</span>;</code></pre>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Takeaway">
+            <div class="content">
+                <h2>CSS as a language with a runtime</h2>
+                <p class="lead">A stylesheet is not just read. It is parsed, filtered, cascaded, defaulted, computed, laid out, painted, and exposed back to JavaScript.</p>
+                <p class="lead">Brought to you today by Ladybird, a brand-new browser.</p>
+            </div>
+        </section>
+
+        <section class="slide center" data-title="Questions">
+            <div class="content thank-you-content">
+                <img class="thank-you-mark" src="assets/ladybird-logomark.png" alt="Ladybird logomark">
+                <h1>Thank you</h1>
+            </div>
+        </section>
+    </main>
+
+    <div class="topbar">
+        <div class="topbar-spacer" aria-hidden="true"></div>
+        <div class="slide-number" data-slide-counter></div>
+    </div>
+    <div class="progress"></div>
+    <script src="assets/deck.js"></script>
+</body>
+</html>
