@@ -248,6 +248,13 @@ void DisplayListPlayer::execute_impl(
             common_ancestor_index = visual_context_tree.find_common_ancestor(applied_context_index, target_index);
         size_t const common_ancestor_depth = common_ancestor_index.has_value() ? visual_context_tree.node_at(common_ancestor_index.value()).depth + 1 : 0;
 
+        auto restore_to_depth = [&](size_t target_depth) {
+            while (applied_depth > target_depth) {
+                restore({});
+                applied_depth--;
+            }
+        };
+
         auto has_coordinate_changing_descendant = [&](Optional<VisualContextIndex> ancestor_index) {
             for (auto index = target_index;; index = visual_context_tree.node_at(index).parent_index) {
                 if (ancestor_index.has_value() && index == ancestor_index.value())
@@ -264,9 +271,13 @@ void DisplayListPlayer::execute_impl(
             return false;
         };
 
-        while (applied_depth > common_ancestor_depth) {
-            restore({});
-            applied_depth--;
+        restore_to_depth(common_ancestor_depth);
+
+        if (common_ancestor_index.has_value()) {
+            applied_context_index = *common_ancestor_index;
+            has_applied_context = true;
+        } else {
+            has_applied_context = false;
         }
 
         auto result = SwitchResult::Switched;
@@ -289,6 +300,8 @@ void DisplayListPlayer::execute_impl(
         if (result == SwitchResult::Switched) {
             applied_context_index = target_index;
             has_applied_context = true;
+        } else {
+            restore_to_depth(common_ancestor_depth);
         }
         return result;
     };
