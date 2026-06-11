@@ -861,6 +861,15 @@ kbd {
     white-space: pre;
 }
 
+.spec-implementation-slide {
+    grid-template-columns: minmax(0, 0.9fr) minmax(560px, 1.1fr);
+}
+
+.spec-implementation-slide .compact-code {
+    font-size: 20px;
+    line-height: 1.35;
+}
+
 .mixed-code-slide .compact-code {
     margin-top: 22px;
     max-height: 185px;

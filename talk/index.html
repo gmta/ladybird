@@ -49,9 +49,33 @@
             <img class="brand-mark" src="assets/ladybird-logomark.png" alt="Ladybird logomark">
         </section>
 
+        <section class="slide split code-slide spec-implementation-slide" data-title="Specs Become Code">
+            <div class="content">
+                <h2>Specs become code</h2>
+                <p class="lead">A lot of browser work looks like this: keep the spec close, then make the algorithm executable.</p>
+            </div>
+            <pre class="code code-colored compact-code"><code><span class="code-comment">// CSS Syntax Level 3: consume a number</span>
+<span class="code-comment">// https://drafts.csswg.org/css-syntax-3/#consume-number</span>
+
+<span class="code-comment">// 1. Initially set type to "integer". Let repr be the empty string.</span>
+<span class="code-type">StringBuilder</span> <span class="code-variable">repr</span>;
+<span class="code-type">Number</span>::<span class="code-type">Type</span> <span class="code-variable">type</span> = <span class="code-type">Number</span>::<span class="code-type">Type</span>::<span class="code-enum">Integer</span>;
+
+<span class="code-comment">// 2. If the next input code point is + or -, consume it and append it.</span>
+<span class="code-keyword">bool</span> <span class="code-variable">has_explicit_sign</span> = <span class="code-keyword">false</span>;
+<span class="code-keyword">auto</span> <span class="code-variable">next_input</span> = <span class="code-method">peek_code_point</span>();
+<span class="code-keyword">if</span> (<span class="code-method">is_plus_sign</span>(<span class="code-variable">next_input</span>) || <span class="code-method">is_hyphen_minus</span>(<span class="code-variable">next_input</span>)) {
+    <span class="code-variable">has_explicit_sign</span> = <span class="code-keyword">true</span>;
+    <span class="code-variable">repr</span>.<span class="code-method">append_code_point</span>(<span class="code-method">next_code_point</span>());
+}
+
+<span class="code-comment">// 6. Convert repr to a number.</span>
+<span class="code-keyword">auto</span> <span class="code-variable">value</span> = <span class="code-method">convert_a_string_to_a_number</span>(<span class="code-variable">repr</span>.<span class="code-method">string_view</span>());</code></pre>
+        </section>
+
         <section class="slide center history-slide zoom-slide" data-title="SerenityOS History">
             <div class="content">
-                <h2>Before Ladybird was Ladybird</h2>
+                <h2>Humble beginnings</h2>
                 <div class="history-grid">
                     <figure class="history-card zoomable-media">
                         <img src="assets/serenityos-beginnings.png" alt="Early SerenityOS browser beginnings">
