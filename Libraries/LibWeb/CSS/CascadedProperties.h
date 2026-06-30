@@ -30,6 +30,7 @@ public:
     [[nodiscard]] PropertyID property_with_higher_priority(PropertyID, PropertyID) const;
     [[nodiscard]] GC::Ptr<CSSStyleDeclaration const> property_source(PropertyID) const;
     [[nodiscard]] GC::Ptr<DOM::ShadowRoot const> property_source_shadow_root(PropertyID) const;
+    [[nodiscard]] Optional<CascadeOrigin> property_origin(PropertyID) const;
     [[nodiscard]] Optional<StyleProperty> style_property(PropertyID) const;
 
     void set_property(PropertyID, NonnullRefPtr<StyleValue const>, Important, CascadeOrigin, Optional<FlyString> layer_name, GC::Ptr<CSS::CSSStyleDeclaration const> source, GC::Ptr<DOM::ShadowRoot const> source_shadow_root);

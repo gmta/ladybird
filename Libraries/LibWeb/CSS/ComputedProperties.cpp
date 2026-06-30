@@ -75,6 +75,7 @@ ComputedProperties::Builder::Builder(ComputedProperties const& style)
     : Builder()
 {
     m_data->property_values = style.data().property_values;
+    m_data->property_cascaded_from_author_origin = style.data().property_cascaded_from_author_origin;
     m_data->property_important = style.data().property_important;
     m_data->property_inherited = style.data().property_inherited;
     m_data->display_before_box_type_transformation = style.data().display_before_box_type_transformation;
@@ -215,6 +216,16 @@ void AnimatedProperties::reset_non_inherited_properties()
 bool ComputedProperties::is_property_important(PropertyID property_id) const
 {
     return data().property_important.get(property_bitmap_index(property_id));
+}
+
+bool ComputedProperties::is_property_cascaded_from_author_origin(PropertyID property_id) const
+{
+    return data().property_cascaded_from_author_origin.get(property_bitmap_index(property_id));
+}
+
+void ComputedProperties::Builder::set_property_cascaded_from_author_origin(PropertyID property_id)
+{
+    data().property_cascaded_from_author_origin.set(property_bitmap_index(property_id), true);
 }
 
 void ComputedProperties::Builder::set_property_important(PropertyID property_id, Important important)

@@ -137,6 +137,15 @@ GC::Ptr<DOM::ShadowRoot const> CascadedProperties::property_source_shadow_root(P
     return m_properties.get(property_id)->last().source_shadow_root.ptr();
 }
 
+// https://drafts.csswg.org/css-cascade-5/#cascade-origin
+Optional<CascadeOrigin> CascadedProperties::property_origin(PropertyID property_id) const
+{
+    if (!m_contained_properties_cache.get(to_underlying(property_id)))
+        return {};
+
+    return m_properties.get(property_id)->last().origin;
+}
+
 Optional<StyleProperty> CascadedProperties::style_property(PropertyID property_id) const
 {
     if (!m_contained_properties_cache.get(to_underlying(property_id)))

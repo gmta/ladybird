@@ -131,11 +131,6 @@ public:
         Optional<Color> text_color {};
         Optional<Vector<ShadowData>> text_shadow {};
         Optional<TextDecorationStyle> text_decoration {};
-
-        bool has_styling() const
-        {
-            return background_color.alpha() > 0 || text_color.has_value() || text_shadow.has_value() || text_decoration.has_value();
-        }
     };
     [[nodiscard]] SelectionStyle selection_style() const;
     [[nodiscard]] static SelectionStyle selection_style_for_node(Layout::Node const&, GC::Ptr<DOM::Node const>);

@@ -1,0 +1,2 @@
+  DrawGlyphRun@1 rect=[8,8 182x100] translation=[8,87.984375] color=rgb(0, 0, 0)
+Has underline: false

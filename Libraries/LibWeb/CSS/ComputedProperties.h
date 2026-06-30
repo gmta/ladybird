@@ -91,6 +91,7 @@ public:
         ValueComparingNonnullRefPtr<Gfx::Font const> first_available_computed_font(FontComputer const& font_computer) const { return style().first_available_computed_font(font_computer); }
 
         void set_has_pseudo_element_styles(u64);
+        void set_property_cascaded_from_author_origin(PropertyID);
         void set_property_important(PropertyID, Important);
         void set_property_inherited(PropertyID, Inherited);
         void set_depends_on_viewport_metrics();
@@ -143,6 +144,7 @@ public:
     void reset_non_inherited_animated_properties(Badge<Animations::KeyframeEffect>);
 
     bool is_property_important(PropertyID property_id) const;
+    bool is_property_cascaded_from_author_origin(PropertyID property_id) const;
     bool is_property_inherited(PropertyID property_id) const;
     bool is_animated_property_inherited(PropertyID property_id) const;
     bool is_animated_property_result_of_transition(PropertyID property_id) const;
@@ -344,6 +346,7 @@ private:
         Data() = default;
 
         Array<RefPtr<StyleValue const>, number_of_longhand_properties> property_values;
+        AK::FixedBitmap<number_of_longhand_properties> property_cascaded_from_author_origin { false };
         AK::FixedBitmap<number_of_longhand_properties> property_important { false };
         AK::FixedBitmap<number_of_longhand_properties> property_inherited { false };
 

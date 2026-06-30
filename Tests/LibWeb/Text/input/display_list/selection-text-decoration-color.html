@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<script src="../include.js"></script>
+<style>
+span {
+    color: black;
+    font-size: 100px;
+    line-height: 1;
+    text-decoration: line-through black;
+}
+
+span::selection {
+    background: transparent;
+    color: green;
+}
+</style>
+<span id="target">xxx</span>
+<script>
+test(() => {
+    const text = document.getElementById("target").firstChild;
+    const range = document.createRange();
+    range.setStart(text, 1);
+    range.setEnd(text, 2);
+    getSelection().addRange(range);
+
+    println(internals.dumpDisplayList());
+});
+</script>

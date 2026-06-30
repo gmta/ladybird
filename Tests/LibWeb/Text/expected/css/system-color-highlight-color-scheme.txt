@@ -1,2 +1,2 @@
-Light HighlightText: rgb(255, 255, 255)
-Dark HighlightText: rgb(20, 20, 20)
+Light HighlightText: rgb(0, 0, 0)
+Dark HighlightText: rgb(255, 255, 255)

@@ -6,8 +6,12 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibWeb/Animations/DocumentTimeline.h>
+#include <LibWeb/CSS/CSSTransition.h>
 #include <LibWeb/CSS/ComputedProperties.h>
+#include <LibWeb/CSS/Interpolation.h>
 #include <LibWeb/CSS/StyleValues/ColorSchemeStyleValue.h>
+#include <LibWeb/CSS/StyleValues/ColorStyleValue.h>
 #include <LibWeb/CSS/SystemColor.h>
 #include <LibWeb/DOM/Document.h>
 #include <LibWeb/DOM/Element.h>
@@ -310,30 +314,97 @@ Paintable::SelectionStyle Paintable::selection_style() const
 
 Paintable::SelectionStyle Paintable::selection_style_for_node(Layout::Node const& layout_node, GC::Ptr<DOM::Node const> node)
 {
-    auto default_style_for_color_scheme = [&](CSS::PreferredColorScheme color_scheme, bool use_palette_for_normal_color_scheme = true) {
-        auto palette = layout_node.document().page().palette();
-        auto palette_color_scheme = palette.is_dark() ? CSS::PreferredColorScheme::Dark : CSS::PreferredColorScheme::Light;
-        if (color_scheme == palette_color_scheme || use_palette_for_normal_color_scheme)
-            return SelectionStyle { CSS::SystemColor::transform_selection_background_color(palette.selection()) };
-
+    auto default_style = [&] {
+        auto const color_scheme = layout_node.computed_values().color_scheme();
         return SelectionStyle {
-            CSS::SystemColor::transform_selection_background_color(CSS::SystemColor::highlight(color_scheme))
+            .background_color = CSS::SystemColor::highlight(color_scheme),
+            .text_color = CSS::SystemColor::highlight_text(color_scheme),
         };
+    }();
+
+    auto default_style_for_element = [&default_style](DOM::Element const& element) {
+        auto style = default_style;
+        auto computed_properties = element.computed_properties();
+
+        auto* hovered_node = element.document().hovered_node();
+        auto is_hovered = hovered_node
+            && (&element == hovered_node || hovered_node->parent_element() == &element);
+        auto selected_text_color_transitioned_to_property = [&](CSS::PropertyID property_id) -> Optional<Color> {
+            auto has_author_transition = computed_properties->is_property_cascaded_from_author_origin(CSS::PropertyID::TransitionProperty)
+                || computed_properties->is_property_cascaded_from_author_origin(CSS::PropertyID::TransitionDuration)
+                || computed_properties->is_property_cascaded_from_author_origin(CSS::PropertyID::TransitionDelay)
+                || computed_properties->is_property_cascaded_from_author_origin(
+                    CSS::PropertyID::TransitionTimingFunction)
+                || computed_properties->is_property_cascaded_from_author_origin(CSS::PropertyID::TransitionBehavior);
+            if (!has_author_transition)
+                return {};
+
+            auto has_matching_transition_property = false;
+            for (auto const& transition : computed_properties->transitions()) {
+                if (transition.properties.contains_slow(property_id)) {
+                    has_matching_transition_property = true;
+                    break;
+                }
+            }
+            if (!has_matching_transition_property)
+                return {};
+
+            auto& mutable_element = const_cast<DOM::Element&>(element);
+            auto transition = mutable_element.property_transition({}, property_id);
+            if (!transition || !default_style.text_color.has_value())
+                return {};
+
+            auto current_time = mutable_element.document().timeline()->current_time();
+            if (!current_time.has_value()) {
+                return {};
+            }
+            VERIFY(current_time->type == Animations::TimeValue::Type::Milliseconds);
+            auto transition_time = clamp(
+                current_time->value, transition->transition_start_time(), transition->transition_end_time());
+
+            auto* element_layout_node = element.layout_node();
+            if (!element_layout_node)
+                return {};
+
+            auto progress = transition->timing_function_output_at_time(transition_time);
+            auto selected_text_color = CSS::ColorStyleValue::create_from_color(
+                *default_style.text_color, CSS::ColorSyntax::Legacy);
+            auto interpolated_value = CSS::interpolate_property(
+                mutable_element, property_id, selected_text_color, *transition->transition_end_value(), progress,
+                CSS::AllowDiscrete::Yes);
+            if (!interpolated_value)
+                return {};
+
+            auto context = CSS::ColorResolutionContext::for_layout_node_with_style(*element_layout_node);
+            return interpolated_value->to_color(context);
+        };
+
+        // NB: HighlightText is the UA-selected foreground. When the originating text foreground is being transitioned
+        //     by the hovered element, transition the selected text from HighlightText to the author-specified target
+        //     color so author-driven hover animations remain visible.
+        if (is_hovered) {
+            if (auto color = selected_text_color_transitioned_to_property(CSS::PropertyID::WebkitTextFillColor);
+                color.has_value()) {
+                style.text_color = color;
+            } else if (auto color = selected_text_color_transitioned_to_property(CSS::PropertyID::Color);
+                color.has_value()) {
+                style.text_color = color;
+            }
+        }
+        return style;
     };
 
     // For text nodes, check the parent element since text nodes don't have computed properties.
     if (!node)
-        return default_style_for_color_scheme(layout_node.computed_values().color_scheme());
+        return default_style;
 
     DOM::Element const* element = as_if<DOM::Element>(*node);
     if (!element)
         element = node->parent_element();
     if (!element)
-        return default_style_for_color_scheme(layout_node.computed_values().color_scheme());
+        return default_style;
 
-    auto color_scheme_is_normal = element->computed_properties()->property(CSS::PropertyID::ColorScheme).as_color_scheme().schemes().is_empty();
-    auto use_palette_for_normal_color_scheme = color_scheme_is_normal && !layout_node.document().supported_color_schemes().has_value();
-    auto default_style = default_style_for_color_scheme(layout_node.computed_values().color_scheme(), use_palette_for_normal_color_scheme);
+    default_style = default_style_for_element(*element);
 
     auto style_from_element = [&](DOM::Element const& element) -> Optional<SelectionStyle> {
         auto element_layout_node = element.layout_node();
@@ -344,14 +415,31 @@ Paintable::SelectionStyle Paintable::selection_style_for_node(Layout::Node const
         if (!computed_selection_style)
             return {};
 
+        // https://drafts.csswg.org/css-pseudo-4/#paired-defaults
+        // For compatibility reasons, paired default highlight colors must only be used when neither color nor
+        // background-color yield a cascaded value from the author origin (or inherit their value from the author
+        // origin). When a highlight color is revert or revert-layer, the origin after rolling back the cascade
+        // determines the cascaded value’s origin.
+        // FIXME: Support the ::target-text paired default, which uses Mark/MarkText instead of Highlight/HighlightText.
         auto context = CSS::ColorResolutionContext::for_layout_node_with_style(*element_layout_node);
+        auto has_author_color = computed_selection_style->is_property_cascaded_from_author_origin(CSS::PropertyID::Color);
+        auto has_author_background_color = computed_selection_style->is_property_cascaded_from_author_origin(CSS::PropertyID::BackgroundColor);
 
-        SelectionStyle style;
-        style.background_color = computed_selection_style->color(CSS::PropertyID::BackgroundColor, context);
+        auto style = default_style;
+        if (has_author_color || has_author_background_color) {
+            style.text_color = has_author_color
+                ? computed_selection_style->color(CSS::PropertyID::Color, context)
+                : Optional<Color> {};
 
-        // Only use text color if it was explicitly set in the ::selection rule, not inherited.
-        if (!computed_selection_style->is_property_inherited(CSS::PropertyID::Color))
-            style.text_color = computed_selection_style->color(CSS::PropertyID::Color, context);
+            auto highlight_context = context;
+            highlight_context.current_color = style.text_color.value_or(context.current_color.value_or(CSS::InitialValues::color()));
+
+            style.background_color = has_author_background_color
+                ? computed_selection_style->color(CSS::PropertyID::BackgroundColor, highlight_context)
+                : Color::Transparent;
+
+            context = highlight_context;
+        }
 
         // Only use text-shadow if it was explicitly set in the ::selection rule, not inherited.
         if (!computed_selection_style->is_property_inherited(CSS::PropertyID::TextShadow)) {
@@ -365,7 +453,7 @@ Paintable::SelectionStyle Paintable::selection_style_for_node(Layout::Node const
 
         // Only use text-decoration if it was explicitly set in the ::selection rule, not inherited.
         if (!computed_selection_style->is_property_inherited(CSS::PropertyID::TextDecorationLine)) {
-            style.text_decoration = TextDecorationStyle {
+            style.text_decoration = {
                 .line = computed_selection_style->text_decoration_line(),
                 .style = computed_selection_style->text_decoration_style(),
                 .color = computed_selection_style->color(CSS::PropertyID::TextDecorationColor, context),
@@ -374,7 +462,8 @@ Paintable::SelectionStyle Paintable::selection_style_for_node(Layout::Node const
 
         // Only return a style if there's a meaningful customization. This allows us to continue checking shadow hosts
         // when the current element only has UA default styles.
-        if (!style.has_styling())
+        if (!has_author_color && !has_author_background_color && !style.text_shadow.has_value()
+            && !style.text_decoration.has_value())
             return {};
 
         return style;

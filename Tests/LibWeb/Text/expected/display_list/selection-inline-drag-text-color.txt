@@ -1,0 +1,8 @@
+after Hello: "Hello"; bright colors: rgb(255, 238, 136)
+after b: "Hellob"; bright colors: rgb(0, 0, 0) | rgb(255, 238, 136)
+after br: "Hellobr"; bright colors: rgb(0, 0, 0) | rgb(255, 238, 136)
+after bri: "Hellobri"; bright colors: rgb(0, 0, 0) | rgb(255, 238, 136)
+after brig: "Hellobrig"; bright colors: rgb(0, 0, 0) | rgb(255, 238, 136)
+after brigh: "Hellobrigh"; bright colors: rgb(0, 0, 0) | rgb(255, 238, 136)
+after bright: "Hellobright"; bright colors: rgb(0, 0, 0)
+after brightw: "Hellobrightw"; bright colors: rgb(0, 0, 0)

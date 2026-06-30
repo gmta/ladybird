@@ -234,6 +234,14 @@ void compute_render_spans(PaintableFragment const& fragment, Vector<PaintableFra
             .style = selection_style.text_decoration->style,
             .color = selection_style.text_decoration->color,
         };
+    } else {
+        // https://drafts.csswg.org/css-pseudo-4/#highlight-painting
+        // Text decorations are redrawn in the topmost active highlight's color.
+        selection_text_decoration = PaintableFragment::TextDecorationData {
+            .line = text_node->computed_values().text_decoration_line(),
+            .style = text_node->computed_values().text_decoration_style(),
+            .color = selection_text_color.with_alpha(text_node->computed_values().text_decoration_color().alpha()),
+        };
     }
 
     // Before selection.

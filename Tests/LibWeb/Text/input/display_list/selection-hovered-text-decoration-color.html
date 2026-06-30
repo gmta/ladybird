@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<script src="../include.js"></script>
+<style>
+a {
+    color: rgb(230, 30, 20);
+    font-size: 100px;
+    line-height: 1;
+    text-decoration: underline currentColor;
+    transition: color 100s;
+}
+
+a:hover {
+    color: rgb(102, 102, 102);
+    text-decoration-line: none;
+}
+</style>
+<a id="target">xxx</a>
+<script>
+test(() => {
+    const target = document.getElementById("target");
+    const text = target.firstChild;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    getSelection().addRange(range);
+
+    const rect = target.getBoundingClientRect();
+    internals.mouseMove(rect.left + rect.width / 2, rect.top + rect.height / 2);
+
+    const displayList = internals.dumpDisplayList();
+    println(displayList.split("\n").filter(line => line.includes("DrawGlyphRun")).join("\n"));
+    println(`Has underline: ${displayList.includes("DrawLine")}`);
+});
+</script>

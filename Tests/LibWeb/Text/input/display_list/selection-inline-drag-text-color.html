@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<script src="../include.js"></script>
+<p style="color:#000;">Hello<span style="color:#fe8;">bright</span><span style="color:#359;">world</span></p>
+<script>
+test(() => {
+    const target = document.querySelector("p");
+    const hello = target.firstChild;
+    const bright = target.children[0].firstChild;
+    const world = target.children[1].firstChild;
+
+    function charRect(node, offset) {
+        const range = document.createRange();
+        range.setStart(node, offset);
+        range.setEnd(node, offset + 1);
+        return range.getBoundingClientRect();
+    }
+
+    function boundaryAfter(node, offset, label) {
+        const rect = charRect(node, offset - 1);
+        return {
+            label,
+            x: Math.ceil(rect.right) + 1,
+            y: Math.round(rect.top + rect.height / 2),
+        };
+    }
+
+    function glyphColorsForTextFragment(fragmentX) {
+        const colors = [];
+        for (const line of internals.dumpDisplayList().split("\n")) {
+            if (!line.includes("DrawGlyphRun"))
+                continue;
+
+            const translation = line.match(/translation=\[([^,]+),/);
+            if (!translation || Math.abs(Number(translation[1]) - fragmentX) > 0.01)
+                continue;
+
+            const color = line.match(/color=(rgb\([^)]+\)|rgba\([^)]+\))/);
+            if (color)
+                colors.push(color[1]);
+        }
+        return colors.join(" | ");
+    }
+
+    const firstRect = charRect(hello, 0);
+    const start = {
+        x: Math.floor(firstRect.left) + 1,
+        y: Math.round(firstRect.top + firstRect.height / 2),
+    };
+    const brightX = charRect(bright, 0).left;
+
+    const points = [
+        boundaryAfter(hello, 5, "after Hello"),
+        boundaryAfter(bright, 1, "after b"),
+        boundaryAfter(bright, 2, "after br"),
+        boundaryAfter(bright, 3, "after bri"),
+        boundaryAfter(bright, 4, "after brig"),
+        boundaryAfter(bright, 5, "after brigh"),
+        boundaryAfter(bright, 6, "after bright"),
+        boundaryAfter(world, 1, "after brightw"),
+    ];
+
+    const reports = [];
+    internals.mouseDown(start.x, start.y);
+
+    for (const point of points) {
+        internals.mouseMove(point.x, point.y);
+        reports.push(
+            `${point.label}: ${JSON.stringify(getSelection().toString())}; `
+            + `bright colors: ${glyphColorsForTextFragment(brightX)}`);
+    }
+
+    internals.mouseUp(points[points.length - 1].x, points[points.length - 1].y);
+    println(reports.join("\n"));
+});
+</script>

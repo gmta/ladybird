@@ -3127,6 +3127,8 @@ NonnullRefPtr<ComputedProperties> StyleComputer::compute_properties(DOM::Abstrac
         }
 
         if (auto cascaded_style_property = cascaded_properties.style_property(cascaded_property_id); cascaded_style_property.has_value()) {
+            if (cascaded_properties.property_origin(cascaded_property_id) == CascadeOrigin::Author)
+                builder.set_property_cascaded_from_author_origin(property_id);
             if (cascaded_style_property->important == Important::Yes)
                 builder.set_property_important(property_id, Important::Yes);
             value = cascaded_style_property->value;

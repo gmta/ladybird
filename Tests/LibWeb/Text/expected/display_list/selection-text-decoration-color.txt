@@ -1,0 +1,28 @@
+AccumulatedVisualContext Tree:
+  [0] transform=[1,0,0,1,0,0] origin=(0,0) (ViewportPaintable(Viewport<#document>))
+    [1] scroll_frame_id=1 (PaintableWithLines(BlockContainer<PRE>#out))
+
+DisplayList:
+SaveLayer@0
+  CompositorWheelHitTestTarget@0 target_scroll_frame_index=0 rect=[0,0 800x600]
+  CompositorWheelHitTestTarget@1 target_scroll_frame_index=0 rect=[0,0 800x121]
+  CompositorWheelHitTestTarget@1 target_scroll_frame_index=0 rect=[8,8 784x100]
+  CompositorWheelHitTestTarget@1 target_scroll_frame_index=0 rect=[8,8 784x100]
+  CompositorWheelHitTestTarget@1 target_scroll_frame_index=0 rect=[8,8 181.92188x100]
+  Save@1
+    AddClipRect@1 rect=[8,8 61x100]
+    DrawGlyphRun@1 rect=[8,8 182x100] translation=[8,87.984375] color=rgb(0, 0, 0)
+  Restore@1
+  DrawLine@1 from=[8,50] to=[69,50] color=rgb(0, 0, 0) thickness=10
+  Save@1
+    AddClipRect@1 rect=[69,8 60x100]
+    DrawGlyphRun@1 rect=[8,8 182x100] translation=[8,87.984375] color=rgb(0, 128, 0)
+  Restore@1
+  DrawLine@1 from=[69,50] to=[129,50] color=rgb(0, 128, 0) thickness=10
+  Save@1
+    AddClipRect@1 rect=[129,8 111x100]
+    DrawGlyphRun@1 rect=[8,8 182x100] translation=[8,87.984375] color=rgb(0, 0, 0)
+  Restore@1
+  DrawLine@1 from=[129,50] to=[240,50] color=rgb(0, 0, 0) thickness=10
+Restore@0
+
