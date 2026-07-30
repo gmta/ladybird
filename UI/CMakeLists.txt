@@ -1,6 +1,10 @@
 include(cmake/GUIFramework.cmake)
 include(cmake/ResourceFiles.cmake)
 
+# macOS keys notification delivery on the bundle's signing identity, so a build that wants to use the Notifications
+# API should be signed with a real one from `security find-identity -v -p codesigning` rather than ad-hoc.
+set(LADYBIRD_CODESIGN_IDENTITY "-" CACHE STRING "Identity used to sign the macOS application bundle")
+
 function(create_ladybird_bundle target_name)
     set_target_properties(${target_name} PROPERTIES
         OUTPUT_NAME "Ladybird"
@@ -33,7 +37,7 @@ function(create_ladybird_bundle target_name)
         endif()
 
         add_custom_command(TARGET ${target_name} POST_BUILD
-            COMMAND codesign -s - -v -f --entitlements "${ENTITLEMENTS_FILE}" "${bundle_dir}"
+            COMMAND codesign -s "${LADYBIRD_CODESIGN_IDENTITY}" -v -f --entitlements "${ENTITLEMENTS_FILE}" "${bundle_dir}"
         )
     endif()
 
