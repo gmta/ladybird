@@ -123,6 +123,7 @@ namespace Web::HTML::EventNames {
     __ENUMERATE_HTML_EVENT(seeking)                  \
     __ENUMERATE_HTML_EVENT(select)                   \
     __ENUMERATE_HTML_EVENT(selectionchange)          \
+    __ENUMERATE_HTML_EVENT(show)                     \
     __ENUMERATE_HTML_EVENT(slotchange)               \
     __ENUMERATE_HTML_EVENT(soundend)                 \
     __ENUMERATE_HTML_EVENT(soundstart)               \

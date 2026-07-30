@@ -31,6 +31,8 @@
 #include <LibWeb/HTML/SelectedFile.h>
 #include <LibWeb/HTML/Window.h>
 #include <LibWeb/Loader/ContentBlocker.h>
+#include <LibWeb/NotificationsAPI/Notification.h>
+#include <LibWeb/NotificationsAPI/NotificationList.h>
 #include <LibWeb/Page/Page.h>
 #include <LibWeb/Platform/EventLoopPlugin.h>
 #include <LibWeb/Selection/Selection.h>
@@ -775,6 +777,28 @@ void Page::receive_geolocation_position(u64 request_id, GeolocationPositionResul
 
     for (auto const& callback : callbacks)
         callback->function()(result);
+}
+
+void Page::did_show_notification(NotificationsAPI::PlatformNotification const& notification)
+{
+    client().page_did_show_notification(notification);
+}
+
+void Page::did_close_notification(u64 notification_id)
+{
+    client().page_did_close_notification(notification_id);
+}
+
+void Page::notification_was_activated(u64 notification_id)
+{
+    if (auto notification = NotificationsAPI::NotificationList::the().find_by_id(notification_id))
+        notification->activate();
+}
+
+void Page::notification_was_closed(u64 notification_id)
+{
+    if (auto notification = NotificationsAPI::NotificationList::the().find_by_id(notification_id))
+        notification->run_close_steps();
 }
 
 void Page::register_media_element(Badge<HTML::HTMLMediaElement>, UniqueNodeID media_id)

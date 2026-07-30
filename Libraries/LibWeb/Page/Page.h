@@ -247,6 +247,11 @@ public:
     void cancel_geolocation_position_request(u64 request_id);
     void receive_geolocation_position(u64 request_id, GeolocationPositionResult);
 
+    void did_show_notification(NotificationsAPI::PlatformNotification const&);
+    void did_close_notification(u64 notification_id);
+    void notification_was_activated(u64 notification_id);
+    void notification_was_closed(u64 notification_id);
+
     enum class PendingNonBlockingDialog {
         None,
         ColorPicker,
@@ -633,6 +638,9 @@ public:
     virtual void page_did_cancel_geolocation_position_request([[maybe_unused]] u64 request_id) { }
     virtual void page_did_start_geolocation_position_watch([[maybe_unused]] u64 request_id) { }
     virtual void page_did_stop_geolocation_position_watch([[maybe_unused]] u64 request_id) { }
+
+    virtual void page_did_show_notification([[maybe_unused]] NotificationsAPI::PlatformNotification const& notification) { }
+    virtual void page_did_close_notification([[maybe_unused]] u64 notification_id) { }
 
     virtual void page_did_finish_test([[maybe_unused]] Utf16String const& text) { }
     virtual void page_did_set_test_timeout([[maybe_unused]] double milliseconds) { }

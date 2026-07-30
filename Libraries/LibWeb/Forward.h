@@ -1039,6 +1039,8 @@ class PerformanceTiming;
 namespace Web::NotificationsAPI {
 
 class Notification;
+class NotificationList;
+struct PlatformNotification;
 
 }
 

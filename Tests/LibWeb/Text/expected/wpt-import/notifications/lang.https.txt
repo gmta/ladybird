@@ -1,0 +1,43 @@
+Harness status: OK
+
+Found 37 tests
+
+16 Pass
+21 Fail
+Pass	Roundtripping lang "". Expecting "".
+Pass	Roundtripping lang "en". Expecting "en".
+Pass	Roundtripping lang "en-US-x-hixie". Expecting "en-US-x-hixie".
+Pass	Roundtripping lang "de-DE". Expecting "de-DE".
+Pass	Roundtripping lang "de-de". Expecting "de-de".
+Pass	Roundtripping lang "de-De". Expecting "de-De".
+Pass	Roundtripping lang "de-dE". Expecting "de-dE".
+Pass	Roundtripping lang "de-DE-1996". Expecting "de-DE-1996".
+Pass	Roundtripping lang "de-Latn-DE". Expecting "de-Latn-DE".
+Pass	Roundtripping lang "de-Latf-DE". Expecting "de-Latf-DE".
+Pass	Roundtripping lang "de-Latn-DE-1996". Expecting "de-Latn-DE-1996".
+Pass	Roundtripping lang "de-CH". Expecting "de-CH".
+Pass	Roundtripping lang "it-CH". Expecting "it-CH".
+Pass	Roundtripping lang "fr-CH". Expecting "fr-CH".
+Pass	Roundtripping lang "rm-CH". Expecting "rm-CH".
+Pass	Roundtripping lang "es-CH". Expecting "es-CH".
+Fail	Roundtripping lang "Latn-de". Expecting "".
+Fail	Roundtripping lang "Latf-de". Expecting "".
+Fail	Roundtripping lang "tic-tac-tac-toe". Expecting "".
+Fail	Roundtripping lang "cocoa-1-bar". Expecting "".
+Fail	Roundtripping lang "cocoa-a-bar". Expecting "".
+Fail	Roundtripping lang "en-". Expecting "".
+Fail	Roundtripping lang "en--". Expecting "".
+Fail	Roundtripping lang "foo--bar". Expecting "".
+Fail	Roundtripping lang "id---Java". Expecting "".
+Fail	Roundtripping lang "fr-x". Expecting "".
+Fail	Roundtripping lang "fr-xenomorph". Expecting "".
+Fail	Roundtripping lang "fr-x-xenomorph". Expecting "".
+Fail	Roundtripping lang "a". Expecting "".
+Fail	Roundtripping lang "a-fr-lang". Expecting "".
+Fail	Roundtripping lang "b-fr-lang". Expecting "".
+Fail	Roundtripping lang "es1-KK-aa-bb-cc-dd". Expecting "".
+Fail	Roundtripping lang "es2-KL-aa-bb-cc-dd". Expecting "".
+Fail	Roundtripping lang "es3-KM-aa-bb-cc-dd". Expecting "".
+Fail	Roundtripping lang "fooÉ". Expecting "".
+Fail	Roundtripping lang "foöÉ-bÁr". Expecting "".
+Fail	Roundtripping lang "foöÉbÁr". Expecting "".

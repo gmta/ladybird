@@ -1,0 +1,7 @@
+Harness status: OK
+
+Found 2 tests
+
+2 Pass
+Pass	Invoked the onclose event handler.
+Pass	Invoked the onclose event handler on immediate close.

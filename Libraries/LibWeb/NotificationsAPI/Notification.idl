@@ -3,15 +3,15 @@
 interface Notification : EventTarget {
     constructor(Utf16DOMString title, optional NotificationOptions options = {});
 
-    // FIXME: static readonly attribute NotificationPermission permission;
-    // FIXME: [Exposed=Window] static Promise<NotificationPermission> requestPermission(optional NotificationPermissionCallback deprecatedCallback);
+    static readonly attribute NotificationPermission permission;
+    [Exposed=Window] static Promise<NotificationPermission> requestPermission(optional NotificationPermissionCallback deprecatedCallback);
 
     static readonly attribute unsigned long maxActions;
 
-    [FIXME] attribute EventHandler onclick;
-    [FIXME] attribute EventHandler onshow;
-    [FIXME] attribute EventHandler onerror;
-    [FIXME] attribute EventHandler onclose;
+    attribute EventHandler onclick;
+    attribute EventHandler onshow;
+    attribute EventHandler onerror;
+    attribute EventHandler onclose;
 
     readonly attribute Utf16DOMString title;
     readonly attribute NotificationDirection dir;
@@ -30,7 +30,7 @@ interface Notification : EventTarget {
     [SameObject] readonly attribute any data;
     [SameObject] readonly attribute FrozenArray<NotificationAction> actions;
 
-    [FIXME] undefined close();
+    undefined close();
 };
 
 dictionary NotificationOptions {
@@ -70,4 +70,4 @@ dictionary NotificationAction {
     Utf16USVString icon;
 };
 
-[FIXME] callback NotificationPermissionCallback = undefined (NotificationPermission permission);
+callback NotificationPermissionCallback = undefined (NotificationPermission permission);

@@ -61,6 +61,9 @@ struct ConceptNotification {
     Vector<Action> actions;
 };
 
+// https://notifications.spec.whatwg.org/#get-the-notifications-permission-state
+WEB_API Bindings::NotificationPermission get_the_notifications_permission_state();
+
 // https://notifications.spec.whatwg.org/#notifications
 class WEB_API Notification final : public DOM::EventTarget {
     WEB_PLATFORM_OBJECT(Notification, DOM::EventTarget);
@@ -71,6 +74,8 @@ public:
         JS::Realm& realm,
         Utf16String const& title,
         Bindings::NotificationOptions const& options);
+
+    virtual ~Notification() override;
 
     // https://notifications.spec.whatwg.org/#create-a-notification-with-a-settings-object
     static WebIDL::ExceptionOr<ConceptNotification> create_a_notification_with_a_settings_object(
@@ -88,12 +93,17 @@ public:
         URL::URL base_url,
         HighResolutionTime::EpochTimeStamp fallback_timestamp);
 
+    static Bindings::NotificationPermission permission(JS::VM&);
+    static GC::Ref<WebIDL::Promise> request_permission(JS::VM&, GC::Ptr<WebIDL::CallbackType> deprecated_callback);
+
     static unsigned long max_actions(JS::VM&)
     {
         // FIXME: Change the number of max_actions supported when actions will actually be supported
         // It seems like Chrome is 2, Firefox is undefined, Safari is undefined
         return 0;
     }
+
+    void close();
 
     Utf16String const& title() const { return m_notification.title; }
     Bindings::NotificationDirection dir() const { return m_notification.direction; }
@@ -111,14 +121,48 @@ public:
     Vector<NotificationAction> actions() const;
     JS::Value data() const;
 
+    URL::Origin const& origin() const { return m_notification.origin; }
+    u64 id() const { return m_id; }
+
+    void set_onclick(GC::Ptr<WebIDL::CallbackType>);
+    GC::Ptr<WebIDL::CallbackType> onclick();
+    void set_onshow(GC::Ptr<WebIDL::CallbackType>);
+    GC::Ptr<WebIDL::CallbackType> onshow();
+    void set_onerror(GC::Ptr<WebIDL::CallbackType>);
+    GC::Ptr<WebIDL::CallbackType> onerror();
+    void set_onclose(GC::Ptr<WebIDL::CallbackType>);
+    GC::Ptr<WebIDL::CallbackType> onclose();
+
+    // https://notifications.spec.whatwg.org/#activating-a-notification
+    void activate();
+
+    // https://notifications.spec.whatwg.org/#close-steps
+    void run_close_steps();
+
 private:
     Notification(JS::Realm&);
 
     virtual void initialize(JS::Realm&) override;
 
+    // https://notifications.spec.whatwg.org/#show-steps
+    void run_notification_show_steps();
+
+    // https://notifications.spec.whatwg.org/#handle-close-events
+    void handle_close_events();
+
+    void queue_notification_task(Function<void()>);
+
+    GC::Ptr<Page> page();
+
     static Utf16String serialize_url_for_bindings(Optional<URL::URL> const&);
 
     ConceptNotification m_notification;
+
+    u64 m_id { 0 };
+
+    // Set once the browser process has been asked to display this notification natively, so that we know to ask it to
+    // withdraw the notification again when it is closed.
+    bool m_displayed_on_device { false };
 };
 
 }
