@@ -47,6 +47,7 @@ private:
     void set_dns_settings(JsonValue const&);
 
     void set_geolocation_enabled(JsonValue const&);
+    void set_notifications_enabled(JsonValue const&);
 };
 
 }

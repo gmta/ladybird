@@ -31,6 +31,7 @@
 #include <LibWebView/Attribute.h>
 #include <LibWebView/DictionaryLookup.h>
 #include <LibWebView/DOMNodeProperties.h>
+#include <LibWeb/NotificationsAPI/PlatformNotification.h>
 #include <LibWebView/Geolocation.h>
 #include <LibWebView/PageInfo.h>
 #include <LibWebView/Settings.h>
@@ -168,6 +169,8 @@ endpoint WebContentServer
     set_enable_global_privacy_control(u64 page_id, bool enable) =|
     set_geolocation_emulated_position(u64 page_id, WebView::GeolocationPositionData position, Optional<u16> error_code) =|
     geolocation_position_response(u64 page_id, u64 request_id, WebView::GeolocationPositionData position, Optional<u16> error_code) =|
+    notification_was_activated(u64 page_id, u64 notification_id) =|
+    notification_was_closed(u64 page_id, u64 notification_id) =|
     set_has_focus(u64 page_id, bool has_focus) =|
     set_is_scripting_enabled(u64 page_id, bool is_scripting_enabled) =|
     set_zoom_level(u64 page_id, double zoom_level) =|

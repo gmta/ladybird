@@ -21,6 +21,7 @@
 #include <LibWeb/Crypto/Crypto.h>
 #include <LibWeb/Geolocation/GeolocationPositionError.h>
 #include <LibWeb/Infra/Strings.h>
+#include <LibWeb/NotificationsAPI/PlatformNotification.h>
 #include <LibWeb/WebDriver/Error.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/BookmarkStore.h>
@@ -99,6 +100,7 @@ ViewImplementation::ViewImplementation(IsPrivate is_private)
 ViewImplementation::~ViewImplementation()
 {
     cancel_all_native_geolocation_requests();
+    close_all_native_notifications();
 
     all_views().remove(m_view_id);
 
@@ -1490,6 +1492,7 @@ void ViewImplementation::initialize_client(CreateNewClient create_new_client)
 
     if (create_new_client == CreateNewClient::Yes) {
         cancel_all_native_geolocation_requests();
+        close_all_native_notifications();
 
         auto client_handle = m_client_state.client_handle;
         m_client_state = {};
@@ -1655,6 +1658,70 @@ void ViewImplementation::initialize_client(CreateNewClient create_new_client)
     // If DevTools is connected, notify the new WebContent process.
     if (m_devtools_connected)
         client().async_did_connect_devtools_client(page_id());
+}
+
+void ViewImplementation::show_notification(Web::NotificationsAPI::PlatformNotification const& notification)
+{
+    // Headless runs are used for automated tests; they must never spam the desktop with real notifications.
+    if (Application::browser_options().headless_mode.has_value())
+        return;
+
+    if (!Application::settings().notifications_enabled())
+        return;
+
+    // Showing a notification whose id we already know replaces the one that is currently on screen.
+    close_notification(notification.id);
+
+    // FIXME: Fetch and pass along the notification's icon, image and badge.
+    Core::Notification platform_notification {
+        .title = notification.title.to_utf8(),
+        .body = notification.body.to_utf8(),
+        .language = notification.language.to_utf8(),
+        .silent = notification.silent,
+        .require_interaction = notification.require_interaction,
+    };
+
+    auto weak_this = make_weak_ptr();
+    auto request_page_id = page_id();
+    auto request_client_handle = m_client_state.client_handle;
+
+    auto is_still_valid = [weak_this, request_page_id, request_client_handle]() -> ViewImplementation* {
+        auto* view = weak_this.ptr();
+        if (!view || !view->m_client_state.client || view->m_client_state.page_index != request_page_id || view->m_client_state.client_handle != request_client_handle)
+            return nullptr;
+        return view;
+    };
+
+    auto notification_id = notification.id;
+    auto provider_id = Application::the().show_notification(
+        platform_notification,
+        [is_still_valid, request_page_id, notification_id]() {
+            if (auto* view = is_still_valid())
+                view->client().async_notification_was_activated(request_page_id, notification_id);
+        },
+        [is_still_valid, request_page_id, notification_id]() {
+            auto* view = is_still_valid();
+            if (!view)
+                return;
+            view->m_notification_ids.remove(notification_id);
+            view->client().async_notification_was_closed(request_page_id, notification_id);
+        });
+
+    if (provider_id != 0)
+        m_notification_ids.set(notification_id, provider_id);
+}
+
+void ViewImplementation::close_notification(u64 notification_id)
+{
+    if (auto provider_id = m_notification_ids.take(notification_id); provider_id.has_value())
+        Application::the().close_notification(*provider_id);
+}
+
+void ViewImplementation::close_all_native_notifications()
+{
+    auto notification_ids = move(m_notification_ids);
+    for (auto const& notification : notification_ids)
+        Application::the().close_notification(notification.value);
 }
 
 void ViewImplementation::cancel_all_native_geolocation_requests()

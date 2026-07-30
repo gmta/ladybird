@@ -839,6 +839,16 @@ void PageClient::page_did_stop_geolocation_position_watch(u64 request_id)
     client().async_did_stop_geolocation_position_watch(m_id, request_id);
 }
 
+void PageClient::page_did_show_notification(Web::NotificationsAPI::PlatformNotification const& notification)
+{
+    client().async_did_show_notification(m_id, notification);
+}
+
+void PageClient::page_did_close_notification(u64 notification_id)
+{
+    client().async_did_close_notification(m_id, notification_id);
+}
+
 void PageClient::page_did_request_alert(Utf16String const& message)
 {
     client().async_did_request_alert(m_id, message);

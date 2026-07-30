@@ -2131,6 +2131,51 @@ void Application::stop_watching_geolocation_position(Core::GeolocationProvider::
     m_geolocation_provider->stop_watching_position(watch_id);
 }
 
+ErrorOr<NonnullRawPtr<Core::NotificationProvider>> Application::ensure_notification_provider()
+{
+    if (!m_notification_provider) {
+        m_notification_provider = TRY(Core::NotificationProvider::create());
+
+        m_notification_provider->on_activated = [this](auto notification_id) {
+            if (auto notification = m_displayed_notifications.get(notification_id); notification.has_value())
+                notification->on_activated();
+        };
+        m_notification_provider->on_closed = [this](auto notification_id) {
+            if (auto notification = m_displayed_notifications.take(notification_id); notification.has_value())
+                notification->on_closed();
+        };
+    }
+
+    return NonnullRawPtr { *m_notification_provider };
+}
+
+Core::NotificationProvider::NotificationId Application::show_notification(Core::Notification const& notification, Function<void()> on_activated, Function<void()> on_closed)
+{
+    auto provider = ensure_notification_provider();
+    if (provider.is_error()) {
+        dbgln("Unable to show notification: {}", provider.error());
+        return 0;
+    }
+
+    auto notification_id = m_next_notification_id++;
+    if (auto result = provider.value()->show(notification_id, notification); result.is_error()) {
+        dbgln("Unable to show notification: {}", result.error());
+        return 0;
+    }
+
+    m_displayed_notifications.set(notification_id, { move(on_activated), move(on_closed) });
+    return notification_id;
+}
+
+void Application::close_notification(Core::NotificationProvider::NotificationId notification_id)
+{
+    if (!m_notification_provider)
+        return;
+
+    m_displayed_notifications.remove(notification_id);
+    m_notification_provider->close(notification_id);
+}
+
 void Application::create_bookmark_menu_items(Optional<MenuData> data)
 {
     auto const& [menu, items, target_folder_id] = data.ensure([&]() -> MenuData {

@@ -168,6 +168,8 @@ private:
     virtual void set_enable_global_privacy_control(u64 page_id, bool) override;
     virtual void set_geolocation_emulated_position(u64 page_id, WebView::GeolocationPositionData, Optional<u16> error_code) override;
     virtual void geolocation_position_response(u64 page_id, u64 request_id, WebView::GeolocationPositionData, Optional<u16> error_code) override;
+    virtual void notification_was_activated(u64 page_id, u64 notification_id) override;
+    virtual void notification_was_closed(u64 page_id, u64 notification_id) override;
     virtual void set_has_focus(u64 page_id, bool) override;
     virtual void set_is_scripting_enabled(u64 page_id, bool) override;
     virtual void set_zoom_level(u64 page_id, double zoom_level) override;

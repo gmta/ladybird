@@ -14,6 +14,7 @@ set(SOURCES
     GeolocationProvider.cpp
     ImmutableBytes.cpp
     MimeData.cpp
+    NotificationProvider.cpp
     Notifier.cpp
     ReportTime.cpp
     Resource.cpp
@@ -30,10 +31,11 @@ set(SOURCES
 )
 
 if (APPLE)
-    list(APPEND SOURCES GeolocationProviderCoreLocation.mm)
+    list(APPEND SOURCES GeolocationProviderCoreLocation.mm NotificationProviderUserNotifications.mm)
     set_source_files_properties(GeolocationProviderCoreLocation.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    set_source_files_properties(NotificationProviderUserNotifications.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 else()
-    list(APPEND SOURCES GeolocationProviderUnimplemented.cpp)
+    list(APPEND SOURCES GeolocationProviderUnimplemented.cpp NotificationProviderUnimplemented.cpp)
 endif()
 
 if (WIN32)
@@ -125,6 +127,7 @@ if (APPLE)
     target_link_libraries(LibCore PUBLIC "-framework CoreServices")
     target_link_libraries(LibCore PUBLIC "-framework Foundation")
     target_link_libraries(LibCore PUBLIC "-framework IOSurface")
+    target_link_libraries(LibCore PUBLIC "-framework UserNotifications")
 endif()
 
 if (WIN32)

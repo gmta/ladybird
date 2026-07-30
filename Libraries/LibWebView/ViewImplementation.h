@@ -23,6 +23,7 @@
 #include <LibCore/AnonymousBuffer.h>
 #include <LibCore/Forward.h>
 #include <LibCore/GeolocationProvider.h>
+#include <LibCore/NotificationProvider.h>
 #include <LibCore/Promise.h>
 #include <LibCore/SharedVersion.h>
 #include <LibDevTools/DevToolsDelegate.h>
@@ -384,6 +385,9 @@ public:
     Function<void(u64 request_id)> on_cancel_geolocation_position_request;
     Function<void(u64 request_id)> on_start_geolocation_position_watch;
     Function<void(u64 request_id)> on_stop_geolocation_position_watch;
+
+    void show_notification(Web::NotificationsAPI::PlatformNotification const&);
+    void close_notification(u64 notification_id);
     Function<void(Web::HTML::FileFilter const& accepted_file_types, Web::HTML::AllowMultipleFiles)> on_request_file_picker;
     Function<void(Gfx::IntPoint content_position, i32 minimum_width, Vector<Web::HTML::SelectItem> items)> on_request_select_dropdown;
     Function<void(Web::KeyEvent const&)> on_finish_handling_key_event;
@@ -484,6 +488,7 @@ protected:
     };
     virtual void initialize_client(CreateNewClient = CreateNewClient::Yes);
     void cancel_all_native_geolocation_requests();
+    void close_all_native_notifications();
     void reset_page_media_state();
 
     enum class LoadErrorPage {
@@ -645,6 +650,7 @@ protected:
 
     HashMap<u64, Core::GeolocationProvider::RequestId> m_geolocation_position_request_ids;
     HashMap<u64, Core::GeolocationProvider::WatchId> m_geolocation_watch_ids;
+    HashMap<u64, Core::NotificationProvider::NotificationId> m_notification_ids;
 
     Core::AnonymousBuffer m_document_cookie_version_buffer;
     HashMap<String, Core::SharedVersionIndex> m_document_cookie_version_indices;

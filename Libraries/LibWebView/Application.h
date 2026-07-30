@@ -15,6 +15,7 @@
 #include <LibCore/EventLoop.h>
 #include <LibCore/Forward.h>
 #include <LibCore/GeolocationProvider.h>
+#include <LibCore/NotificationProvider.h>
 #include <LibDatabase/Forward.h>
 #include <LibDevTools/DevToolsDelegate.h>
 #include <LibDevTools/Forward.h>
@@ -131,6 +132,10 @@ public:
     void cancel_geolocation_position_request(Core::GeolocationProvider::RequestId);
     ErrorOr<Core::GeolocationProvider::WatchId, Core::GeolocationError> start_watching_geolocation_position(Core::GeolocationProvider::SuccessCallback on_success, Core::GeolocationProvider::ErrorCallback on_error);
     void stop_watching_geolocation_position(Core::GeolocationProvider::WatchId);
+
+    // Returns the id the notification was assigned, or 0 if it could not be shown.
+    Core::NotificationProvider::NotificationId show_notification(Core::Notification const&, Function<void()> on_activated, Function<void()> on_closed);
+    void close_notification(Core::NotificationProvider::NotificationId);
 
     ErrorOr<NonnullRefPtr<WebContentClient>> launch_web_content_process(ViewImplementation&);
     struct ChildFrameWebContentProcess {
@@ -320,6 +325,7 @@ private:
     ErrorOr<void> launch_devtools_server();
     ErrorOr<void> load_content_blocker_lists();
     ErrorOr<NonnullRawPtr<Core::GeolocationProvider>> ensure_geolocation_provider();
+    ErrorOr<NonnullRawPtr<Core::NotificationProvider>> ensure_notification_provider();
 
     void initialize_actions();
     void update_vertical_tabs_action();
@@ -452,6 +458,14 @@ private:
     OwnPtr<PrivateBrowsingSession> m_private_browsing_session;
 
     OwnPtr<Core::GeolocationProvider> m_geolocation_provider;
+
+    struct DisplayedNotification {
+        Function<void()> on_activated;
+        Function<void()> on_closed;
+    };
+    OwnPtr<Core::NotificationProvider> m_notification_provider;
+    HashMap<Core::NotificationProvider::NotificationId, DisplayedNotification> m_displayed_notifications;
+    Core::NotificationProvider::NotificationId m_next_notification_id { 1 };
     OwnPtr<Core::TimeZoneWatcher> m_time_zone_watcher;
 
     Core::EventLoop* m_event_loop { nullptr };

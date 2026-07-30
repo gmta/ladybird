@@ -6,6 +6,7 @@ find_package(Qt6 6.9 REQUIRED COMPONENTS Core Widgets)
 
 if (NOT APPLE)
     find_package(Qt6 6.9 OPTIONAL_COMPONENTS Positioning)
+    find_package(Qt6 6.9 OPTIONAL_COMPONENTS DBus)
 endif()
 
 if (APPLE OR HAS_DIRECTX)
@@ -43,6 +44,12 @@ if (TARGET Qt6::Positioning)
     target_sources(ladybird PRIVATE GeolocationProviderQt.cpp GeolocationProviderQt.h)
     target_link_libraries(ladybird PRIVATE Qt::Positioning)
     target_compile_definitions(ladybird PRIVATE LADYBIRD_QT_HAVE_POSITIONING=1)
+endif()
+
+if (NOT APPLE AND TARGET Qt6::DBus)
+    target_sources(ladybird PRIVATE NotificationProviderQt.cpp NotificationProviderQt.h)
+    target_link_libraries(ladybird PRIVATE Qt::DBus)
+    target_compile_definitions(ladybird PRIVATE LADYBIRD_QT_HAVE_DBUS=1)
 endif()
 
 if (APPLE)

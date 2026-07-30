@@ -1796,6 +1796,18 @@ void WebContentClient::did_start_geolocation_position_watch(u64 page_id, u64 req
     }
 }
 
+void WebContentClient::did_show_notification(u64 page_id, Web::NotificationsAPI::PlatformNotification notification)
+{
+    if (auto view = view_for_page_id(page_id); view.has_value())
+        view->show_notification(notification);
+}
+
+void WebContentClient::did_close_notification(u64 page_id, u64 notification_id)
+{
+    if (auto view = view_for_page_id(page_id); view.has_value())
+        view->close_notification(notification_id);
+}
+
 void WebContentClient::did_stop_geolocation_position_watch(u64 page_id, u64 request_id)
 {
     if (auto view = view_for_page_id(page_id); view.has_value()) {

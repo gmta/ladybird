@@ -70,6 +70,7 @@ static constexpr auto DISK_CACHE_MAXIMUM_SIZE_KEY = "maxSize"sv;
 static constexpr auto GLOBAL_PRIVACY_CONTROL_KEY = "globalPrivacyControl"sv;
 
 static constexpr auto GEOLOCATION_ENABLED_KEY = "geolocationEnabled"sv;
+static constexpr auto NOTIFICATIONS_ENABLED_KEY = "notificationsEnabled"sv;
 
 static constexpr auto DNS_SETTINGS_KEY = "dnsSettings"sv;
 
@@ -287,6 +288,9 @@ Settings Settings::create(ByteString settings_path)
     if (auto geolocation_enabled = settings_json.value().get_bool(GEOLOCATION_ENABLED_KEY); geolocation_enabled.has_value())
         settings.m_geolocation_enabled = *geolocation_enabled && Core::GeolocationProvider::is_available();
 
+    if (auto notifications_enabled = settings_json.value().get_bool(NOTIFICATIONS_ENABLED_KEY); notifications_enabled.has_value())
+        settings.m_notifications_enabled = *notifications_enabled;
+
     if (auto dns_settings = settings_json.value().get(DNS_SETTINGS_KEY); dns_settings.has_value())
         settings.m_dns_settings = parse_dns_settings(*dns_settings);
 
@@ -406,6 +410,7 @@ JsonValue Settings::serialize_json() const
     settings.set(GLOBAL_PRIVACY_CONTROL_KEY, m_global_privacy_control == GlobalPrivacyControl::Yes);
 
     settings.set(GEOLOCATION_ENABLED_KEY, m_geolocation_enabled);
+    settings.set(NOTIFICATIONS_ENABLED_KEY, m_notifications_enabled);
 
     // dnsSettings :: { mode: "system" } | { mode: "custom", server: string, port: u16, type: "udp" | "tls", forciblyEnabled: bool, dnssec: bool }
     JsonObject dns_settings;
@@ -800,6 +805,15 @@ void Settings::set_geolocation_enabled(bool enabled)
 
     for (auto& observer : m_observers)
         observer.geolocation_settings_changed();
+}
+
+void Settings::set_notifications_enabled(bool enabled)
+{
+    m_notifications_enabled = enabled;
+    persist_settings();
+
+    for (auto& observer : m_observers)
+        observer.notification_settings_changed();
 }
 
 void Settings::set_dns_settings(DNSSettings const& dns_settings, bool override_by_command_line)

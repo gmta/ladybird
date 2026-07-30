@@ -2378,6 +2378,18 @@ void ConnectionFromClient::set_geolocation_emulated_position(u64 page_id, WebVie
         page->set_geolocation_emulated_position(position, error_code);
 }
 
+void ConnectionFromClient::notification_was_activated(u64 page_id, u64 notification_id)
+{
+    if (auto page = this->page(page_id); page.has_value())
+        page->page().notification_was_activated(notification_id);
+}
+
+void ConnectionFromClient::notification_was_closed(u64 page_id, u64 notification_id)
+{
+    if (auto page = this->page(page_id); page.has_value())
+        page->page().notification_was_closed(notification_id);
+}
+
 void ConnectionFromClient::geolocation_position_response(u64 page_id, u64 request_id, WebView::GeolocationPositionData position, Optional<u16> error_code)
 {
     if (auto page = this->page(page_id); page.has_value())

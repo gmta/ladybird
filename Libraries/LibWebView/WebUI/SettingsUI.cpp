@@ -8,6 +8,7 @@
 #include <AK/Platform.h>
 #include <AK/Utf16String.h>
 #include <LibCore/GeolocationProvider.h>
+#include <LibCore/NotificationProvider.h>
 #include <LibURL/Parser.h>
 #include <LibWeb/HTML/AutoplayPolicy.h>
 #include <LibWebView/Application.h>
@@ -123,6 +124,9 @@ void SettingsUI::register_interfaces()
     register_interface("setGeolocationEnabled"sv, [this](auto const& data) {
         set_geolocation_enabled(data);
     });
+    register_interface("setNotificationsEnabled"sv, [this](auto const& data) {
+        set_notifications_enabled(data);
+    });
 }
 
 void SettingsUI::load_features()
@@ -133,6 +137,7 @@ void SettingsUI::load_features()
     features.set("primaryPaste"_string, application.supports_clipboard_type(Application::ClipboardType::Selection));
     features.set("verticalTabs"_string, application.supports_vertical_tabs());
     features.set("geolocation"_string, Core::GeolocationProvider::is_available());
+    features.set("notifications"_string, Core::NotificationProvider::is_available());
 
     async_send_message("loadFeatures"sv, move(features));
 }
@@ -482,6 +487,14 @@ void SettingsUI::set_geolocation_enabled(JsonValue const& enabled)
         return;
 
     Application::settings().set_geolocation_enabled(enabled.as_bool());
+}
+
+void SettingsUI::set_notifications_enabled(JsonValue const& enabled)
+{
+    if (!enabled.is_bool())
+        return;
+
+    Application::settings().set_notifications_enabled(enabled.as_bool());
 }
 
 }

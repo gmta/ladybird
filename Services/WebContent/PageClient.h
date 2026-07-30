@@ -266,6 +266,8 @@ private:
     virtual void page_did_cancel_geolocation_position_request(u64 request_id) override;
     virtual void page_did_start_geolocation_position_watch(u64 request_id) override;
     virtual void page_did_stop_geolocation_position_watch(u64 request_id) override;
+    virtual void page_did_show_notification(Web::NotificationsAPI::PlatformNotification const&) override;
+    virtual void page_did_close_notification(u64 notification_id) override;
     virtual void page_did_finish_test(Utf16String const& text) override;
     virtual void page_did_set_test_timeout(double milliseconds) override;
     virtual void page_did_receive_reference_test_metadata(JsonValue) override;

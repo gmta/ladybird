@@ -14,6 +14,9 @@
 #if defined(LADYBIRD_QT_HAVE_POSITIONING)
 #    include <UI/Qt/GeolocationProviderQt.h>
 #endif
+#if defined(LADYBIRD_QT_HAVE_DBUS)
+#    include <UI/Qt/NotificationProviderQt.h>
+#endif
 #include <UI/Qt/Settings.h>
 
 #include <QCoreApplication>
@@ -63,6 +66,10 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
 
 #if defined(LADYBIRD_QT_HAVE_POSITIONING)
     Ladybird::install_qt_geolocation_provider();
+#endif
+
+#if defined(LADYBIRD_QT_HAVE_DBUS)
+    Ladybird::install_qt_notification_provider();
 #endif
 
     auto app = TRY(Ladybird::Application::create(arguments));

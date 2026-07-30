@@ -33,6 +33,7 @@
 #include <LibWeb/HTML/WorkerAgentTypes.h>
 #include <LibWeb/Page/EventResult.h>
 #include <LibWeb/HTML/Scripting/ScriptRegistry.h>
+#include <LibWeb/NotificationsAPI/PlatformNotification.h>
 #include <LibWeb/Page/Page.h>
 #include <LibWeb/Page/ScreenWakeLockHandle.h>
 #include <LibWeb/WebDriver/Response.h>
@@ -172,6 +173,9 @@ endpoint WebContentClient
     did_cancel_geolocation_position_request(u64 page_id, u64 request_id) =|
     did_start_geolocation_position_watch(u64 page_id, u64 request_id) =|
     did_stop_geolocation_position_watch(u64 page_id, u64 request_id) =|
+
+    did_show_notification(u64 page_id, Web::NotificationsAPI::PlatformNotification notification) =|
+    did_close_notification(u64 page_id, u64 notification_id) =|
     did_request_file_picker(u64 page_id, Web::HTML::FileFilter accepted_file_types, Web::HTML::AllowMultipleFiles allow_multiple_files) =|
     did_request_select_dropdown(u64 page_id, Gfx::IntPoint content_position, i32 minimum_width, Vector<Web::HTML::SelectItem> items) =|
     did_finish_handling_input_event(u64 page_id, Web::EventResult event_result) =|
