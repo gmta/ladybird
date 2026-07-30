@@ -99,6 +99,8 @@ public:
     WebIDL::UnsignedLongLong accumulated_visual_context_tree_build_count();
     void set_autoplay_policy(Utf16String const& policy);
 
+    void set_permission(Utf16String const& name, Utf16String const& state);
+
     Utf16String get_computed_role(DOM::Element& element);
     Utf16String get_computed_label(DOM::Element& element);
     Utf16String get_computed_aria_level(DOM::Element& element);

@@ -29,6 +29,11 @@ window.test_driver_internal.delete_all_cookies = function(context) {
     return window.internals.deleteAllCookies();
 };
 
+window.test_driver_internal.set_permission = function(permission_params, context) {
+    window.internals.setPermission(permission_params.descriptor.name, permission_params.state);
+    return Promise.resolve();
+};
+
 window.test_driver_internal.action_sequence = async function(actions, context) {
     // Modifier key codes from WebDriver spec
     const SHIFT = "\uE008";

@@ -24,6 +24,7 @@
 #include <LibWeb/Bindings/Internals.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/Bindings/MainThreadVM.h>
+#include <LibWeb/Bindings/PermissionStatus.h>
 #include <LibWeb/CSS/CSSStyleSheet.h>
 #include <LibWeb/CSS/ComputedValues.h>
 #include <LibWeb/CSS/PreferredColorScheme.h>
@@ -64,6 +65,7 @@
 #include <LibWeb/Painting/DisplayListResourceStorage.h>
 #include <LibWeb/Painting/Paintable.h>
 #include <LibWeb/Painting/ViewportPaintable.h>
+#include <LibWeb/PermissionsAPI/PermissionStore.h>
 #include <LibWeb/StyleValueRustFFI.h>
 #include <LibWeb/WebIDL/ExceptionOr.h>
 #include <LibWeb/WebIDL/Promise.h>
@@ -635,6 +637,29 @@ void Internals::set_autoplay_policy(Utf16String const& policy)
 {
     if (auto parsed = HTML::autoplay_policy_from_string(policy.utf16_view()); parsed.has_value())
         HTML::AutoplaySettings::the().set_policy(*parsed, {});
+}
+
+// Implements the WebDriver "Set Permission" command, which testdriver.js exposes as test_driver.set_permission().
+void Internals::set_permission(Utf16String const& name, Utf16String const& state)
+{
+    auto permission_state = [&]() -> Optional<Bindings::PermissionState> {
+        if (state == "granted"_utf16)
+            return Bindings::PermissionState::Granted;
+        if (state == "denied"_utf16)
+            return Bindings::PermissionState::Denied;
+        if (state == "prompt"_utf16)
+            return Bindings::PermissionState::Prompt;
+        return {};
+    }();
+    if (!permission_state.has_value())
+        return;
+
+    Bindings::PermissionDescriptor descriptor { name };
+
+    auto& settings = HTML::relevant_settings_object(*this);
+    auto key = PermissionsAPI::permission_key_generation_algorithm(settings.top_level_origin.value(), settings.origin());
+
+    PermissionsAPI::PermissionStore::the().set_permission_store_entry(descriptor, key, *permission_state);
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static

@@ -89,6 +89,8 @@ interface Internals {
     unsigned long long accumulatedVisualContextTreeBuildCount();
     undefined setAutoplayPolicy(Utf16DOMString policy);
 
+    undefined setPermission(Utf16DOMString name, Utf16DOMString state);
+
     Utf16DOMString getComputedRole(Element element);
     Utf16DOMString getComputedLabel(Element element);
     Utf16DOMString getComputedAriaLevel(Element element);
