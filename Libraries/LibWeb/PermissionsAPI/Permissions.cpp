@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/GenericShorthands.h>
 #include <LibJS/Runtime/Realm.h>
 #include <LibJS/Runtime/VM.h>
 #include <LibWeb/Bindings/Intrinsics.h>
@@ -12,6 +13,7 @@
 #include <LibWeb/HTML/Scripting/Environments.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
 #include <LibWeb/HTML/Window.h>
+#include <LibWeb/PermissionsAPI/PermissionNames.h>
 #include <LibWeb/PermissionsAPI/PermissionStatus.h>
 #include <LibWeb/PermissionsAPI/PermissionStore.h>
 #include <LibWeb/PermissionsAPI/Permissions.h>
@@ -22,10 +24,7 @@ namespace Web::PermissionsAPI {
 
 bool is_permission_supported(Utf16View name)
 {
-    if (name == "geolocation"_utf16) {
-        return true;
-    }
-    return false;
+    return first_is_one_of(name, PermissionNames::geolocation);
 }
 
 // https://w3c.github.io/permissions/#dfn-request-permission-to-use
@@ -44,7 +43,7 @@ Bindings::PermissionState request_permission(Bindings::PermissionDescriptor cons
     // The user's interaction may provide new information about the user's intent for the origin.
     // AD-HOC: Until we have per-origin permission prompts, grant browser-level geolocation requests. The UI process
     //         still enforces the browser-wide setting and native provider authorization.
-    if (descriptor.name == "geolocation"_utf16 || HTML::Window::in_test_mode()) {
+    if (first_is_one_of(descriptor.name, PermissionNames::geolocation) || HTML::Window::in_test_mode()) {
         current_state = Bindings::PermissionState::Granted;
     } else {
         current_state = Bindings::PermissionState::Denied;

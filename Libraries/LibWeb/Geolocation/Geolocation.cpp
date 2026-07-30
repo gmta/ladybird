@@ -20,6 +20,7 @@
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
 #include <LibWeb/HTML/Window.h>
 #include <LibWeb/Page/Page.h>
+#include <LibWeb/PermissionsAPI/PermissionNames.h>
 #include <LibWeb/PermissionsAPI/Permissions.h>
 #include <LibWeb/Platform/EventLoopPlugin.h>
 #include <LibWeb/Platform/Timer.h>
@@ -141,7 +142,7 @@ void Geolocation::acquire_a_position(GC::Ref<WebIDL::CallbackType> success_callb
     //    the device's position by running the following steps:
     {
         // 1. Let permission be get the current permission state of "geolocation".
-        auto permission = Web::PermissionsAPI::permission_state(Bindings::PermissionDescriptor { "geolocation"_utf16 });
+        auto permission = Web::PermissionsAPI::permission_state(Bindings::PermissionDescriptor { PermissionsAPI::PermissionNames::geolocation.to_utf16_string() });
 
         // 2. If permission is "denied":
         if (permission == Bindings::PermissionState::Denied) {
@@ -472,7 +473,7 @@ void Geolocation::request_a_position(GC::Ref<WebIDL::CallbackType> success_callb
         // AD-HOC: This is implemented by run_in_parallel_when_document_is_visible().
 
         // 6. Let descriptor be a new PermissionDescriptor whose name is "geolocation".
-        auto descriptor = Bindings::PermissionDescriptor { "geolocation"_utf16 };
+        auto descriptor = Bindings::PermissionDescriptor { PermissionsAPI::PermissionNames::geolocation.to_utf16_string() };
 
         // 7. In parallel:
         // AD-HOC: run_in_parallel_when_document_is_visible() already runs this in parallel.
