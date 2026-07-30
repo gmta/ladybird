@@ -24,7 +24,7 @@ namespace Web::PermissionsAPI {
 
 bool is_permission_supported(Utf16View name)
 {
-    return first_is_one_of(name, PermissionNames::geolocation);
+    return first_is_one_of(name, PermissionNames::geolocation, PermissionNames::notifications);
 }
 
 // https://w3c.github.io/permissions/#dfn-request-permission-to-use
@@ -41,9 +41,9 @@ Bindings::PermissionState request_permission(Bindings::PermissionDescriptor cons
 
     // 4. If the user gives express permission to use the powerful feature, set current state to "granted"; otherwise to "denied".
     // The user's interaction may provide new information about the user's intent for the origin.
-    // AD-HOC: Until we have per-origin permission prompts, grant browser-level geolocation requests. The UI process
-    //         still enforces the browser-wide setting and native provider authorization.
-    if (first_is_one_of(descriptor.name, PermissionNames::geolocation) || HTML::Window::in_test_mode()) {
+    // AD-HOC: Until we have per-origin permission prompts, grant browser-level geolocation and notification requests.
+    //         The UI process still enforces the browser-wide settings and native provider authorization.
+    if (first_is_one_of(descriptor.name, PermissionNames::geolocation, PermissionNames::notifications) || HTML::Window::in_test_mode()) {
         current_state = Bindings::PermissionState::Granted;
     } else {
         current_state = Bindings::PermissionState::Denied;
