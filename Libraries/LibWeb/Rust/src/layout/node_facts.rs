@@ -55,11 +55,40 @@ pub(crate) fn node_has_auto_content_box_size(data: &NodeData) -> bool {
         )
 }
 
+// https://drafts.csswg.org/css-writing-modes-4/#principal-flow
+// https://drafts.csswg.org/css-contain-2/#contain-property
+fn body_writing_mode_propagates(
+    data: &NodeData,
+    style: Option<ComputedValuesView<'_>>,
+    parent_style: Option<ComputedValuesView<'_>>,
+) -> bool {
+    has_flag(data, NodeFlag::IsBody)
+        && style.is_some_and(|style| !style.has_any_containment())
+        && parent_style.is_some_and(|parent_style| !parent_style.has_any_containment())
+}
+
+// https://drafts.csswg.org/css-writing-modes-4/#orthogonal-flows
+fn node_establishes_orthogonal_flow(
+    data: &NodeData,
+    style: Option<ComputedValuesView<'_>>,
+    parent_style: Option<ComputedValuesView<'_>>,
+) -> bool {
+    if body_writing_mode_propagates(data, style, parent_style) {
+        return false;
+    }
+    style.is_some_and(|style| {
+        parent_style.is_some_and(|parent_style| {
+            (style.writing_mode() == writing_mode::HORIZONTAL_TB)
+                != (parent_style.writing_mode() == writing_mode::HORIZONTAL_TB)
+        })
+    })
+}
+
 // https://developer.mozilla.org/en-US/docs/Web/Guide/CSS/Block_formatting_context
 // ComputedValuesView::own_style_establishes_block_formatting_context covers
 // computed-style-only terms; this composite adds the terms that need the node
 // kind, stamped DOM identity, the live IsFlexItem flag, or the parent's
-// display.
+// display or writing mode.
 pub(crate) fn node_creates_block_formatting_context(
     data: &NodeData,
     style: Option<ComputedValuesView<'_>>,
@@ -75,6 +104,9 @@ pub(crate) fn node_creates_block_formatting_context(
         let display = style.display();
         if display.is_table_inside() || display.is_flex_inside() || display.is_grid_inside() {
             return false;
+        }
+        if node_establishes_orthogonal_flow(data, Some(style), parent_style) {
+            return true;
         }
         if (style.is_floating() && !has_flag(data, NodeFlag::IsFlexItem))
             || style.own_style_establishes_block_formatting_context()
@@ -395,14 +427,7 @@ impl<'pass> NodeFacts<'pass> {
 
     pub(crate) fn inline_axis_is_reverse(&self) -> bool {
         let style = self.style();
-        match style.writing_mode() {
-            writing_mode::HORIZONTAL_TB
-            | writing_mode::VERTICAL_RL
-            | writing_mode::VERTICAL_LR
-            | writing_mode::SIDEWAYS_RL => style.direction() == 1,
-            writing_mode::SIDEWAYS_LR => style.direction() == 0,
-            _ => unreachable!("invalid writing mode"),
-        }
+        crate::layout::inline_axis_is_reverse(style.writing_mode(), style.direction())
     }
 
     pub(crate) fn has_dom_node(&self) -> bool {
@@ -700,6 +725,22 @@ impl<'pass> NodeFacts<'pass> {
 
     pub(crate) fn is_html_body_element(&self) -> bool {
         crate::layout::has_flag(self.data(), NodeFlag::IsBody)
+    }
+
+    pub(crate) fn body_writing_mode_propagates(&self) -> bool {
+        body_writing_mode_propagates(
+            self.data(),
+            self.computed_values_view_if_styled(),
+            self.parent_computed_values_view_if_styled(),
+        )
+    }
+
+    pub(crate) fn establishes_orthogonal_flow(&self) -> bool {
+        node_establishes_orthogonal_flow(
+            self.data(),
+            self.computed_values_view_if_styled(),
+            self.parent_computed_values_view_if_styled(),
+        )
     }
 }
 

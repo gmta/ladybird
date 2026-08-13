@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<style>
+    body { margin: 0; }
+    #outer { writing-mode: vertical-rl; }
+    #inner { writing-mode: horizontal-tb; width: 80px; height: 20px; }
+    #aspect-outer { width: min-content; height: 100px; }
+    #aspect-inner { height: 100px; aspect-ratio: 1 / 1; writing-mode: vertical-lr; }
+    #inline-lines-target { width: 100px; height: 100px; line-height: 0; }
+    #inline-lines { display: inline-flex; height: 100%; }
+    #inline-lines-inner { writing-mode: vertical-rl; }
+    #inline-lines-inner span { display: inline-block; inline-size: 100px; block-size: 50px; }
+    #block-columns { writing-mode: vertical-rl; }
+    #block-columns > div { width: 20px; height: 10px; }
+    .intrinsic-ordering { writing-mode: vertical-rl; }
+    .fixed-intrinsic-ordering { height: 60px; }
+    #min-content-atomic { width: min-content; }
+    #max-content-atomic { width: max-content; }
+    #min-content-atomic-pair { width: min-content; }
+    #max-content-atomic-pair { width: max-content; }
+    #min-content-atomic-auto { width: min-content; }
+    #max-content-atomic-auto { width: max-content; }
+    #min-content-atomic-pair-auto { width: min-content; }
+    #max-content-atomic-pair-auto { width: max-content; }
+    .intrinsic-ordering span { display: inline-block; width: 20px; height: 20px; }
+</style>
+<div id="outer"><div id="inner"></div></div>
+<div id="aspect-outer"><div id="aspect-inner"></div></div>
+<div id="inline-lines-target">
+    <div id="inline-lines"><div id="inline-lines-inner"><span></span><span></span></div></div>
+</div>
+<div id="block-columns"><div></div><div></div></div>
+<div class="intrinsic-ordering fixed-intrinsic-ordering" id="min-content-atomic">alpha beta gamma<span></span></div>
+<div class="intrinsic-ordering fixed-intrinsic-ordering" id="max-content-atomic">alpha beta gamma<span></span></div>
+<div class="intrinsic-ordering fixed-intrinsic-ordering" id="min-content-atomic-pair"><span></span><span></span></div>
+<div class="intrinsic-ordering fixed-intrinsic-ordering" id="max-content-atomic-pair"><span></span><span></span></div>
+<div class="intrinsic-ordering" id="min-content-atomic-auto">alpha beta gamma<span></span></div>
+<div class="intrinsic-ordering" id="max-content-atomic-auto">alpha beta gamma<span></span></div>
+<div class="intrinsic-ordering" id="min-content-atomic-pair-auto"><span></span><span></span></div>
+<div class="intrinsic-ordering" id="max-content-atomic-pair-auto"><span></span><span></span></div>
+<script src="include.js"></script>
+<script>
+    test(() => {
+        const outerRect = outer.getBoundingClientRect();
+        const innerRect = inner.getBoundingClientRect();
+        println(`outer: ${outerRect.width}x${outerRect.height}`);
+        println(`inner: ${innerRect.width}x${innerRect.height}`);
+        const aspectOuterRect = document.querySelector('#aspect-outer').getBoundingClientRect();
+        const aspectInnerRect = document.querySelector('#aspect-inner').getBoundingClientRect();
+        println(`aspect outer: ${aspectOuterRect.width}x${aspectOuterRect.height}`);
+        println(`aspect inner: ${aspectInnerRect.width}x${aspectInnerRect.height}`);
+        const inlineLinesRect = document.querySelector('#inline-lines-inner').getBoundingClientRect();
+        println(`inline lines: ${inlineLinesRect.width}x${inlineLinesRect.height}`);
+        const blockColumnsRect = document.querySelector('#block-columns').getBoundingClientRect();
+        println(`block columns: ${blockColumnsRect.width}x${blockColumnsRect.height}`);
+        const minContentAtomicWidth = document.querySelector('#min-content-atomic').getBoundingClientRect().width;
+        const maxContentAtomicWidth = document.querySelector('#max-content-atomic').getBoundingClientRect().width;
+        println(`fixed atomic intrinsic equality: ${minContentAtomicWidth === maxContentAtomicWidth}`);
+        const minContentAtomicPairWidth = document
+            .querySelector('#min-content-atomic-pair').getBoundingClientRect().width;
+        const maxContentAtomicPairWidth = document
+            .querySelector('#max-content-atomic-pair').getBoundingClientRect().width;
+        println(`fixed atomic pair intrinsic equality: ${minContentAtomicPairWidth === maxContentAtomicPairWidth}`);
+        const minContentAtomicAutoWidth = document
+            .querySelector('#min-content-atomic-auto').getBoundingClientRect().width;
+        const maxContentAtomicAutoWidth = document
+            .querySelector('#max-content-atomic-auto').getBoundingClientRect().width;
+        println(`auto atomic intrinsic equality: ${minContentAtomicAutoWidth === maxContentAtomicAutoWidth}`);
+        const minContentAtomicPairAutoWidth = document
+            .querySelector('#min-content-atomic-pair-auto').getBoundingClientRect().width;
+        const maxContentAtomicPairAutoWidth = document
+            .querySelector('#max-content-atomic-pair-auto').getBoundingClientRect().width;
+        const atomicPairAutoSizesAreEqual = minContentAtomicPairAutoWidth === maxContentAtomicPairAutoWidth;
+        println(`auto atomic pair intrinsic equality: ${atomicPairAutoSizesAreEqual}`);
+    });
+</script>

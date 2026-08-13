@@ -1087,6 +1087,7 @@ RustFFI::FfiLayoutFcCallbacks LayoutRustBridge::formatting_context_callbacks()
         .context = this,
         .arena = m_commit_root->arena_handle(),
         .initial_containing_block_inline_size = m_commit_root->document().viewport_rect().width().raw_value(),
+        .initial_containing_block_block_size = m_commit_root->document().viewport_rect().height().raw_value(),
         .document_in_quirks_mode = m_commit_root->document().in_quirks_mode(),
         .report_unexpected_fragmented_inline = [](void*, void* node) {
             auto const& box = *static_cast<Box const*>(node);

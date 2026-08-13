@@ -8,6 +8,13 @@
 struct FloatAvoidanceProbe {
     opportunity: Option<CssPixels>,
     content_inline_size: Option<CssPixels>,
+    consume_inline_size_underflow_into_margins: bool,
+}
+
+#[derive(Clone, Copy, Default)]
+struct BlockLevelBoxLayoutOptions {
+    containing_line_box_fragment: Option<LineBoxFragmentCoordinate>,
+    flow_relative_block_layout_is_supported: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -387,6 +394,8 @@ impl BlockFormattingContext {
     }
 
     fn resolve_vertical_box_model_metrics(&self, node: Node, containing_block_inline_size: CssPixels) {
+        // FIXME: Percentage margins and padding resolve against the containing block's logical inline size, which is
+        // its physical height in a vertical writing mode. Callers currently pass the physical width.
         let style = self.style(node);
         let used = self.used(node);
         used.margin_top
@@ -399,6 +408,24 @@ impl BlockFormattingContext {
             .set(style.padding_top().to_px(containing_block_inline_size));
         used.padding_bottom
             .set(style.padding_bottom().to_px(containing_block_inline_size));
+    }
+
+    // https://drafts.csswg.org/css-box-3/#margin-physical
+    fn resolve_horizontal_box_model_metrics(&self, node: Node, containing_block_inline_size: CssPixels) {
+        // FIXME: Percentage margins and padding resolve against the containing block's logical inline size, which is
+        // its physical height in a vertical writing mode. Callers currently pass the physical width.
+        let style = self.style(node);
+        let used = self.used(node);
+        used.margin_left
+            .set(style.margin_left().to_px(containing_block_inline_size));
+        used.margin_right
+            .set(style.margin_right().to_px(containing_block_inline_size));
+        used.border_left.set(style.border_left_width());
+        used.border_right.set(style.border_right_width());
+        used.padding_left
+            .set(style.padding_left().to_px(containing_block_inline_size));
+        used.padding_right
+            .set(style.padding_right().to_px(containing_block_inline_size));
     }
 
     fn box_should_avoid_floats_because_it_establishes_fc(&self, node: Node) -> bool {
@@ -475,8 +502,13 @@ impl BlockFormattingContext {
     ) {
         let float_avoidance_inline_size =
             self.float_reduced_inline_opportunity(node, available_space, content_position_in_root);
-        let content_inline_size =
-            self.resolve_root_inline_metrics_and_content_size(node, available_space, constraints, float_avoidance_inline_size);
+        let content_inline_size = self.resolve_root_inline_metrics_and_content_size(
+            node,
+            available_space,
+            constraints,
+            float_avoidance_inline_size,
+            true,
+        );
         if let Some(content_inline_size) = content_inline_size {
             self.used(node).set_content_inline_size(content_inline_size);
         }
@@ -488,6 +520,7 @@ impl BlockFormattingContext {
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
         float_avoidance_inline_size: Option<CssPixels>,
+        consume_inline_size_underflow_into_margins: bool,
     ) -> Option<CssPixels> {
         let facts = self.facts(node);
         let style = self.style(node);
@@ -505,14 +538,8 @@ impl BlockFormattingContext {
             // elements; the non-replaced rules below then resolve the
             // margins. Replaced sizing consults the box's own used metrics,
             // so they are written first.
-            {
-                let used = self.used(node);
-                used.margin_left.set(style.margin_left().to_px(available_inline_size));
-                used.margin_right.set(style.margin_right().to_px(available_inline_size));
-                used.border_left.set(style.border_left_width());
-                used.border_right.set(style.border_right_width());
-                used.padding_left.set(style.padding_left().to_px(available_inline_size));
-                used.padding_right.set(style.padding_right().to_px(available_inline_size));
+            if consume_inline_size_underflow_into_margins {
+                self.resolve_horizontal_box_model_metrics(node, available_inline_size);
             }
             sizing.compute_inline_size_for_replaced_element(node, available_space, constraints)
         });
@@ -536,14 +563,8 @@ impl BlockFormattingContext {
         let padding_right = style.padding_right().to_px(available_inline_size);
         let border_left_width = style.border_left_width();
         let border_right_width = style.border_right_width();
-        {
-            let used = self.used(node);
-            used.margin_left.set(margin_left);
-            used.margin_right.set(margin_right);
-            used.border_left.set(border_left_width);
-            used.border_right.set(border_right_width);
-            used.padding_left.set(padding_left);
-            used.padding_right.set(padding_right);
+        if consume_inline_size_underflow_into_margins {
+            self.resolve_horizontal_box_model_metrics(node, available_inline_size);
         }
         // NOTE: If we are calculating the min-content or max-content inline size of this box,
         //       and the inline size should be treated as auto, then we can simply return here,
@@ -628,7 +649,16 @@ impl BlockFormattingContext {
                 if inline_size.is_none() {
                     zero_out_auto_margin(margin_left, margin_left_is_auto);
                     zero_out_auto_margin(margin_right, margin_right_is_auto);
-                    if matches!(available_space.inline_size, AvailableSize::Definite(_)) {
+                    // FIXME: Use logical sizing in user-agent shadow styles so form-control internals do not need to
+                    // retain physical stretch sizing in vertical writing modes.
+                    if !consume_inline_size_underflow_into_margins && !facts.is_in_user_agent_shadow_tree() {
+                        inline_size = Some(sizing.calculate_fit_content_size(
+                            node,
+                            SizingAxis::Inline,
+                            remaining_available_space,
+                            constraints,
+                        ));
+                    } else if matches!(available_space.inline_size, AvailableSize::Definite(_)) {
                         inline_size = Some(underflow.max(CssPixels::default()));
                     } else if available_space.inline_size == AvailableSize::MinContent {
                         if formatting_context_type_created_by_box(facts).is_some() {
@@ -641,6 +671,9 @@ impl BlockFormattingContext {
                     } else {
                         unreachable!();
                     }
+                } else if !consume_inline_size_underflow_into_margins {
+                    // NB: The physical horizontal margins are block-axis margins in a vertical writing mode.
+                    //     Inline-axis sizing must not consume its underflow into them.
                 } else if !*margin_left_is_auto && !*margin_right_is_auto {
                     if containing_block_direction == direction::RTL {
                         *margin_left += underflow;
@@ -1244,6 +1277,7 @@ impl BlockFormattingContext {
                 available_space,
                 constraints,
                 probe.opportunity,
+                probe.consume_inline_size_underflow_into_margins,
             );
         }
         content_block_offset
@@ -1570,7 +1604,7 @@ impl BlockFormattingContext {
         block_container: Node,
         bottom_of_lowest_margin_box: &mut CssPixels,
         input: LayoutInput,
-        containing_line_box_fragment: Option<LineBoxFragmentCoordinate>,
+        options: BlockLevelBoxLayoutOptions,
     ) {
         let available_space = input.available_space;
         let facts = self.facts(node);
@@ -1604,8 +1638,33 @@ impl BlockFormattingContext {
         }
 
         let block_container_inline_size = self.used(block_container).content_inline_size.get();
+        let block_container_style = self.style(block_container);
+        let container_facts = self.facts(block_container);
+        let block_container_writing_mode = if facts.body_writing_mode_propagates() {
+            self.style(node).writing_mode()
+        } else {
+            block_container_style.writing_mode()
+        };
+        let box_is_positioned_by_fieldset_layout =
+            container_facts.is_fieldset_box() && container_facts.rendered_legend() == node;
+        // FIXME: Floats make every sibling use legacy placement because float layout expects a physical y cursor.
+        // Interrupting blocks inside inline contexts, table wrappers, and fieldset legends also consume legacy physical
+        // block offsets.
+        let container_uses_flow_relative_block_layout = options.flow_relative_block_layout_is_supported
+            && options.containing_line_box_fragment.is_none()
+            && !container_facts.is_table_wrapper();
+        let can_use_flow_relative_placement = container_uses_flow_relative_block_layout
+            && !facts.is_floating()
+            && !box_is_positioned_by_fieldset_layout;
+        let placement_writing_mode = if can_use_flow_relative_placement {
+            block_container_writing_mode
+        } else {
+            writing_mode::HORIZONTAL_TB
+        };
+        let block_flow_is_vertical = placement_writing_mode != writing_mode::HORIZONTAL_TB;
         self.create_used_values(node, input.containing_block_constraints);
 
+        let style = self.style(node);
         self.resolve_vertical_box_model_metrics(node, block_container_inline_size);
         assert_eq!(self.containing_block(node), block_container);
         let containing_block_position_in_root = input
@@ -1632,9 +1691,13 @@ impl BlockFormattingContext {
             return;
         }
 
+        if block_flow_is_vertical {
+            self.resolve_horizontal_box_model_metrics(node, block_container_inline_size);
+        }
+
         self.margin_state
             .borrow_mut()
-            .add_margin(self.used(node).margin_top.get());
+            .add_margin(self.used(node).margin_block_start(placement_writing_mode));
         let introduced_clearance = self.clear_floating_boxes(node, None, containing_block_position_in_root);
         if introduced_clearance {
             self.margin_state.borrow_mut().reset();
@@ -1646,7 +1709,6 @@ impl BlockFormattingContext {
             .get()
             .expect("a block container flow cursor is active");
 
-        let style = self.style(node);
         let box_is_html_element_in_quirks_mode =
             facts.document_in_quirks_mode() && facts.is_html_html_element() && style.height().is_auto();
 
@@ -1676,19 +1738,17 @@ impl BlockFormattingContext {
             margin_top = CssPixels::default();
         }
 
+        let block_start_border_box = self
+            .used(node)
+            .border_box_block_start(placement_writing_mode, false);
         let box_opens_top_margin_group = !has_independent_formatting_context
-            && self.used(node).border_top.get() == CssPixels::default()
-            && self.used(node).padding_top.get() == CssPixels::default()
+            && block_start_border_box == CssPixels::default()
             && !self.margin_state.borrow().has_open_top_margin_group();
-
-        let container_facts = self.facts(block_container);
-        let box_is_positioned_by_fieldset_layout =
-            container_facts.is_fieldset_box() && container_facts.rendered_legend() == node;
 
         // Earlier sibling placement may have invalidated cached float bands.
         self.rebuild_float_bands();
 
-        let mut content_block_offset = block_offset + margin_top + self.used(node).border_box_top(false);
+        let mut content_block_offset = block_offset + margin_top + block_start_border_box;
         let containing_block_rect_in_root =
             self.containing_block_rect(block_container, containing_block_position_in_root);
         let containing_block_rect_in_root_now = containing_block_rect_in_root.translated(
@@ -1707,11 +1767,13 @@ impl BlockFormattingContext {
         );
         let mut probe = FloatAvoidanceProbe {
             opportunity,
+            consume_inline_size_underflow_into_margins: !block_flow_is_vertical,
             content_inline_size: self.resolve_root_inline_metrics_and_content_size(
                 node,
                 available_space,
                 input.containing_block_constraints,
                 opportunity,
+                !block_flow_is_vertical,
             ),
         };
         content_block_offset = self.avoid_float_intrusions(
@@ -1731,29 +1793,61 @@ impl BlockFormattingContext {
         let content_inline_size_now = probe
             .content_inline_size
             .unwrap_or_else(|| self.used(node).content_inline_size.get());
-        let content_inline_offset = self.compute_normal_flow_inline_offset(
-            node,
-            available_space,
-            content_position_in_root_now(content_block_offset),
-            content_inline_size_now,
-        );
+        let block_container_used = self.used(block_container);
+        let content_inline_offset_for = |physical_inline_size: CssPixels| {
+            let used = self.used(node);
+            let inline_axis_is_reverse = crate::layout::inline_axis_is_reverse(
+                block_container_writing_mode,
+                block_container_style.direction(),
+            );
+            // FIXME: Reverse-inline-axis children fall back to inline-start until an automatic container inline size is
+            // known.
+            if inline_axis_is_reverse && block_container_used.has_definite_block_size() {
+                block_container_used.content_block_size.get()
+                    - used.margin_bottom.get()
+                    - used.border_box_bottom(false)
+                    - physical_inline_size
+            } else {
+                used.margin_top.get() + used.border_box_top(false)
+            }
+        };
+        let used = self.used(node);
+        let initial_physical_inline_size = if used.has_definite_block_size() {
+            used.content_block_size.get()
+        } else {
+            CssPixels::default()
+        };
+        let content_inline_offset = if block_flow_is_vertical {
+            content_inline_offset_for(initial_physical_inline_size)
+        } else {
+            self.compute_normal_flow_inline_offset(
+                node,
+                available_space,
+                content_position_in_root_now(content_block_offset),
+                content_inline_size_now,
+            )
+        };
+        let physical_position = |content_inline_offset: CssPixels,
+                                 content_block_offset: CssPixels,
+                                 physical_block_axis_size: CssPixels| {
+            let logical_block_offset = if !crate::layout::block_axis_is_reverse(placement_writing_mode) {
+                content_block_offset
+            } else {
+                block_container_inline_size - content_block_offset - physical_block_axis_size
+            };
+            let (x, y) = crate::layout::to_physical(
+                placement_writing_mode,
+                content_inline_offset,
+                logical_block_offset,
+            );
+            FfiCssPixelPoint { x, y }
+        };
+        let initial_position = physical_position(content_inline_offset, content_block_offset, content_inline_size_now);
 
         let is_list_item_box = facts.is_list_item_box();
         let marker = facts.list_item_marker();
 
         let is_table_formatting_context = independent_type == Some(FfiFormattingContextType::Table);
-        let mut pending_position = None;
-        if box_is_positioned_by_fieldset_layout {
-            self.pending_legend_flow_position.set(Some(LogicalOffset {
-                inline_offset: content_inline_offset,
-                block_offset: content_block_offset,
-            }));
-        } else if !box_opens_top_margin_group {
-            pending_position = Some(FfiCssPixelPoint {
-                x: content_inline_offset,
-                y: content_block_offset,
-            });
-        }
 
         let available_space_for_block_size_resolution = self.sizing().available_space_for_block_size_resolution(
             node,
@@ -1808,6 +1902,8 @@ impl BlockFormattingContext {
             }
         }
 
+        let mut final_content_block_offset = content_block_offset;
+        let mut table_border_box_position_adjustment = FfiCssPixelPoint::default();
         let child_layout = if has_independent_formatting_context {
             // Margins of elements that establish new formatting contexts do not collapse with their in-flow children
             self.margin_state.borrow_mut().reset();
@@ -1826,6 +1922,7 @@ impl BlockFormattingContext {
                         .then_some(content_block_offset),
                     float_avoidance_inline_size,
                     outer_float_intrusion_before_list_item_children: inline_space_used_before_children_formatted,
+                    preserve_physical_horizontal_margins_during_inline_sizing: block_flow_is_vertical,
                     ..RootSizingDirectives::default()
                 },
                 participation: ParticipationInParentFormattingContext::BlockLevel,
@@ -1840,25 +1937,19 @@ impl BlockFormattingContext {
                 self.table_box_in_wrapper_border_box_block_size
                     .set(Some(used.border_box_block_size(used.uses_collapsing_borders_model.get())));
                 if used.uses_collapsing_borders_model.get()
-                    && let Some(position) = pending_position.as_mut()
                     && let Some((pre_run_border_box_left, pre_run_border_box_top)) = pre_run_table_border_box
                 {
-                    position.x += used.border_box_left(true) - pre_run_border_box_left;
-                    position.y += used.border_box_top(true) - pre_run_border_box_top;
+                    table_border_box_position_adjustment.x = used.border_box_left(true) - pre_run_border_box_left;
+                    table_border_box_position_adjustment.y = used.border_box_top(true) - pre_run_border_box_top;
                 }
             }
             child_layout
         } else {
             // This box participates in the current block container's flow.
-            let space_available_for_children = if facts.is_anonymous() {
-                available_space
-            } else {
-                self.used(node)
-                    .available_inner_space_or_constraints_from(available_space)
-            };
-            if self.used(node).border_top.get() > CssPixels::default()
-                || self.used(node).padding_top.get() > CssPixels::default()
-            {
+            let space_available_for_children = self
+                .used(node)
+                .available_inner_space_or_constraints_from(available_space);
+            if block_start_border_box > CssPixels::default() {
                 // margin-top of block container can't collapse with its children if it has non-zero border or padding.
                 self.margin_state.borrow_mut().reset();
             } else if box_opens_top_margin_group {
@@ -1868,8 +1959,8 @@ impl BlockFormattingContext {
             }
             let inside_layout_input = LayoutInput {
                 content_box_position_in_bfc_root: Some(FfiCssPixelPoint {
-                    x: containing_block_position_in_root.x + content_inline_offset,
-                    y: containing_block_position_in_root.y + content_block_offset,
+                    x: containing_block_position_in_root.x + initial_position.x,
+                    y: containing_block_position_in_root.y + initial_position.y,
                 }),
                 ..input
             };
@@ -1880,29 +1971,11 @@ impl BlockFormattingContext {
             }
             if box_opens_top_margin_group {
                 let resolved_margin_top = self.margin_state.borrow_mut().take_pending_top_margin();
-                let final_content_block_offset = if introduced_clearance {
+                final_content_block_offset = if introduced_clearance {
                     content_block_offset
                 } else {
-                    block_offset + resolved_margin_top + self.used(node).border_box_top(false)
+                    block_offset + resolved_margin_top + block_start_border_box
                 };
-                if box_is_positioned_by_fieldset_layout {
-                    self.pending_legend_flow_position.set(Some(LogicalOffset {
-                        inline_offset: content_inline_offset,
-                        block_offset: final_content_block_offset,
-                    }));
-                } else {
-                    pending_position = Some(FfiCssPixelPoint {
-                        x: content_inline_offset,
-                        y: final_content_block_offset,
-                    });
-                }
-                self.translate_floats_in_subtree(
-                    node,
-                    FfiCssPixelPoint {
-                        x: CssPixels::default(),
-                        y: final_content_block_offset - content_block_offset,
-                    },
-                );
             }
             None
         };
@@ -1920,6 +1993,32 @@ impl BlockFormattingContext {
             );
         }
 
+        let final_content_inline_offset = if block_flow_is_vertical {
+            content_inline_offset_for(self.used(node).content_block_size.get())
+        } else {
+            content_inline_offset
+        };
+        let mut final_position = physical_position(
+            final_content_inline_offset,
+            final_content_block_offset,
+            self.used(node).content_inline_size.get(),
+        );
+        final_position.x += table_border_box_position_adjustment.x;
+        final_position.y += table_border_box_position_adjustment.y;
+        let pending_position = if box_is_positioned_by_fieldset_layout {
+            self.pending_legend_flow_position.set(Some(LogicalOffset {
+                inline_offset: final_content_inline_offset,
+                block_offset: final_content_block_offset,
+            }));
+            None
+        } else {
+            Some(final_position)
+        };
+        self.translate_floats_in_subtree(node, FfiCssPixelPoint {
+            x: final_position.x - initial_position.x,
+            y: final_position.y - initial_position.y,
+        });
+
         // Now that our children are formatted we place the ListItemBox with the left space we remembered.
         if is_list_item_box && !has_independent_formatting_context {
             let list_item_used = self.used(node);
@@ -1935,7 +2034,6 @@ impl BlockFormattingContext {
             );
         }
 
-        let block_container_used = self.used(block_container);
         self.compute_inset(
             run,
             node,
@@ -1946,7 +2044,7 @@ impl BlockFormattingContext {
         );
 
         if let Some(position) = pending_position {
-            self.place_child_on_line(node, position, containing_line_box_fragment);
+            self.place_child_on_line(node, position, options.containing_line_box_fragment);
         }
 
         if has_independent_formatting_context || !self.margins_collapse_through(node) {
@@ -1956,10 +2054,18 @@ impl BlockFormattingContext {
             }
             drop(margin_state);
             let used = self.used(node);
+            let physical_block_axis_size = if block_flow_is_vertical {
+                used.content_inline_size.get()
+            } else {
+                used.content_block_size.get()
+            };
             self.block_offset_of_current_block_container.set(Some(
-                used.content_offset.get().y
-                    + used.content_block_size.get()
-                    + used.border_box_bottom(used.uses_collapsing_borders_model.get()),
+                final_content_block_offset
+                    + physical_block_axis_size
+                    + used.border_box_block_end(
+                        placement_writing_mode,
+                        used.uses_collapsing_borders_model.get(),
+                    ),
             ));
         }
         self.margin_state
@@ -1967,7 +2073,7 @@ impl BlockFormattingContext {
             .box_last_in_flow_child_margin_bottom_collapsed = false;
         self.margin_state
             .borrow_mut()
-            .add_margin(self.used(node).margin_bottom.get());
+            .add_margin(self.used(node).margin_block_end(placement_writing_mode));
         self.margin_state.borrow_mut().update_open_top_margin_group();
 
         let used = self.used(node);
@@ -1992,18 +2098,26 @@ impl BlockFormattingContext {
         );
         let available_space = available_space_for_children;
         let child_input = self.child_layout_input(block_container, input, available_space_for_children);
+        let children = self.children(block_container);
+        let flow_relative_block_layout_is_supported = !children
+            .iter()
+            .copied()
+            .any(|child| self.facts(child).is_floating());
         let mut bottom_of_lowest_margin_box = CssPixels::default();
         let saved = self
             .block_offset_of_current_block_container
             .replace(Some(CssPixels::default()));
-        for child in self.children(block_container) {
+        for child in children {
             self.layout_block_level_box(
                 run,
                 child,
                 block_container,
                 &mut bottom_of_lowest_margin_box,
                 child_input,
-                None,
+                BlockLevelBoxLayoutOptions {
+                    flow_relative_block_layout_is_supported,
+                    ..Default::default()
+                },
             );
         }
         self.block_offset_of_current_block_container.set(saved);
@@ -2040,7 +2154,14 @@ impl BlockFormattingContext {
             } else {
                 caption_input
             };
-            self.layout_block_level_box(run, child, wrapper, &mut bottom_of_lowest_margin_box, child_input, None);
+            self.layout_block_level_box(
+                run,
+                child,
+                wrapper,
+                &mut bottom_of_lowest_margin_box,
+                child_input,
+                BlockLevelBoxLayoutOptions::default(),
+            );
         }
         self.block_offset_of_current_block_container.set(saved);
         self.finish_block_level_children_layout(wrapper, input, available_space_for_children, bottom_of_lowest_margin_box);
@@ -2104,7 +2225,14 @@ impl BlockFormattingContext {
                 .block_offset_of_current_block_container
                 .replace(Some(CssPixels::default()));
             let mut dummy_bottom = CssPixels::default();
-            self.layout_block_level_box(run, legend, fieldset, &mut dummy_bottom, child_input, None);
+            self.layout_block_level_box(
+                run,
+                legend,
+                fieldset,
+                &mut dummy_bottom,
+                child_input,
+                BlockLevelBoxLayoutOptions::default(),
+            );
             self.block_offset_of_current_block_container.set(saved);
         }
 
@@ -2125,7 +2253,14 @@ impl BlockFormattingContext {
             let saved = self.block_offset_of_current_block_container.replace(Some(extra_top));
             for child in self.children(fieldset) {
                 if child != legend {
-                    self.layout_block_level_box(run, child, fieldset, &mut bottom_of_lowest_margin_box, child_input, None);
+                    self.layout_block_level_box(
+                        run,
+                        child,
+                        fieldset,
+                        &mut bottom_of_lowest_margin_box,
+                        child_input,
+                        BlockLevelBoxLayoutOptions::default(),
+                    );
                 }
             }
             self.block_offset_of_current_block_container.set(saved);
@@ -2317,10 +2452,13 @@ impl BlockFormattingContext {
             containing_block,
             &mut dummy_bottom,
             input,
-            Some(LineBoxFragmentCoordinate {
-                line_box_index: line_index,
-                fragment_index: 0,
-            }),
+            BlockLevelBoxLayoutOptions {
+                containing_line_box_fragment: Some(LineBoxFragmentCoordinate {
+                    line_box_index: line_index,
+                    fragment_index: 0,
+                }),
+                ..Default::default()
+            },
         );
         // SAFETY: The builder remains live and no reference escaped.
         let block_bottom = self
@@ -2352,6 +2490,9 @@ impl BlockFormattingContext {
             input.available_space,
             input.containing_block_constraints,
             input.sizing.float_avoidance_inline_size,
+            !input
+                .sizing
+                .preserve_physical_horizontal_margins_during_inline_sizing,
         ) {
             self.used(node).set_content_inline_size(content_inline_size);
         }
@@ -2808,10 +2949,26 @@ impl BlockFormattingContext {
         }
 
         let facts = self.facts(node);
+        let stacks_horizontally = self.style(node).writing_mode() != writing_mode::HORIZONTAL_TB;
+        let mut stacked_inline_size = CssPixels::default();
         if facts.children_are_inline() {
             if let Some(data) = self.used(node).line_data_ref() {
+                // FIXME: Intrinsic measurement reuses the committed-line representation for probe lines. Track
+                //        probe-generated breaks explicitly and remove the content-shape carve-outs below.
+                let all_lines_stack_horizontally = stacks_horizontally
+                    && data.line_boxes.iter().any(|line| {
+                        matches!(line.original_available_inline_size, AvailableSize::Definite(_))
+                            || line.has_forced_break
+                            || line.has_block_level_box
+                    });
                 for line in &data.line_boxes {
-                    let mut inline_size_here = crate::layout::line_physical_horizontal_extent(line);
+                    // FIXME: Remove the UA shadow-tree carve-out when form-control shadow styles use logical sizing.
+                    let line_has_atomic_or_ua_shadow_fragment = line.fragments.iter().any(|fragment| {
+                        fragment.is_atomic_inline || self.facts(fragment.layout_node).is_in_user_agent_shadow_tree()
+                    });
+                    let line_stacks_horizontally = all_lines_stack_horizontally
+                        || (stacks_horizontally && line_has_atomic_or_ua_shadow_fragment);
+                    let mut inline_size_here = crate::layout::line_physical_horizontal_extent(&self.records, line);
                     let line_block_start = line.physical_vertical_end() - line.physical_vertical_extent();
                     let line_block_end = line.physical_vertical_end();
                     let mut extra_left = CssPixels::default();
@@ -2833,7 +2990,13 @@ impl BlockFormattingContext {
                         }
                     }
                     inline_size_here += extra_left + extra_right;
-                    max_inline_size = max_inline_size.max(inline_size_here);
+                    // NB: Definite space, forced breaks, and block interruptions establish columns for all lines. Atomic
+                    //     and UA shadow content establish only their own line as a column.
+                    if line_stacks_horizontally {
+                        stacked_inline_size += inline_size_here;
+                    } else {
+                        max_inline_size = max_inline_size.max(inline_size_here);
+                    }
                 }
             }
         } else {
@@ -2842,10 +3005,15 @@ impl BlockFormattingContext {
                 if !self.facts(child).is_flow_layout_participant() {
                     continue;
                 }
-                max_inline_size = max_inline_size.max(self.used(child).margin_box_inline_size(false));
+                let child_inline_size = self.used(child).margin_box_inline_size(false);
+                if stacks_horizontally {
+                    stacked_inline_size += child_inline_size;
+                } else {
+                    max_inline_size = max_inline_size.max(child_inline_size);
+                }
             }
         }
-        max_inline_size
+        max_inline_size.max(stacked_inline_size)
     }
 
     pub(crate) fn automatic_content_inline_size(&self) -> CssPixels {

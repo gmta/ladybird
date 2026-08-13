@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<style>
+    html { writing-mode: vertical-lr; }
+    body { writing-mode: vertical-rl; width: 10000px; }
+</style>
+<script src="include.js"></script>
+<script>
+    test(() => {
+        const scrollingElement = document.scrollingElement;
+        println(`initial: ${scrollingElement.scrollLeft}`);
+        scrollingElement.scrollLeft = -1000;
+        println(`negative: ${scrollingElement.scrollLeft}`);
+        scrollingElement.scrollLeft = 1000;
+        println(`positive: ${scrollingElement.scrollLeft}`);
+    });
+</script>

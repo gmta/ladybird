@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .case { position: absolute; width: 400px; height: 100px; }
+    .auto { writing-mode: vertical-lr; }
+    .auto.rl { writing-mode: vertical-rl; top: 110px; }
+    .auto > div { width: auto; min-width: 40px; height: 40px; }
+    #fieldset { top: 220px; margin: 0; border: 2px solid; padding: 8px; writing-mode: vertical-lr; }
+    #fieldset legend { margin-top: 20px; border: 0; padding: 0; width: 40px; height: 20px; }
+    #float { top: 330px; writing-mode: vertical-lr; }
+    #float .first { width: 80px; height: 20px; }
+    #float .floating { float: left; width: 20px; height: 20px; }
+    #rtl { top: 440px; width: 300px; height: 300px; writing-mode: vertical-lr; direction: rtl; }
+    #rtl > div { width: 50px; height: auto; min-height: 60px; }
+    #rtl-auto { top: 750px; width: 300px; height: auto; writing-mode: vertical-lr; direction: rtl; }
+    #rtl-auto > div { width: 50px; height: 60px; }
+    #mixed { top: 820px; height: 200px; writing-mode: vertical-rl; }
+    #mixed .fixed { width: 50px; height: 40px; }
+    #mixed .auto-width { width: auto; height: 40px; }
+    .sideways { top: 750px; width: 100px; height: 100px; writing-mode: sideways-lr; }
+    .sideways > div { width: 20px; height: 20px; }
+    #sideways-rtl { left: 110px; direction: rtl; }
+    #orthogonal-inline { top: 1030px; width: 200px; height: 100px; }
+    #orthogonal-inline > .floating { float: left; width: 60px; height: 100px; }
+    #orthogonal-inline > .orthogonal { height: 100px; writing-mode: vertical-rl; }
+    .anonymous-inline { height: 200px; writing-mode: vertical-rl; }
+    .anonymous-inline > span { display: inline-block; width: 20px; height: 30px; }
+    .anonymous-inline > div { width: 50px; height: 20px; }
+    #anonymous-inline-short { top: 1140px; }
+    #anonymous-inline-tall { top: 1350px; }
+    #anonymous-inline-tall > span { height: 60px; }
+    #anonymous-input { top: 1560px; height: 200px; writing-mode: vertical-rl; }
+    #anonymous-input > div { width: 50px; height: 20px; }
+    #text-content { top: 1770px; height: 200px; writing-mode: vertical-rl; }
+    #text-content > p { margin: 0; width: auto; }
+    #text-content > div { width: 50px; height: 20px; }
+</style>
+<div id="auto-lr" class="case auto"><div></div><div></div></div>
+<div id="auto-rl" class="case auto rl"><div></div><div></div></div>
+<fieldset id="fieldset" class="case"><legend></legend></fieldset>
+<div id="float" class="case"><div class="first"></div><div class="floating"></div></div>
+<div id="rtl" class="case"><div></div></div>
+<div id="rtl-auto" class="case"><div></div></div>
+<div id="mixed" class="case"><div class="fixed"></div><div class="auto-width"></div></div>
+<div id="sideways-ltr" class="case sideways"><div></div></div>
+<div id="sideways-rtl" class="case sideways"><div></div></div>
+<div id="orthogonal-inline" class="case"><div class="floating"></div><div class="orthogonal"><span></span></div></div>
+<div id="anonymous-inline-short" class="case anonymous-inline"><span></span><div></div></div>
+<div id="anonymous-inline-tall" class="case anonymous-inline"><span></span><div></div></div>
+<div id="anonymous-input" class="case"><input><div></div></div>
+<div id="text-content" class="case"><p>BBB</p><div></div></div>
+<script src="include.js"></script>
+<script>
+    function relativePosition(child, parent) {
+        const childRect = child.getBoundingClientRect();
+        const parentRect = parent.getBoundingClientRect();
+        return `[${childRect.x - parentRect.x},${childRect.y - parentRect.y}]`;
+    }
+
+    function relativeRectangle(child, parent) {
+        const childRect = child.getBoundingClientRect();
+        return `${relativePosition(child, parent)} ${childRect.width}x${childRect.height}`;
+    }
+
+    test(() => {
+        const autoLr = document.querySelectorAll('#auto-lr > div');
+        const autoRl = document.querySelectorAll('#auto-rl > div');
+        const rtlAuto = document.querySelector('#rtl-auto');
+        const sidewaysLtr = document.querySelector('#sideways-ltr');
+        const sidewaysRtl = document.querySelector('#sideways-rtl');
+        println(
+            `auto-lr: ${relativePosition(autoLr[0], autoLr[0].parentElement)} `
+                + `${relativePosition(autoLr[1], autoLr[1].parentElement)}`);
+        println(
+            `auto-rl: ${relativePosition(autoRl[0], autoRl[0].parentElement)} `
+                + `${relativePosition(autoRl[1], autoRl[1].parentElement)}`);
+        println(`legend: ${relativePosition(fieldset.querySelector('legend'), fieldset)}`);
+        println(`float: ${relativePosition(document.querySelector('#float .floating'), float)}`);
+        println(`rtl: ${relativePosition(rtl.firstElementChild, rtl)}`);
+        println(
+            `rtl-auto: ${relativeRectangle(rtlAuto.firstElementChild, rtlAuto)} `
+                + `${rtlAuto.clientWidth}x${rtlAuto.clientHeight}`);
+        const mixed = document.querySelectorAll('#mixed > div');
+        println(
+            `mixed: ${relativeRectangle(mixed[0], mixed[0].parentElement)} `
+                + `${relativeRectangle(mixed[1], mixed[1].parentElement)}`);
+        println(`sideways-ltr: ${relativePosition(sidewaysLtr.firstElementChild, sidewaysLtr)}`);
+        println(`sideways-rtl: ${relativePosition(sidewaysRtl.firstElementChild, sidewaysRtl)}`);
+        const orthogonalInline = document.querySelector('#orthogonal-inline > .orthogonal');
+        println(`orthogonal-inline: ${relativeRectangle(orthogonalInline, orthogonalInline.parentElement)}`);
+        const anonymousInlineShort = document.querySelector('#anonymous-inline-short');
+        const anonymousInlineTall = document.querySelector('#anonymous-inline-tall');
+        println(
+            `anonymous-inline: ${relativeRectangle(anonymousInlineShort.lastElementChild, anonymousInlineShort)} `
+                + `${relativeRectangle(anonymousInlineTall.lastElementChild, anonymousInlineTall)}`);
+        const anonymousInput = document.querySelector('#anonymous-input');
+        const inputRect = anonymousInput.firstElementChild.getBoundingClientRect();
+        println(
+            `anonymous-input: ${inputRect.width}x${inputRect.height} `
+                + `${relativeRectangle(anonymousInput.lastElementChild, anonymousInput)}`);
+        const textContent = document.querySelector('#text-content');
+        const textContentWidth = textContent.firstElementChild.getBoundingClientRect().width;
+        println(`text-content: ${textContentWidth} ${relativeRectangle(textContent.lastElementChild, textContent)}`);
+    });
+</script>

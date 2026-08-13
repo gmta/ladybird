@@ -1,13 +1,19 @@
 Viewport <#document> at [0,0] [0+0+0 800 0+0+0] [0+0+0 600 0+0+0] [BFC] children: not-inline
-  BlockContainer <html> at [0,0] [0+0+0 800 0+0+0] [0+0+0 186.265625 0+0+0] [BFC] children: not-inline
-    BlockContainer <body> at [8,8] [8+0+0 784 0+0+8] [8+0+0 170.265625 0+0+8] children: inline
-      frag 0 from TextNode start: 0, length: 24, rect: [776,8 16x170.265625] baseline: 12.796875
-          "Well, hello friends! :-)"
+  BlockContainer <html> at [768,0] [0+0+0 32 0+0+0] [0+0+0 600 0+0+0] [BFC] children: not-inline
+    BlockContainer <body> at [776,8] [8+0+0 16 0+0+8] [8+0+0 15.078125 0+0+8] children: inline
+      frag 0 from TextNode start: 0, length: 5, rect: [776,8 16x35.125] baseline: 12.796875
+          "Well,"
+      frag 1 from TextNode start: 6, length: 5, rect: [792,8 16x36.84375] baseline: 12.796875
+          "hello"
+      frag 2 from TextNode start: 12, length: 8, rect: [808,8 16x59.21875] baseline: 12.796875
+          "friends!"
+      frag 3 from TextNode start: 21, length: 3, rect: [824,8 16x15.078125] baseline: 12.796875
+          ":-)"
       TextNode <#text> (not painted)
 
 ViewportPaintable (Viewport<#document>) [0,0 800x600]
-  PaintableWithLines (BlockContainer<HTML>) [0,0 800x186.265625]
-    PaintableWithLines (BlockContainer<BODY>) [8,8 784x170.265625]
+  PaintableWithLines (BlockContainer<HTML>) [768,0 32x600]
+    PaintableWithLines (BlockContainer<BODY>) [776,8 16x15.078125]
 
 SC for Viewport<#document> [0,0 800x600] (z-index: auto)
- SC for BlockContainer<HTML> [0,0 800x186.265625] (z-index: auto)
+ SC for BlockContainer<HTML> [768,0 32x600] (z-index: auto)

@@ -1,0 +1,10 @@
+outer: 80x20
+inner: 80x20
+aspect outer: 100x100
+aspect inner: 100x100
+inline lines: 100x100
+block columns: 40x10
+fixed atomic intrinsic equality: true
+fixed atomic pair intrinsic equality: true
+auto atomic intrinsic equality: true
+auto atomic pair intrinsic equality: true

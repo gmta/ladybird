@@ -1009,6 +1009,58 @@ impl SizingContext {
         resolution_space
     }
 
+    // https://drafts.csswg.org/css-writing-modes-4/#orthogonal-auto
+    pub(crate) fn orthogonal_auto_block_size_constraint(
+        &self,
+        node: Node,
+        constraints: ContainingBlockConstraints,
+    ) -> AvailableSize {
+        if let Some(containing_block_size) = constraints.percentage_basis_block_size {
+            return AvailableSize::definite(containing_block_size);
+        }
+
+        let initial_containing_block_inline_size = self.callbacks.initial_containing_block_inline_size;
+        let initial_containing_block_block_size = self.callbacks.initial_containing_block_block_size;
+        let containing_block = self.callbacks.containing_block(node);
+        // FIXME: Include the nearest ancestor scrollport's fixed size or min/max constraints in this fallback.
+        let constraint = if containing_block.is_invalid() {
+            initial_containing_block_block_size
+        } else {
+            let containing_block_style = self.style(containing_block);
+            let constraint_space = AvailableSpace {
+                inline_size: AvailableSize::definite(initial_containing_block_inline_size),
+                block_size: AvailableSize::definite(initial_containing_block_block_size),
+            };
+            let constraint_basis = ContainingBlockConstraints {
+                percentage_basis_inline_size: Some(initial_containing_block_inline_size),
+                percentage_basis_block_size: Some(initial_containing_block_block_size),
+                ..constraints
+            };
+            let maximum = if containing_block_style.max_height().is_none() {
+                initial_containing_block_block_size
+            } else {
+                self.calculate_inner_block_size(
+                    containing_block,
+                    constraint_space,
+                    containing_block_style.max_height(),
+                    constraint_basis,
+                )
+            };
+            let minimum = if containing_block_style.min_height().is_auto() {
+                CssPixels::default()
+            } else {
+                self.calculate_inner_block_size(
+                    containing_block,
+                    constraint_space,
+                    containing_block_style.min_height(),
+                    constraint_basis,
+                )
+            };
+            maximum.max(minimum).min(initial_containing_block_block_size)
+        };
+        AvailableSize::definite(constraint)
+    }
+
     fn clamp_block_size_to_min_max(
         &self,
         node: Node,
@@ -1310,6 +1362,28 @@ impl SizingContext {
             - used.padding_bottom.get()
             - used.border_top.get()
             - used.border_bottom.get()
+    }
+
+    // https://drafts.csswg.org/css-writing-modes-4/#orthogonal-auto
+    pub(crate) fn calculate_orthogonal_auto_block_size(
+        &self,
+        node: Node,
+        constraint: AvailableSize,
+        constraints: ContainingBlockConstraints,
+    ) -> CssPixels {
+        let facts = self.facts(node);
+        let stretch = self.calculate_stretch_fit_block_size(node, constraint);
+        // FIXME: Give intrinsic measurement separate logical inline and physical-width inputs. Inline layout needs the
+        //        orthogonal inline constraint here, while block children need the root's resolved physical width.
+        let measurement_inline_size = if facts.children_are_inline() {
+            facts.initial_containing_block_inline_size()
+        } else {
+            self.used(node).content_inline_size.get()
+        };
+        let max_content = self.calculate_max_content_block_size(node, measurement_inline_size, constraints);
+        // FIXME: Once the physical-axis intrinsic sizing helpers can calculate the logical inline-axis min-content
+        //        size, replace this provisional formula with calculate_fit_content_size().
+        max_content.min(stretch)
     }
 
     fn intrinsic_block_cache_get(
@@ -2210,6 +2284,14 @@ impl SizingContext {
             return self.calculate_max_content_inline_size(node, constraints);
         }
         if preferred_size.is_min_content() {
+            // https://drafts.csswg.org/css-sizing-3/#min-content-block-size
+            // For block containers and tables, the min-content block size is equivalent to the max-content block size.
+            let facts = self.facts(node);
+            if self.style(node).writing_mode() != writing_mode::HORIZONTAL_TB
+                && (facts.is_block_container() || facts.is_table_box())
+            {
+                return self.calculate_max_content_inline_size(node, constraints);
+            }
             return self.calculate_min_content_inline_size(node, constraints);
         }
         if preferred_size.is_stretch() {

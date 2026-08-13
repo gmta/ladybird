@@ -20,6 +20,23 @@ pub(crate) fn to_logical<T>(writing_mode: u8, horizontal: T, vertical: T) -> (T,
     }
 }
 
+// https://drafts.csswg.org/css-writing-modes-4/#text-flow
+pub(crate) fn inline_axis_is_reverse(writing_mode: u8, direction: u8) -> bool {
+    match writing_mode {
+        writing_mode::HORIZONTAL_TB
+        | writing_mode::VERTICAL_RL
+        | writing_mode::VERTICAL_LR
+        | writing_mode::SIDEWAYS_RL => direction == direction::RTL,
+        writing_mode::SIDEWAYS_LR => direction == direction::LTR,
+        _ => unreachable!("invalid writing mode"),
+    }
+}
+
+// https://drafts.csswg.org/css-writing-modes-4/#block-flow
+pub(crate) fn block_axis_is_reverse(writing_mode: u8) -> bool {
+    matches!(writing_mode, writing_mode::VERTICAL_RL | writing_mode::SIDEWAYS_RL)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AvailableSize {
     Definite(CssPixels),
@@ -130,6 +147,8 @@ pub(crate) struct RootSizingDirectives {
     pub(crate) float_avoidance_inline_size: Option<CssPixels>,
     pub(crate) outer_float_intrusion_before_list_item_children: SpaceUsedByFloats,
     pub(crate) treat_block_axis_percentage_insets_as_auto_beyond_root: bool,
+    // https://drafts.csswg.org/css-writing-modes-4/#dimension-mapping
+    pub(crate) preserve_physical_horizontal_margins_during_inline_sizing: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

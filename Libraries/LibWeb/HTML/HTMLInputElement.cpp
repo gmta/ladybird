@@ -1389,7 +1389,7 @@ void HTMLInputElement::create_file_input_shadow_tree()
     m_file_button->set_associated_shadow_host_pseudo_element(CSS::PseudoElement::FileSelectorButton);
 
     m_file_label = DOM::create_element(document(), HTML::TagNames::label, Namespace::HTML).release_value_but_fixme_should_propagate_errors();
-    m_file_label->set_attribute_value(HTML::AttributeNames::style, "padding-left: 4px;"_utf16);
+    m_file_label->set_attribute_value(HTML::AttributeNames::style, "padding-inline-start: 4px;"_utf16);
 
     auto on_button_click = [this](JS::VM&) {
         show_the_picker_if_applicable(*this);
@@ -3990,8 +3990,8 @@ bool HTMLInputElement::uses_button_layout() const
     // The element, when it generates a CSS box, is expected to use button layout, that has no child boxes of the
     // anonymous button content box.
 
-    // https://html.spec.whatwg.org/multipage/rendering.html#the-input-element-as-a-file-upload-control:button-layout-2
-    // The button is expected to use button layout and match the '::file-selector-button' pseudo-element.
+    // https://html.spec.whatwg.org/multipage/rendering.html#the-input-element-as-a-file-upload-control
+    // A file input is an inline-block; only its internal button uses button layout.
 
     // https://html.spec.whatwg.org/multipage/input.html#image-button-state-(type=image):concept-button
     // The element is a button, specifically a submit button.
@@ -3999,7 +3999,7 @@ bool HTMLInputElement::uses_button_layout() const
     //       Submit Button, so we don't include ::ImageButton below.
 
     return first_is_one_of(type_state(), TypeAttributeState::SubmitButton, TypeAttributeState::ResetButton,
-        TypeAttributeState::Button, TypeAttributeState::Color, TypeAttributeState::FileUpload);
+        TypeAttributeState::Button, TypeAttributeState::Color);
 }
 
 Optional<Utf16String> HTMLInputElement::selected_text_for_stringifier() const

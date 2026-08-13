@@ -949,6 +949,7 @@ pub struct FfiLayoutFcCallbacks {
     pub context: *mut c_void,
     pub arena: *mut c_void,
     pub initial_containing_block_inline_size: CssPixels,
+    pub initial_containing_block_block_size: CssPixels,
     pub document_in_quirks_mode: bool,
     pub report_unexpected_fragmented_inline: unsafe extern "C" fn(*mut c_void, *mut c_void),
     pub build_svg_facts: unsafe extern "C" fn(*mut c_void, *mut c_void) -> FfiSvgElementFacts,
@@ -1459,8 +1460,79 @@ fn dimension_block_level_root(run: &FormattingContextRun, input: &LayoutInput) -
     let available_space = input.available_space;
     let constraints = input.containing_block_constraints;
     let sizing = run.sizing();
+    let facts = NodeFacts::new(&run.callbacks, node);
     let style = StyleValues::for_node(&run.callbacks, node);
     let mut body_input = body_input_with_inner_available_space(run, input);
+    // https://drafts.csswg.org/css-writing-modes-4/#icb
+    if facts.is_html_html_element()
+        && style.writing_mode() != writing_mode::HORIZONTAL_TB
+        && style.height().is_auto()
+    {
+        // FIXME: Replace this root-only mapping with logical inline sizing for every vertical block box.
+        let used = run.records.used_values(node);
+        let content_block_size = run.callbacks.initial_containing_block_block_size
+            - used.margin_top.get()
+            - used.border_box_top(false)
+            - used.margin_bottom.get()
+            - used.border_box_bottom(false);
+        used.set_content_block_size(content_block_size.max(CssPixels::default()));
+        used.has_definite_block_size.set(true);
+        body_input = body_input_with_inner_available_space(run, input);
+    }
+    let physical_width_was_reduced_for_floats = input
+        .sizing
+        .float_avoidance_inline_size
+        .is_some_and(|size| size < available_space.inline_size.to_px_or_zero());
+    // NOTE: A reduced float-avoidance opportunity means the parent BFC already chose the stretch-fit physical
+    //       width beside the floats. Replacing that width with the orthogonal fit-content size would make the box
+    //       overlap them.
+    // FIXME: Handle horizontal-tb roots inside vertical containing blocks once this physical-axis sizing path can
+    //        map the orthogonal constraint onto either logical axis.
+    if facts.establishes_orthogonal_flow()
+        && style.writing_mode() != writing_mode::HORIZONTAL_TB
+        && !physical_width_was_reduced_for_floats
+        && !(facts.has_preferred_aspect_ratio() && run.records.used_values(node).has_definite_inline_size())
+        && sizing.should_treat_inline_size_as_auto(node, available_space, constraints)
+    {
+        // https://drafts.csswg.org/css-writing-modes-4/#orthogonal-shrink-to-fit
+        let inline_size = sizing.calculate_fit_content_size(node, SizingAxis::Inline, available_space, constraints);
+        run.records.used_values(node).set_content_inline_size(inline_size);
+        body_input = body_input_with_inner_available_space(run, input);
+    }
+    // FIXME: Handle horizontal-tb roots inside vertical containing blocks once this physical-axis sizing path can
+    //        map the orthogonal constraint onto either logical axis.
+    if facts.establishes_orthogonal_flow()
+        && style.writing_mode() != writing_mode::HORIZONTAL_TB
+        && sizing.should_treat_block_size_as_auto(node, available_space, constraints)
+    {
+        // https://drafts.csswg.org/css-writing-modes-4/#orthogonal-auto
+        let mut sizing_space = available_space;
+        if sizing_space.block_size == AvailableSize::Indefinite {
+            sizing_space.block_size = AvailableSize::definite(run.callbacks.initial_containing_block_block_size);
+        }
+        let orthogonal_constraint = sizing.orthogonal_auto_block_size_constraint(node, constraints);
+        let mut block_size = sizing.calculate_orthogonal_auto_block_size(node, orthogonal_constraint, constraints);
+        if !sizing.should_treat_max_block_size_as_none(node, sizing_space.block_size, constraints) {
+            block_size = block_size.min(sizing.calculate_inner_block_size(
+                node,
+                sizing_space,
+                style.max_height(),
+                constraints,
+            ));
+        }
+        if !style.min_height().is_auto() {
+            block_size = block_size.max(sizing.calculate_inner_block_size(
+                node,
+                sizing_space,
+                style.min_height(),
+                constraints,
+            ));
+        }
+        let used = run.records.used_values(node);
+        used.set_content_block_size(block_size);
+        used.has_definite_block_size.set(true);
+        body_input = body_input_with_inner_available_space(run, input);
+    }
     let mut measured_content_block_size = None;
     if sizing.should_treat_block_size_as_auto(node, available_space, constraints) && !style.min_height().is_auto() {
         let content_block_size =
@@ -1492,6 +1564,20 @@ fn finalize_block_level_root(run: &FormattingContextRun, input: &LayoutInput, bo
     let style = StyleValues::for_node(&run.callbacks, node);
     if !style.display().is_table_inside() {
         let sizing = run.sizing();
+        if facts.is_html_html_element()
+            && style.writing_mode() != writing_mode::HORIZONTAL_TB
+            && style.height().is_auto()
+        {
+            // NOTE: The vertical root's logical inline size was already resolved and marked definite.
+            return;
+        }
+        if facts.establishes_orthogonal_flow()
+            && style.writing_mode() != writing_mode::HORIZONTAL_TB
+            && sizing.should_treat_block_size_as_auto(node, input.available_space, input.containing_block_constraints)
+        {
+            // NOTE: The orthogonal block size was already resolved and marked definite in dimension_block_level_root.
+            return;
+        }
         let resolution_space = sizing.available_space_for_block_size_resolution(
             node,
             input.available_space,

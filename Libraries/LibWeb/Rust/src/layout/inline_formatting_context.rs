@@ -1607,7 +1607,7 @@ pub struct FfiLineSinkCallbacks {
     pub emit_inline_box_piece: unsafe extern "C" fn(*mut c_void, FfiInlineBoxPiece),
 }
 
-pub(crate) fn line_physical_horizontal_extent(line: &LineBoxData) -> CssPixels {
+pub(crate) fn line_physical_horizontal_extent(records: &RunRecords, line: &LineBoxData) -> CssPixels {
     if line.has_block_level_box || line.writing_mode == writing_mode::HORIZONTAL_TB {
         return line.inline_length;
     }
@@ -1615,11 +1615,18 @@ pub(crate) fn line_physical_horizontal_extent(line: &LineBoxData) -> CssPixels {
         return CssPixels::default();
     };
     let mut left = first.offset().0;
-    let mut right = left + first.physical_horizontal_extent();
+    let fragment_width = |fragment: &LineBoxFragmentData| {
+        if fragment.is_atomic_inline {
+            records.used_values(fragment.layout_node).margin_box_inline_size(false)
+        } else {
+            fragment.physical_horizontal_extent()
+        }
+    };
+    let mut right = left + fragment_width(first);
     for fragment in &line.fragments[1..] {
         let fragment_left = fragment.offset().0;
         left = left.min(fragment_left);
-        right = right.max(fragment_left + fragment.physical_horizontal_extent());
+        right = right.max(fragment_left + fragment_width(fragment));
     }
     right - left
 }

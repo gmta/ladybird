@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<input id="horizontal-tb" type="file">
+<input id="vertical-rl" type="file">
+<input id="vertical-lr" type="file">
+<input id="sideways-rl" type="file">
+<input id="sideways-lr" type="file">
+<script src="include.js"></script>
+<script>
+    test(() => {
+        for (const input of document.querySelectorAll("input")) {
+            input.style.writingMode = input.id;
+            const style = getComputedStyle(input);
+            const inlineSize = parseFloat(style.inlineSize);
+            const blockSize = parseFloat(style.blockSize);
+            const logicalSizesMapToPhysicalSizes = input.id === "horizontal-tb"
+                ? style.inlineSize === style.width && style.blockSize === style.height
+                : style.inlineSize === style.height && style.blockSize === style.width;
+            const inlineSizeIsLarger = inlineSize > blockSize;
+            println(`${input.id}: inline larger=${inlineSizeIsLarger}, logical mapping=${logicalSizesMapToPhysicalSizes}`);
+        }
+    });
+</script>

@@ -1,0 +1,5 @@
+horizontal-tb: inline larger=true, logical mapping=true
+vertical-rl: inline larger=true, logical mapping=true
+vertical-lr: inline larger=true, logical mapping=true
+sideways-rl: inline larger=true, logical mapping=true
+sideways-lr: inline larger=true, logical mapping=true

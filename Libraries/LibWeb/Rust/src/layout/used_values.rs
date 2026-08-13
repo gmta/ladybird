@@ -514,6 +514,46 @@ impl UsedValues {
         self.border_bottom_collapsed(collapsed) + self.padding_bottom.get()
     }
 
+    // https://drafts.csswg.org/css-writing-modes-4/#logical-to-physical
+    pub(crate) fn margin_block_start(&self, writing_mode: u8) -> CssPixels {
+        match writing_mode {
+            writing_mode::HORIZONTAL_TB => self.margin_top.get(),
+            writing_mode::VERTICAL_RL | writing_mode::SIDEWAYS_RL => self.margin_right.get(),
+            writing_mode::VERTICAL_LR | writing_mode::SIDEWAYS_LR => self.margin_left.get(),
+            _ => unreachable!("invalid writing mode"),
+        }
+    }
+
+    // https://drafts.csswg.org/css-writing-modes-4/#logical-to-physical
+    pub(crate) fn margin_block_end(&self, writing_mode: u8) -> CssPixels {
+        match writing_mode {
+            writing_mode::HORIZONTAL_TB => self.margin_bottom.get(),
+            writing_mode::VERTICAL_RL | writing_mode::SIDEWAYS_RL => self.margin_left.get(),
+            writing_mode::VERTICAL_LR | writing_mode::SIDEWAYS_LR => self.margin_right.get(),
+            _ => unreachable!("invalid writing mode"),
+        }
+    }
+
+    // https://drafts.csswg.org/css-writing-modes-4/#logical-to-physical
+    pub(crate) fn border_box_block_start(&self, writing_mode: u8, collapsed: bool) -> CssPixels {
+        match writing_mode {
+            writing_mode::HORIZONTAL_TB => self.border_box_top(collapsed),
+            writing_mode::VERTICAL_RL | writing_mode::SIDEWAYS_RL => self.border_box_right(collapsed),
+            writing_mode::VERTICAL_LR | writing_mode::SIDEWAYS_LR => self.border_box_left(collapsed),
+            _ => unreachable!("invalid writing mode"),
+        }
+    }
+
+    // https://drafts.csswg.org/css-writing-modes-4/#logical-to-physical
+    pub(crate) fn border_box_block_end(&self, writing_mode: u8, collapsed: bool) -> CssPixels {
+        match writing_mode {
+            writing_mode::HORIZONTAL_TB => self.border_box_bottom(collapsed),
+            writing_mode::VERTICAL_RL | writing_mode::SIDEWAYS_RL => self.border_box_left(collapsed),
+            writing_mode::VERTICAL_LR | writing_mode::SIDEWAYS_LR => self.border_box_right(collapsed),
+            _ => unreachable!("invalid writing mode"),
+        }
+    }
+
     pub(crate) fn border_box_inline_size(&self, collapsed: bool) -> CssPixels {
         self.border_box_left(collapsed) + self.content_inline_size.get() + self.border_box_right(collapsed)
     }

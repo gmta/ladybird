@@ -549,6 +549,16 @@ impl<'a> ComputedValuesView<'a> {
         self.native_group(STYLE_GROUP_INDEX_FONT)
     }
 
+    // https://drafts.csswg.org/css-contain-2/#contain-property
+    pub(crate) fn has_any_containment(self) -> bool {
+        let box_values = self.box_values();
+        box_values.size_containment
+            || box_values.inline_size_containment
+            || box_values.layout_containment
+            || box_values.style_containment
+            || box_values.paint_containment
+    }
+
     pub(crate) fn is_floating(self) -> bool {
         self.box_values().float_ != crate::css::css_enums::float::NONE
     }

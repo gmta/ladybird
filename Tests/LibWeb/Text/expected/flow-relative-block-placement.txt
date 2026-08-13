@@ -1,0 +1,13 @@
+auto-lr: [0,0] [40,0]
+auto-rl: [360,0] [320,0]
+legend: [10,10]
+float: [0,20]
+rtl: [0,240]
+rtl-auto: [0,0] 50x60 300x60
+mixed: [350,0] 50x40 [350,0] 0x40
+sideways-ltr: [0,80]
+sideways-rtl: [0,0]
+orthogonal-inline: [60,0] 140x100
+anonymous-inline: [330,0] 50x20 [330,0] 50x20
+anonymous-input: 22x204 [328,0] 50x20
+text-content: 16 [334,0] 50x20
