@@ -2640,7 +2640,8 @@
     "valid-identifiers": [
       "auto",
       "max-content",
-      "min-content"
+      "min-content",
+      "stretch"
     ],
     "percentages-resolve-to": "length",
     "quirks": [
@@ -3256,7 +3257,8 @@
     "valid-identifiers": [
       "max-content",
       "min-content",
-      "none"
+      "none",
+      "stretch"
     ],
     "percentages-resolve-to": "length",
     "quirks": [
@@ -3284,7 +3286,8 @@
     "valid-identifiers": [
       "max-content",
       "min-content",
-      "none"
+      "none",
+      "stretch"
     ],
     "percentages-resolve-to": "length",
     "quirks": [
@@ -3312,7 +3315,8 @@
     "valid-identifiers": [
       "auto",
       "max-content",
-      "min-content"
+      "min-content",
+      "stretch"
     ],
     "percentages-resolve-to": "length",
     "quirks": [
@@ -3340,7 +3344,8 @@
     "valid-identifiers": [
       "auto",
       "max-content",
-      "min-content"
+      "min-content",
+      "stretch"
     ],
     "percentages-resolve-to": "length",
     "quirks": [
@@ -5154,7 +5159,8 @@
     "valid-identifiers": [
       "auto",
       "max-content",
-      "min-content"
+      "min-content",
+      "stretch"
     ],
     "percentages-resolve-to": "length",
     "quirks": [

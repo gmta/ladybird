@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<style>
+    body { margin: 0; }
+    .container { width: 50px; height: 50px; }
+    .child { width: stretch; height: 20px; margin: 1px 3px 5px 7px; }
+</style>
+<div class="container"><div class="child"></div></div>
+<div class="container"><div class="child" style="writing-mode: vertical-rl"></div></div>
+<div class="container"><div class="child" style="writing-mode: vertical-lr"></div></div>
+<div class="container"><div class="child" style="writing-mode: sideways-rl"></div></div>
+<div class="container"><div class="child" style="writing-mode: sideways-lr"></div></div>
+<div id="serialization"></div>
+<script src="include.js"></script>
+<script>
+    test(() => {
+        for (const property of [
+            'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+            'inline-size', 'block-size', 'min-inline-size', 'min-block-size', 'max-inline-size', 'max-block-size'
+        ]) {
+            serialization.style.setProperty(property, 'stretch');
+            println(
+                `${property}: supported=${CSS.supports(property, 'stretch')} `
+                    + `specified=${serialization.style.getPropertyValue(property)} `
+                    + `computed=${getComputedStyle(serialization).getPropertyValue(property)}`);
+        }
+        for (const child of document.querySelectorAll('.child')) {
+            const rect = child.getBoundingClientRect();
+            println(`${getComputedStyle(child).writingMode}: ${rect.width}x${rect.height}`);
+        }
+    });
+</script>

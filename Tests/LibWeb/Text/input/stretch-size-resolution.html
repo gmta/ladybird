@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<style>
+    body { margin: 0; }
+    .indefinite { width: 100px; }
+    #indefinite-preferred { height: stretch; }
+    #indefinite-preferred > div { height: 20px; }
+    #indefinite-minimum { height: 10px; min-height: stretch; }
+    #indefinite-maximum { height: 40px; max-height: stretch; }
+
+    .flex {
+        display: flex;
+        width: 100px;
+        max-height: 100px;
+    }
+    .flex > div {
+        flex: none;
+        width: 10px;
+        margin: 5px;
+        border: 3px solid;
+        padding: 2px;
+    }
+    #flex-preferred { height: stretch; }
+    #flex-maximum { height: 500px; max-height: stretch; }
+
+    .column {
+        display: inline-flex;
+        flex-direction: column;
+        width: 50px;
+        height: 50px;
+    }
+    .column > div {
+        width: stretch;
+        min-width: 0;
+        min-height: 0;
+    }
+    .column canvas {
+        display: block;
+        width: 100%;
+    }
+
+    #replaced-wrapper { width: 200px; max-height: 100px; }
+    #replaced {
+        height: stretch;
+        min-width: 150px;
+    }
+    .replaced-minimum {
+        width: 0;
+        height: 0;
+        min-height: stretch;
+    }
+    #replaced-minimum-narrow { min-width: 50px; }
+    #replaced-minimum-wide { min-width: 150px; }
+
+    #float-wrapper { width: 200px; }
+    #float { float: left; width: 100px; height: 20px; }
+    #float-bfc { display: flow-root; width: stretch; height: 20px; }
+
+    #ratio-wrapper { width: 100px; }
+    #indefinite-ratio { aspect-ratio: 2 / 1; height: stretch; }
+    #indefinite-ratio > div { width: 30px; height: 40px; }
+</style>
+
+<div class="indefinite" id="indefinite-preferred"><div></div></div>
+<div class="indefinite" id="indefinite-minimum"></div>
+<div class="indefinite" id="indefinite-maximum"></div>
+
+<div class="flex">
+    <div id="flex-preferred"></div>
+    <div id="flex-maximum"></div>
+</div>
+
+<div id="columns"></div>
+
+<div id="replaced-wrapper">
+    <canvas id="replaced" width="100" height="100"></canvas>
+    <canvas class="replaced-minimum" id="replaced-minimum-narrow" width="100" height="100"></canvas>
+    <canvas class="replaced-minimum" id="replaced-minimum-wide" width="100" height="100"></canvas>
+</div>
+
+<div id="float-wrapper">
+    <div id="float"></div>
+    <div id="float-bfc"></div>
+</div>
+
+<div id="ratio-wrapper">
+    <div id="indefinite-ratio"><div></div></div>
+</div>
+
+<script src="include.js"></script>
+<script>
+    test(() => {
+        function printSize(label, element) {
+            const rect = element.getBoundingClientRect();
+            println(`${label}: ${rect.width}x${rect.height}`);
+        }
+
+        printSize("indefinite preferred", document.querySelector("#indefinite-preferred"));
+        printSize("indefinite minimum", document.querySelector("#indefinite-minimum"));
+        printSize("indefinite maximum", document.querySelector("#indefinite-maximum"));
+        printSize("flex preferred", document.querySelector("#flex-preferred"));
+        printSize("flex maximum", document.querySelector("#flex-maximum"));
+
+        for (const flexBasis of ["auto", "content", "min-content", "fit-content", "max-content"]) {
+            const column = document.createElement("div");
+            column.className = "column";
+            const item = document.createElement("div");
+            item.style.flexBasis = flexBasis;
+            const canvas = document.createElement("canvas");
+            canvas.width = 5;
+            canvas.height = 5;
+            item.appendChild(canvas);
+            column.appendChild(item);
+            document.querySelector("#columns").appendChild(column);
+            printSize(`flex-basis ${flexBasis}`, item);
+        }
+
+        printSize("replaced", document.querySelector("#replaced"));
+        printSize("replaced minimum narrow", document.querySelector("#replaced-minimum-narrow"));
+        printSize("replaced minimum wide", document.querySelector("#replaced-minimum-wide"));
+
+        const floatBfcRect = document.querySelector("#float-bfc").getBoundingClientRect();
+        const floatWrapperRect = document.querySelector("#float-wrapper").getBoundingClientRect();
+        println(`float BFC: x=${floatBfcRect.x - floatWrapperRect.x} width=${floatBfcRect.width}`);
+
+        printSize("indefinite ratio", document.querySelector("#indefinite-ratio"));
+    });
+</script>

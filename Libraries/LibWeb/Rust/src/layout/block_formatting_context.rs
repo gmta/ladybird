@@ -680,10 +680,15 @@ impl BlockFormattingContext {
             // https://html.spec.whatwg.org/multipage/rendering.html#button-layout
             // If the computed value of 'inline-size' is 'auto', then the used value is the fit-content inline size.
             Some(sizing.calculate_fit_content_size(node, crate::layout::SizingAxis::Inline, available_space, constraints))
-        } else if sizing.should_treat_inline_size_as_auto(node, available_space) {
+        } else if sizing.should_treat_inline_size_as_auto(node, available_space, constraints) {
             None
         } else {
-            Some(sizing.calculate_inner_inline_size(node, available_space.inline_size, style.width(), constraints))
+            let available = if style.width().is_stretch() {
+                remaining_available_space.inline_size
+            } else {
+                available_space.inline_size
+            };
+            Some(sizing.calculate_inner_inline_size(node, available, style.width(), constraints))
         };
 
         // 1. The tentative used width is calculated (without 'min-width' and 'max-width')
@@ -698,8 +703,12 @@ impl BlockFormattingContext {
         // 2. The tentative used width is greater than 'max-width', the rules above are applied again,
         //    but this time using the computed value of 'max-width' as the computed value for 'width'.
         if !sizing.should_treat_max_inline_size_as_none(node, available_space.inline_size, constraints) {
-            let max_inline_size =
-                sizing.calculate_inner_inline_size(node, available_space.inline_size, style.max_width(), constraints);
+            let available = if style.max_width().is_stretch() {
+                remaining_available_space.inline_size
+            } else {
+                available_space.inline_size
+            };
+            let max_inline_size = sizing.calculate_inner_inline_size(node, available, style.max_width(), constraints);
             if used_inline_size.unwrap_or_default() > max_inline_size {
                 used_inline_size = compute(
                     Some(max_inline_size),
@@ -717,8 +726,12 @@ impl BlockFormattingContext {
         if !min_width.is_auto()
             && let Some(value) = used_inline_size
         {
-            let min_inline_size =
-                sizing.calculate_inner_inline_size(node, available_space.inline_size, min_width, constraints);
+            let available = if min_width.is_stretch() {
+                remaining_available_space.inline_size
+            } else {
+                available_space.inline_size
+            };
+            let min_inline_size = sizing.calculate_inner_inline_size(node, available, min_width, constraints);
             if value < min_inline_size {
                 used_inline_size = compute(
                     Some(min_inline_size),
@@ -802,7 +815,7 @@ impl BlockFormattingContext {
             }
         };
 
-        let input = if sizing.should_treat_inline_size_as_auto(node, available_space) {
+        let input = if sizing.should_treat_inline_size_as_auto(node, available_space, constraints) {
             None
         } else {
             Some(sizing.calculate_inner_inline_size(node, available_space.inline_size, style.width(), constraints))

@@ -1186,13 +1186,11 @@ impl TableFormattingContext {
 
     fn use_fixed_mode_layout(&mut self) -> bool {
         // Implements https://www.w3.org/TR/css-tables-3/#in-fixed-mode.
-        // A table-root is said to be laid out in fixed mode whenever the computed value of the table-layout property is equal to fixed, and the
-        // specified width of the table root is either a <length-percentage>, min-content or fit-content. When the specified width is not one of
-        // those values, or if the computed value of the table-layout property is auto, then the table-root is said to be laid out in auto mode.
+        // A table-root is laid out in fixed mode whenever table-layout is fixed and its specified width is neither auto
+        // nor max-content. See https://github.com/w3c/csswg-drafts/issues/10937.
         let style = self.style(self.table_box);
         let width = style.width();
-        style.table_layout() == TABLE_LAYOUT_FIXED
-            && (width.is_length() || width.is_percentage() || width.is_min_content() || width.is_fit_content())
+        style.table_layout() == TABLE_LAYOUT_FIXED && !width.is_auto() && !width.is_max_content()
     }
 
     fn compute_constrainedness(&mut self) {

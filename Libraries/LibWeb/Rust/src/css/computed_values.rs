@@ -2221,6 +2221,9 @@ impl ComputedSize {
             Some(StyleValueData::Keyword { keyword: value }) if *value == keyword::MAX_CONTENT => {
                 Self::keyword(ComputedSizeKind::MaxContent)
             }
+            Some(StyleValueData::Keyword { keyword: value }) if *value == keyword::STRETCH => {
+                Self::keyword(ComputedSizeKind::Stretch)
+            }
             Some(StyleValueData::Keyword { keyword: value }) if *value == keyword::NONE => {
                 Self::keyword(ComputedSizeKind::None)
             }

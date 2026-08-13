@@ -354,7 +354,7 @@ impl SizingContext {
         let intrinsic = self.intrinsic_size_for_replaced_sizing(node);
         // If 'height' and 'width' both have computed values of 'auto' and the element also has
         // an intrinsic height, then that intrinsic height is the used value of 'height'.
-        if self.should_treat_inline_size_as_auto(node, available_space)
+        if self.should_treat_inline_size_as_auto(node, available_space, constraints)
             && self.should_treat_block_size_as_auto(node, available_space, constraints)
             && let Some(height) = intrinsic.height
         {
@@ -389,26 +389,26 @@ impl SizingContext {
         // 10.4 Minimum and maximum widths: 'min-width' and 'max-width'
         // https://www.w3.org/TR/CSS22/visudet.html#min-max-widths
         let style = self.style(node);
-        let min_inline = if style.min_width().is_auto() {
+        let min_inline = if self.should_treat_min_inline_size_as_zero(node, available_space.inline_size, constraints) {
             CssPixels::default()
         } else {
             self.calculate_inner_inline_size(node, available_space.inline_size, style.min_width(), constraints)
         };
         let specified_max_inline =
             if self.should_treat_max_inline_size_as_none(node, available_space.inline_size, constraints) {
-                input_inline_size
+                CssPixels::from_raw(i32::MAX)
             } else {
                 self.calculate_inner_inline_size(node, available_space.inline_size, style.max_width(), constraints)
             };
         let max_inline = min_inline.max(specified_max_inline);
-        let min_block = if style.min_height().is_auto() {
+        let min_block = if self.should_treat_min_block_size_as_zero(node, available_space.block_size, constraints) {
             CssPixels::default()
         } else {
             self.calculate_inner_block_size(node, available_space, style.min_height(), constraints)
         };
         let specified_max_block =
             if self.should_treat_max_block_size_as_none(node, available_space.block_size, constraints) {
-                input_block_size
+                CssPixels::from_raw(i32::MAX)
             } else {
                 self.calculate_inner_block_size(node, available_space, style.max_height(), constraints)
             };
@@ -494,7 +494,7 @@ impl SizingContext {
         constraints: ContainingBlockConstraints,
     ) -> (&'static ComputedSize, &'static ComputedSize) {
         let style = self.style(node);
-        let inline = if self.should_treat_inline_size_as_auto(node, available_space) {
+        let inline = if self.should_treat_inline_size_as_auto(node, available_space, constraints) {
             auto_computed_size()
         } else {
             style.width()
@@ -544,7 +544,7 @@ impl SizingContext {
         }
         // 3. If the resulting width is smaller than 'min-width', the rules above are applied again,
         //    but this time using the value of 'min-width' as the computed value for 'width'.
-        if !style.min_width().is_auto() {
+        if !self.should_treat_min_inline_size_as_zero(node, available_space.inline_size, constraints) {
             let min =
                 self.calculate_inner_inline_size(node, available_space.inline_size, style.min_width(), constraints);
             if used < min {
@@ -610,7 +610,7 @@ impl SizingContext {
         }
         // 3. If the resulting height is smaller than 'min-height', the rules above are applied again,
         //    but this time using the value of 'min-height' as the computed value for 'height'.
-        if !style.min_height().is_auto() {
+        if !self.should_treat_min_block_size_as_zero(node, available_space.block_size, constraints) {
             let min = self.calculate_inner_block_size(node, available_space, style.min_height(), constraints);
             if used < min {
                 used = self.tentative_block_size_for_replaced_element(
@@ -649,7 +649,7 @@ impl SizingContext {
             //
             // AD-HOC: If box has preferred aspect ratio but width and height are not specified, then we should
             //         size it as a normal box to match other browsers.
-            if self.should_treat_inline_size_as_auto(node, available_space)
+            if self.should_treat_inline_size_as_auto(node, available_space, constraints)
                 && self.should_treat_block_size_as_auto(node, available_space, constraints)
                 && !facts.has_auto_content_width()
                 && !facts.has_auto_content_height()
@@ -732,10 +732,28 @@ impl SizingContext {
         }
     }
 
-    pub(crate) fn should_treat_inline_size_as_auto(&self, node: Node, available_space: AvailableSpace) -> bool {
+    pub(crate) fn should_treat_inline_size_as_auto(
+        &self,
+        node: Node,
+        available_space: AvailableSpace,
+        constraints: ContainingBlockConstraints,
+    ) -> bool {
         let style = self.style(node);
         let size = style.width();
+        let facts = self.facts(node);
         if size.is_auto() {
+            return true;
+        }
+        // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+        if size.is_stretch()
+            && !matches!(
+                Self::available_size_for_stretch(available_space.inline_size, constraints.percentage_basis_inline_size),
+                AvailableSize::Definite(_)
+            )
+        {
+            if self.used(node).has_definite_block_size() && facts.has_preferred_aspect_ratio() {
+                return false;
+            }
             return true;
         }
         // https://drafts.csswg.org/css-sizing-3/#cyclic-percentage-contribution
@@ -754,7 +772,6 @@ impl SizingContext {
                 return true;
             }
         }
-        let facts = self.facts(node);
         // AD-HOC: If the box has a preferred aspect ratio and an intrinsic keyword for width...
         if facts.has_preferred_aspect_ratio() && size.is_intrinsic_sizing_constraint() {
             // If the box has no natural height to resolve the aspect ratio, we treat the width as auto.
@@ -779,6 +796,18 @@ impl SizingContext {
         let size = style.height();
         let facts = self.facts(node);
         if size.is_auto() {
+            if self.used(node).has_definite_inline_size() && facts.has_preferred_aspect_ratio() {
+                return false;
+            }
+            return true;
+        }
+        // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+        if size.is_stretch()
+            && !matches!(
+                Self::available_size_for_stretch(available_space.block_size, constraints.percentage_basis_block_size),
+                AvailableSize::Definite(_)
+            )
+        {
             if self.used(node).has_definite_inline_size() && facts.has_preferred_aspect_ratio() {
                 return false;
             }
@@ -848,6 +877,15 @@ impl SizingContext {
         if size.is_none() || (available == AvailableSize::MaxContent && size.is_max_content()) {
             return true;
         }
+        // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+        if size.is_stretch()
+            && !matches!(
+                Self::available_size_for_stretch(available, constraints.percentage_basis_inline_size),
+                AvailableSize::Definite(_)
+            )
+        {
+            return true;
+        }
         // https://drafts.csswg.org/css-sizing-3/#cyclic-percentage-contribution
         if size.contains_percentage() {
             match cyclic_percentage_intrinsic_contribution(
@@ -869,6 +907,38 @@ impl SizingContext {
             || (size.is_min_content() && available == AvailableSize::MinContent)
     }
 
+    // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+    fn should_treat_min_inline_size_as_zero(
+        &self,
+        node: Node,
+        available: AvailableSize,
+        constraints: ContainingBlockConstraints,
+    ) -> bool {
+        let size = self.style(node).min_width();
+        size.is_auto()
+            || (size.is_stretch()
+                && !matches!(
+                    Self::available_size_for_stretch(available, constraints.percentage_basis_inline_size),
+                    AvailableSize::Definite(_)
+                ))
+    }
+
+    // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+    fn should_treat_min_block_size_as_zero(
+        &self,
+        node: Node,
+        available: AvailableSize,
+        constraints: ContainingBlockConstraints,
+    ) -> bool {
+        let size = self.style(node).min_height();
+        size.is_auto()
+            || (size.is_stretch()
+                && !matches!(
+                    Self::available_size_for_stretch(available, constraints.percentage_basis_block_size),
+                    AvailableSize::Definite(_)
+                ))
+    }
+
     pub(crate) fn should_treat_max_block_size_as_none(
         &self,
         node: Node,
@@ -881,6 +951,15 @@ impl SizingContext {
         // or 'none' (for 'max-height').
         let size = self.style(node).max_height();
         if size.is_none() {
+            return true;
+        }
+        // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+        if size.is_stretch()
+            && !matches!(
+                Self::available_size_for_stretch(available, constraints.percentage_basis_block_size),
+                AvailableSize::Definite(_)
+            )
+        {
             return true;
         }
         if size.contains_percentage() {
@@ -944,7 +1023,7 @@ impl SizingContext {
             let max = self.calculate_inner_block_size(node, available_space, style.max_height(), constraints);
             block_size = block_size.min(max);
         }
-        if !style.min_height().is_auto() {
+        if !self.should_treat_min_block_size_as_zero(node, available_space.block_size, constraints) {
             let min = self.calculate_inner_block_size(node, available_space, style.min_height(), constraints);
             block_size = block_size.max(min);
         }
@@ -1103,7 +1182,8 @@ impl SizingContext {
         intrinsic_content_inline_size: Option<CssPixels>,
     ) -> CssPixels {
         let style = self.style(node);
-        let unconstrained_inline_size = if self.should_treat_inline_size_as_auto(node, available_space) {
+        let unconstrained_inline_size =
+            if self.should_treat_inline_size_as_auto(node, available_space, constraints) {
             if matches!(available_space.inline_size, AvailableSize::Definite(_)) {
                 let used = self.used(node);
                 let available = available_space.inline_size.to_px_or_zero()
@@ -1143,7 +1223,7 @@ impl SizingContext {
                 constraints,
             ));
         }
-        if !style.min_width().is_auto() {
+        if !self.should_treat_min_inline_size_as_zero(node, available_space.inline_size, constraints) {
             inline_size = inline_size.max(self.calculate_inner_inline_size(
                 node,
                 available_space.inline_size,
@@ -1205,11 +1285,23 @@ impl SizingContext {
             - used.border_right.get()
     }
 
+    // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+    fn available_size_for_stretch(available: AvailableSize, percentage_basis: Option<CssPixels>) -> AvailableSize {
+        if matches!(available, AvailableSize::Definite(_)) {
+            available
+        } else {
+            percentage_basis.map_or(available, AvailableSize::definite)
+        }
+    }
+
     fn calculate_stretch_fit_block_size(&self, node: Node, available: AvailableSize) -> CssPixels {
         // https://drafts.csswg.org/css-sizing-3/#stretch-fit-size
         // The size a box would take if its outer size filled the available space in the given axis;
         // in other words, the stretch fit into the available space, if that is definite.
         // Undefined if the available space is indefinite.
+        if !matches!(available, AvailableSize::Definite(_)) {
+            return CssPixels::default();
+        }
         let used = self.used(node);
         available.to_px_or_zero()
             - used.margin_top.get()
@@ -1843,7 +1935,9 @@ impl SizingContext {
         }
         // With auto height and no min-height the content box already exactly wraps the content, so there is
         // no extra space to center within and no need to force a definite content box.
-        if style.height().is_auto() && style.min_height().is_auto() {
+        if style.height().is_auto()
+            && self.should_treat_min_block_size_as_zero(node, available_space.block_size, constraints)
+        {
             return;
         }
         if self.used(node).has_definite_block_size() {
@@ -1873,7 +1967,7 @@ impl SizingContext {
                 constraints,
             ));
         }
-        if !style.min_height().is_auto() {
+        if !self.should_treat_min_block_size_as_zero(node, available_space.block_size, constraints) {
             used_block_size = used_block_size.max(self.calculate_inner_block_size(
                 node,
                 available_space,
@@ -2118,6 +2212,16 @@ impl SizingContext {
         if preferred_size.is_min_content() {
             return self.calculate_min_content_inline_size(node, constraints);
         }
+        if preferred_size.is_stretch() {
+            let available = Self::available_size_for_stretch(available, constraints.percentage_basis_inline_size);
+            if !matches!(available, AvailableSize::Definite(_))
+                && self.used(node).has_definite_block_size()
+                && self.facts(node).has_preferred_aspect_ratio()
+            {
+                return self.content_inline_size_from_aspect_ratio(node, self.used(node).content_block_size.get());
+            }
+            return self.calculate_stretch_fit_inline_size(node, available);
+        }
         let value = preferred_size.to_px(basis);
         let style = self.style(node);
         if style.box_sizing() == box_sizing::BORDER_BOX {
@@ -2160,6 +2264,19 @@ impl SizingContext {
                 available_space.inline_size.to_px_or_zero(),
                 constraints,
             );
+        }
+        if preferred_size.is_stretch() {
+            let available = Self::available_size_for_stretch(
+                available_space.block_size,
+                constraints.percentage_basis_block_size,
+            );
+            if !matches!(available, AvailableSize::Definite(_))
+                && self.used(node).has_definite_inline_size()
+                && self.facts(node).has_preferred_aspect_ratio()
+            {
+                return self.content_block_size_from_aspect_ratio(node, self.used(node).content_inline_size.get());
+            }
+            return self.calculate_stretch_fit_block_size(node, available);
         }
 
         let mut basis = available_space.block_size.to_px_or_zero();
@@ -2249,7 +2366,7 @@ impl SizingContext {
         constraints: ContainingBlockConstraints,
     ) -> bool {
         match axis {
-            SizingAxis::Inline => self.should_treat_inline_size_as_auto(node, available_space),
+            SizingAxis::Inline => self.should_treat_inline_size_as_auto(node, available_space, constraints),
             SizingAxis::Block => self.should_treat_block_size_as_auto(node, available_space, constraints),
         }
     }

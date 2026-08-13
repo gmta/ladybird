@@ -684,6 +684,27 @@ impl<'pass> FlexFormattingContext<'pass> {
         self.resolve_size_for_axis(index, self.cross_axis_is_horizontal(), value, property)
     }
 
+    // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+    fn resolve_cross_size_against(
+        &self,
+        index: usize,
+        property: SizingProperty,
+        available_cross_size: CssPixels,
+    ) -> CssPixels {
+        let mut available_space = self.available_space.unwrap();
+        if self.cross_axis_is_horizontal() {
+            available_space.inline_size = AvailableSize::definite(available_cross_size);
+        } else {
+            available_space.block_size = AvailableSize::definite(available_cross_size);
+        }
+        self.calculate_inner_size(
+            self.flex_items[index].box_,
+            self.cross_sizing_axis(),
+            property,
+            available_space,
+        )
+    }
+
     // https://drafts.csswg.org/css-flexbox-1/#algo-available
     fn determine_available_space_for_items(&mut self, available_space: AvailableSpace) {
         self.available_space_for_items = Some(if self.main_axis_is_horizontal() {
@@ -1603,6 +1624,16 @@ impl<'pass> FlexFormattingContext<'pass> {
             && !self.flex_items[index].margins.cross_after_is_auto
     }
 
+    // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+    fn flex_item_cross_size_depends_on_available_space(&self, index: usize) -> bool {
+        let node = self.flex_items[index].box_;
+        // FIXME: Include a stretch cross-axis minimum once it can be resolved against the flex line without
+        //        applying unresolved box-model metrics.
+        self.flex_item_is_stretched(index)
+            || self.computed_cross_size(node).0.is_stretch()
+            || self.computed_cross_max_size(node).0.is_stretch()
+    }
+
     fn alignment_for_item(&self, node: Node) -> u8 {
         match self.style(node).align_self() {
             align_self::AUTO => self.style(self.flex_container).align_items(),
@@ -1811,7 +1842,7 @@ impl<'pass> FlexFormattingContext<'pass> {
                 let index = self.flex_lines[line_index].items[item_position];
                 // If a flex item’s cross size depends on the available space in the cross axis, recalculate its cross
                 // size using the flex line’s cross size (rather than the flex container’s) as the available space.
-                if self.flex_item_is_stretched(index) {
+                if self.flex_item_cross_size_depends_on_available_space(index) {
                     let item = &self.flex_items[index];
                     let unclamped = self.flex_lines[line_index].cross_size
                         - item.margins.cross_before
@@ -1830,7 +1861,10 @@ impl<'pass> FlexFormattingContext<'pass> {
                     } else {
                         self.specified_cross_min_size(index)
                     };
-                    let cross_max = if self.should_treat_max_size_as_none(node, true) {
+                    let max = self.computed_cross_max_size(node);
+                    let cross_max = if max.0.is_stretch() {
+                        self.resolve_cross_size_against(index, max.1, self.flex_lines[line_index].cross_size)
+                    } else if self.should_treat_max_size_as_none(node, true) {
                         CssPixels::from_raw(i32::MAX)
                     } else {
                         self.specified_cross_max_size(index)
@@ -2996,7 +3030,7 @@ impl<'pass> FlexFormattingContext<'pass> {
         if self.is_single_line() && self.has_definite_cross_size_used(&self.container_used()) {
             let container_cross_size = self.inner_cross_size_used(&self.container_used());
             for index in 0..self.flex_items.len() {
-                if !self.flex_item_is_stretched(index) {
+                if !self.flex_item_cross_size_depends_on_available_space(index) {
                     continue;
                 }
                 let node = self.flex_items[index].box_;
@@ -3005,20 +3039,23 @@ impl<'pass> FlexFormattingContext<'pass> {
                 } else {
                     CssPixels::default()
                 };
-                let max_size = if self.has_cross_max_size(node) {
+                let max = self.computed_cross_max_size(node);
+                let max_size = if max.0.is_stretch() {
+                    self.resolve_cross_size_against(index, max.1, container_cross_size)
+                } else if self.has_cross_max_size(node) {
                     self.specified_cross_max_size(index)
                 } else {
                     CssPixels::from_raw(i32::MAX)
                 };
-                let outer = css_clamp(container_cross_size, min_size, max_size);
                 let item = &self.flex_items[index];
-                let inner = outer
+                let inner = container_cross_size
                     - item.margins.cross_before
                     - item.margins.cross_after
                     - item.padding.cross_before
                     - item.padding.cross_after
                     - item.borders.cross_before
                     - item.borders.cross_after;
+                let inner = css_clamp(inner, min_size, max_size);
                 self.set_cross_size(index, inner);
                 self.set_has_definite_cross_size(index);
             }

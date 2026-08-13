@@ -1,0 +1,17 @@
+width: supported=true specified=stretch computed=800px
+height: supported=true specified=stretch computed=0px
+min-width: supported=true specified=stretch computed=stretch
+min-height: supported=true specified=stretch computed=stretch
+max-width: supported=true specified=stretch computed=stretch
+max-height: supported=true specified=stretch computed=stretch
+inline-size: supported=true specified=stretch computed=800px
+block-size: supported=true specified=stretch computed=0px
+min-inline-size: supported=true specified=stretch computed=stretch
+min-block-size: supported=true specified=stretch computed=stretch
+max-inline-size: supported=true specified=stretch computed=stretch
+max-block-size: supported=true specified=stretch computed=stretch
+horizontal-tb: 40x20
+vertical-rl: 40x20
+vertical-lr: 40x20
+sideways-rl: 40x20
+sideways-lr: 40x20

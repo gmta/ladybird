@@ -1,0 +1,15 @@
+indefinite preferred: 100x20
+indefinite minimum: 100x10
+indefinite maximum: 100x40
+flex preferred: 20x90
+flex maximum: 20x90
+flex-basis auto: 50x50
+flex-basis content: 50x50
+flex-basis min-content: 50x50
+flex-basis fit-content: 50x50
+flex-basis max-content: 50x50
+replaced: 150x150
+replaced minimum narrow: 50x0
+replaced minimum wide: 150x0
+float BFC: x=100 width=100
+indefinite ratio: 100x50
