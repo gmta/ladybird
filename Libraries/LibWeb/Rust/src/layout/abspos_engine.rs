@@ -927,6 +927,79 @@ pub(crate) fn solve_replaced_axis(
 }
 
 impl AbsposEngine {
+    // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+    fn available_inline_size_for_stretch_of_non_replaced(
+        &self,
+        node: Node,
+        available_space: AvailableSpace,
+        inputs: AbsposLayoutInputs,
+    ) -> AvailableSize {
+        let containing_block_inline_size = available_space.inline_size.to_px_or_zero();
+        let style = self
+            .style(node)
+            .with_resolved_insets(inputs.resolved_anchor_insets.as_ref());
+        let used = self.used(node);
+        let left = if inputs.containing_block_info.inline_axis_mode == AbsposAxisMode::StaticPosition {
+            inputs.static_position_rect.rect.offset.inline_offset
+                - inputs.containing_block_info.rect.offset.inline_offset
+        } else {
+            auto_px_value(resolve_or_auto(style.inset_left(), containing_block_inline_size))
+        };
+        let right = auto_px_value(resolve_or_auto(style.inset_right(), containing_block_inline_size));
+        let margin_left = auto_px_value(resolve_margin_or_auto(
+            style.margin_left(),
+            containing_block_inline_size,
+        ));
+        let margin_right = auto_px_value(resolve_margin_or_auto(
+            style.margin_right(),
+            containing_block_inline_size,
+        ));
+        // NB: Abspos margins are finalized after sizing. Account for the difference between their computed values and
+        //     the values currently stored in UsedValues, which the central stretch-fit calculation will subtract.
+        AvailableSize::definite(
+            containing_block_inline_size
+                - left
+                - right
+                - (margin_left - used.margin_left.get())
+                - (margin_right - used.margin_right.get()),
+        )
+    }
+
+    // https://drafts.csswg.org/css-sizing-4/#stretch-fit-sizing
+    fn available_block_size_for_stretch_of_non_replaced(
+        &self,
+        node: Node,
+        available_space: AvailableSpace,
+        inputs: AbsposLayoutInputs,
+    ) -> AvailableSize {
+        let containing_block_inline_size = available_space.inline_size.to_px_or_zero();
+        let containing_block_block_size = available_space.block_size.to_px_or_zero();
+        let style = self
+            .style(node)
+            .with_resolved_insets(inputs.resolved_anchor_insets.as_ref());
+        let used = self.used(node);
+        let top = if inputs.containing_block_info.block_axis_mode == AbsposAxisMode::StaticPosition {
+            inputs.static_position_rect.rect.offset.block_offset - inputs.containing_block_info.rect.offset.block_offset
+        } else {
+            auto_px_value(resolve_or_auto(style.inset_top(), containing_block_block_size))
+        };
+        let bottom = auto_px_value(resolve_or_auto(style.inset_bottom(), containing_block_block_size));
+        let margin_top = auto_px_value(resolve_margin_or_auto(style.margin_top(), containing_block_inline_size));
+        let margin_bottom = auto_px_value(resolve_margin_or_auto(
+            style.margin_bottom(),
+            containing_block_inline_size,
+        ));
+        // NB: Abspos margins are finalized after sizing. Account for the difference between their computed values and
+        //     the values currently stored in UsedValues, which the central stretch-fit calculation will subtract.
+        AvailableSize::definite(
+            containing_block_block_size
+                - top
+                - bottom
+                - (margin_top - used.margin_top.get())
+                - (margin_bottom - used.margin_bottom.get()),
+        )
+    }
+
     fn static_offset(&self, node: Node, rect: StaticPositionRect) -> LogicalOffset {
         let used = self.used(node);
         let collapsed = used.uses_collapsing_borders_model.get();
@@ -1080,12 +1153,18 @@ impl AbsposEngine {
         node: Node,
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
-        static_position_rect: StaticPositionRect,
-        resolved_anchor_insets: Option<&ResolvedAnchorInsets>,
+        inputs: AbsposLayoutInputs,
     ) {
         let containing_block_inline_size = available_space.inline_size.to_px_or_zero();
         let style = self.style(node);
         let sizing = self.sizing();
+        let available_inline_size_for = |is_stretch| {
+            if is_stretch {
+                self.available_inline_size_for_stretch_of_non_replaced(node, available_space, inputs)
+            } else {
+                available_space.inline_size
+            }
+        };
         let initial = if self.facts(node).is_table_wrapper() {
             Some(sizing.compute_table_box_inline_size_inside_wrapper(
                 node,
@@ -1097,7 +1176,12 @@ impl AbsposEngine {
         } else if style.width().is_auto() {
             None
         } else {
-            Some(sizing.calculate_inner_inline_size(node, available_space.inline_size, style.width(), constraints))
+            Some(sizing.calculate_inner_inline_size(
+                node,
+                available_inline_size_for(style.width().is_stretch()),
+                style.width(),
+                constraints,
+            ))
         };
         let (mut used_inline_size, mut left, mut right, mut margin_left, mut margin_right) = self
             .solve_non_replaced_inline_once(
@@ -1105,38 +1189,46 @@ impl AbsposEngine {
                 containing_block_inline_size,
                 available_space,
                 constraints,
-                static_position_rect,
+                inputs.static_position_rect,
                 initial,
-                resolved_anchor_insets,
+                inputs.resolved_anchor_insets.as_ref(),
             );
 
         if !sizing.should_treat_max_inline_size_as_none(node, available_space.inline_size, constraints) {
-            let max_inline_size =
-                sizing.calculate_inner_inline_size(node, available_space.inline_size, style.max_width(), constraints);
+            let max_inline_size = sizing.calculate_inner_inline_size(
+                node,
+                available_inline_size_for(style.max_width().is_stretch()),
+                style.max_width(),
+                constraints,
+            );
             if auto_px_value(used_inline_size) > max_inline_size {
                 (used_inline_size, left, right, margin_left, margin_right) = self.solve_non_replaced_inline_once(
                     node,
                     containing_block_inline_size,
                     available_space,
                     constraints,
-                    static_position_rect,
+                    inputs.static_position_rect,
                     Some(max_inline_size),
-                    resolved_anchor_insets,
+                    inputs.resolved_anchor_insets.as_ref(),
                 );
             }
         }
         if !style.min_width().is_auto() {
-            let min_inline_size =
-                sizing.calculate_inner_inline_size(node, available_space.inline_size, style.min_width(), constraints);
+            let min_inline_size = sizing.calculate_inner_inline_size(
+                node,
+                available_inline_size_for(style.min_width().is_stretch()),
+                style.min_width(),
+                constraints,
+            );
             if auto_px_value(used_inline_size) < min_inline_size {
                 (used_inline_size, left, right, margin_left, margin_right) = self.solve_non_replaced_inline_once(
                     node,
                     containing_block_inline_size,
                     available_space,
                     constraints,
-                    static_position_rect,
+                    inputs.static_position_rect,
                     Some(min_inline_size),
-                    resolved_anchor_insets,
+                    inputs.resolved_anchor_insets.as_ref(),
                 );
             }
         }
@@ -1154,13 +1246,14 @@ impl AbsposEngine {
         node: Node,
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
-        static_position_rect: StaticPositionRect,
-        resolved_anchor_insets: Option<&ResolvedAnchorInsets>,
+        inputs: AbsposLayoutInputs,
     ) {
         let sizing = self.sizing();
         let inline_size = sizing.compute_inline_size_for_replaced_element(node, available_space, constraints);
         let containing_block_inline_size = available_space.inline_size.to_px_or_zero();
-        let style = self.style(node).with_resolved_insets(resolved_anchor_insets);
+        let style = self
+            .style(node)
+            .with_resolved_insets(inputs.resolved_anchor_insets.as_ref());
         let used = self.used(node);
         let available = containing_block_inline_size
             - inline_size
@@ -1174,7 +1267,7 @@ impl AbsposEngine {
             resolve_or_auto(style.inset_right(), containing_block_inline_size),
             resolve_margin_or_auto(style.margin_left(), containing_block_inline_size),
             resolve_margin_or_auto(style.margin_right(), containing_block_inline_size),
-            self.static_offset(node, static_position_rect).inline_offset,
+            self.static_offset(node, inputs.static_position_rect).inline_offset,
             ReplacedAxisBehavior {
                 clear_auto_margins_if_start_is_auto: true,
                 clear_negative_auto_margins: true,
@@ -1194,28 +1287,15 @@ impl AbsposEngine {
         node: Node,
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
-        static_position_rect: StaticPositionRect,
-        resolved_anchor_insets: Option<&ResolvedAnchorInsets>,
+        inputs: AbsposLayoutInputs,
     ) {
         if self
             .sizing()
             .box_is_sized_as_replaced_element(node, available_space, constraints)
         {
-            self.compute_inline_size_for_replaced(
-                node,
-                available_space,
-                constraints,
-                static_position_rect,
-                resolved_anchor_insets,
-            );
+            self.compute_inline_size_for_replaced(node, available_space, constraints, inputs);
         } else {
-            self.compute_inline_size_for_non_replaced(
-                node,
-                available_space,
-                constraints,
-                static_position_rect,
-                resolved_anchor_insets,
-            );
+            self.compute_inline_size_for_non_replaced(node, available_space, constraints, inputs);
         }
     }
 }
@@ -1235,18 +1315,37 @@ impl AbsposEngine {
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
         unconstrained: AutoPx,
+        inputs: AbsposLayoutInputs,
     ) -> AutoPx {
         let style = self.style(node);
         let sizing = self.sizing();
+        let available_space_for = |is_stretch| {
+            let mut adjusted_available_space = available_space;
+            if is_stretch {
+                adjusted_available_space.block_size =
+                    self.available_block_size_for_stretch_of_non_replaced(node, available_space, inputs);
+            }
+            adjusted_available_space
+        };
         let mut constrained = unconstrained;
         if !style.max_height().is_none() {
-            let maximum = sizing.calculate_inner_block_size(node, available_space, style.max_height(), constraints);
+            let maximum = sizing.calculate_inner_block_size(
+                node,
+                available_space_for(style.max_height().is_stretch()),
+                style.max_height(),
+                constraints,
+            );
             if maximum < auto_px_value(constrained) {
                 constrained = Some(maximum);
             }
         }
         if !style.min_height().is_auto() {
-            let minimum = sizing.calculate_inner_block_size(node, available_space, style.min_height(), constraints);
+            let minimum = sizing.calculate_inner_block_size(
+                node,
+                available_space_for(style.min_height().is_stretch()),
+                style.min_height(),
+                constraints,
+            );
             if minimum > auto_px_value(constrained) {
                 constrained = Some(minimum);
             }
@@ -1279,18 +1378,18 @@ impl AbsposEngine {
         )
     }
 
-    #[expect(clippy::too_many_arguments)]
     fn solve_non_replaced_block_once(
         &self,
         node: Node,
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
-        static_position_rect: StaticPositionRect,
         pass: BlockSizePass,
         block_size: AutoPx,
-        resolved_anchor_insets: Option<&ResolvedAnchorInsets>,
+        inputs: AbsposLayoutInputs,
     ) -> BlockAxisSolution {
-        let style = self.style(node).with_resolved_insets(resolved_anchor_insets);
+        let style = self
+            .style(node)
+            .with_resolved_insets(inputs.resolved_anchor_insets.as_ref());
         let containing_block_inline_size = available_space.inline_size.to_px_or_zero();
         let containing_block_block_size = available_space.block_size.to_px_or_zero();
         let used = self.used(node);
@@ -1329,10 +1428,15 @@ impl AbsposEngine {
                 return solution;
             };
             solution.block_size = Some(automatic);
-            let constrained =
-                self.apply_min_max_block_size_constraints(node, available_space, constraints, solution.block_size);
+            let constrained = self.apply_min_max_block_size_constraints(
+                node,
+                available_space,
+                constraints,
+                solution.block_size,
+                inputs,
+            );
             self.used(node).set_content_block_size(auto_px_value(constrained));
-            solution.top = Some(self.static_offset(node, static_position_rect).block_offset);
+            solution.top = Some(self.static_offset(node, inputs.static_position_rect).block_offset);
             solution.bottom = Some(solve_for(solution.bottom, false, solution));
         } else if solution.top.is_some() && solution.block_size.is_some() && solution.bottom.is_some() {
             if solution.margin_top.is_none() && solution.margin_bottom.is_none() {
@@ -1357,7 +1461,7 @@ impl AbsposEngine {
                 solution.block_size = Some(automatic);
                 solution.top = Some(solve_for(solution.top, false, solution));
             } else if solution.top.is_none() && solution.bottom.is_none() && solution.block_size.is_some() {
-                solution.top = Some(self.static_offset(node, static_position_rect).block_offset);
+                solution.top = Some(self.static_offset(node, inputs.static_position_rect).block_offset);
                 solution.bottom = Some(solve_for(solution.bottom, false, solution));
             } else if solution.block_size.is_none() && solution.bottom.is_none() && solution.top.is_some() {
                 let Some(automatic) = self.automatic_block_size(node, available_space, constraints, pass) else {
@@ -1381,13 +1485,20 @@ impl AbsposEngine {
         node: Node,
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
-        static_position_rect: StaticPositionRect,
         pass: BlockSizePass,
-        resolved_anchor_insets: Option<&ResolvedAnchorInsets>,
+        inputs: AbsposLayoutInputs,
     ) {
         let style = self.style(node);
         let mut intrinsic_available_space = available_space;
         intrinsic_available_space.inline_size = AvailableSize::definite(self.used(node).content_inline_size.get());
+        let available_space_for = |is_stretch| {
+            let mut adjusted_available_space = intrinsic_available_space;
+            if is_stretch {
+                adjusted_available_space.block_size =
+                    self.available_block_size_for_stretch_of_non_replaced(node, available_space, inputs);
+            }
+            adjusted_available_space
+        };
         let initial = if self.facts(node).is_table_wrapper() {
             Some(
                 self.sizing()
@@ -1399,25 +1510,20 @@ impl AbsposEngine {
         {
             None
         } else {
-            Some(
-                self.sizing()
-                    .calculate_inner_block_size(node, intrinsic_available_space, style.height(), constraints),
-            )
+            Some(self.sizing().calculate_inner_block_size(
+                node,
+                available_space_for(style.height().is_stretch()),
+                style.height(),
+                constraints,
+            ))
         };
-        let mut solution = self.solve_non_replaced_block_once(
-            node,
-            available_space,
-            constraints,
-            static_position_rect,
-            pass,
-            initial,
-            resolved_anchor_insets,
-        );
+        let mut solution =
+            self.solve_non_replaced_block_once(node, available_space, constraints, pass, initial, inputs);
 
         if solution.block_size.is_some() && !style.max_height().is_none() {
             let max_block_size = self.sizing().calculate_inner_block_size(
                 node,
-                intrinsic_available_space,
+                available_space_for(style.max_height().is_stretch()),
                 style.max_height(),
                 constraints,
             );
@@ -1426,17 +1532,16 @@ impl AbsposEngine {
                     node,
                     available_space,
                     constraints,
-                    static_position_rect,
                     pass,
                     Some(max_block_size),
-                    resolved_anchor_insets,
+                    inputs,
                 );
             }
         }
         if solution.block_size.is_some() && !style.min_height().is_auto() {
             let min_block_size = self.sizing().calculate_inner_block_size(
                 node,
-                intrinsic_available_space,
+                available_space_for(style.min_height().is_stretch()),
                 style.min_height(),
                 constraints,
             );
@@ -1445,16 +1550,20 @@ impl AbsposEngine {
                     node,
                     available_space,
                     constraints,
-                    static_position_rect,
                     pass,
                     Some(min_block_size),
-                    resolved_anchor_insets,
+                    inputs,
                 );
             }
         }
         if solution.block_size.is_none() {
-            solution.block_size =
-                self.apply_min_max_block_size_constraints(node, available_space, constraints, solution.block_size);
+            solution.block_size = self.apply_min_max_block_size_constraints(
+                node,
+                available_space,
+                constraints,
+                solution.block_size,
+                inputs,
+            );
         }
 
         let used = self.used(node);
@@ -1478,15 +1587,16 @@ impl AbsposEngine {
         node: Node,
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
-        static_position_rect: StaticPositionRect,
         pass: BlockSizePass,
-        resolved_anchor_insets: Option<&ResolvedAnchorInsets>,
+        inputs: AbsposLayoutInputs,
     ) {
         let block_size = self
             .sizing()
             .compute_block_size_for_replaced_element(node, available_space, constraints);
         let containing_block_block_size = available_space.block_size.to_px_or_zero();
-        let style = self.style(node).with_resolved_insets(resolved_anchor_insets);
+        let style = self
+            .style(node)
+            .with_resolved_insets(inputs.resolved_anchor_insets.as_ref());
         let used = self.used(node);
         let available = containing_block_block_size
             - block_size
@@ -1502,7 +1612,7 @@ impl AbsposEngine {
             resolve_or_auto(style.inset_bottom(), containing_block_block_size),
             resolve_margin_or_auto(style.margin_top(), containing_block_block_size),
             resolve_margin_or_auto(style.margin_bottom(), containing_block_block_size),
-            self.static_offset(node, static_position_rect).block_offset,
+            self.static_offset(node, inputs.static_position_rect).block_offset,
             ReplacedAxisBehavior {
                 clear_auto_margins_if_start_is_auto: false,
                 clear_negative_auto_margins: false,
@@ -1528,31 +1638,16 @@ impl AbsposEngine {
         node: Node,
         available_space: AvailableSpace,
         constraints: ContainingBlockConstraints,
-        static_position_rect: StaticPositionRect,
         pass: BlockSizePass,
-        resolved_anchor_insets: Option<&ResolvedAnchorInsets>,
+        inputs: AbsposLayoutInputs,
     ) {
         if self
             .sizing()
             .box_is_sized_as_replaced_element(node, available_space, constraints)
         {
-            self.compute_block_size_for_replaced(
-                node,
-                available_space,
-                constraints,
-                static_position_rect,
-                pass,
-                resolved_anchor_insets,
-            );
+            self.compute_block_size_for_replaced(node, available_space, constraints, pass, inputs);
         } else {
-            self.compute_block_size_for_non_replaced(
-                node,
-                available_space,
-                constraints,
-                static_position_rect,
-                pass,
-                resolved_anchor_insets,
-            );
+            self.compute_block_size_for_non_replaced(node, available_space, constraints, pass, inputs);
         }
     }
 }
@@ -1590,14 +1685,13 @@ impl AbsposEngine {
                 .set(style.padding_bottom().to_px(containing_block_inline_size));
         }
 
-        self.compute_inline_size(node, available_space, constraints, inputs.static_position_rect, resolved);
+        self.compute_inline_size(node, available_space, constraints, inputs);
         self.compute_block_size(
             node,
             available_space,
             constraints,
-            inputs.static_position_rect,
             BlockSizePass::BeforeInsideLayout,
-            resolved,
+            inputs,
         );
 
         {
@@ -1647,11 +1741,10 @@ impl AbsposEngine {
                 node,
                 available_space,
                 constraints,
-                inputs.static_position_rect,
                 BlockSizePass::AfterInsideLayout {
                     automatic_content_block_size_of_inside_layout,
                 },
-                resolved,
+                inputs,
             );
         }
 

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<style>
+    body { margin: 0; }
+    .indefinite { width: 100px; }
+    #indefinite-preferred { height: stretch; }
+    #indefinite-preferred > div { height: 20px; }
+    #indefinite-minimum { height: 10px; min-height: stretch; }
+    #indefinite-maximum { height: 40px; max-height: stretch; }
+
+    .flex {
+        display: flex;
+        width: 100px;
+        max-height: 100px;
+    }
+    .flex > div {
+        flex: none;
+        width: 10px;
+        margin: 5px;
+        border: 3px solid;
+        padding: 2px;
+    }
+    #flex-preferred { height: stretch; }
+    #flex-maximum { height: 500px; max-height: stretch; }
+
+    .flex-cross-maximum {
+        display: flex;
+        width: 300px;
+        height: 100px;
+    }
+    .flex-cross-maximum > div {
+        flex: none;
+        width: 30px;
+        height: 50px;
+        max-height: stretch;
+    }
+    #flex-cross-maximum-start { align-self: flex-start; }
+
+    #flex-column-cross-maximum {
+        display: flex;
+        flex-direction: column;
+        width: 100px;
+        height: 300px;
+    }
+    #flex-column-cross-maximum > div {
+        flex: none;
+        width: 50px;
+        height: 30px;
+        max-width: stretch;
+    }
+
+    #flex-wrapping-cross-maximum {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: stretch;
+        width: 60px;
+        height: 100px;
+    }
+    #flex-wrapping-cross-maximum > div {
+        flex: none;
+        width: 30px;
+        height: 20px;
+        max-height: stretch;
+        align-self: flex-start;
+    }
+
+    .flex-constrained-cross-size {
+        display: flex;
+        width: 30px;
+    }
+    .flex-constrained-cross-size > div {
+        flex: none;
+        width: 30px;
+        height: 500px;
+        max-height: stretch;
+    }
+    #flex-conflicting-cross-size { min-height: 200px; max-height: 80px; }
+    #flex-percentage-cross-size-wrapper { height: 160px; }
+    #flex-percentage-cross-size { max-height: 50%; }
+    #flex-stretch-cross-size-wrapper { height: 150px; }
+    #flex-stretch-cross-size { max-height: stretch; }
+
+    .column {
+        display: inline-flex;
+        flex-direction: column;
+        width: 50px;
+        height: 50px;
+    }
+    .column > div {
+        width: stretch;
+        min-width: 0;
+        min-height: 0;
+    }
+    .column canvas {
+        display: block;
+        width: 100%;
+    }
+
+    #replaced-wrapper { width: 200px; max-height: 100px; }
+    #replaced {
+        height: stretch;
+        min-width: 150px;
+    }
+    .replaced-minimum {
+        width: 0;
+        height: 0;
+        min-height: stretch;
+    }
+    #replaced-minimum-narrow { min-width: 50px; }
+    #replaced-minimum-wide { min-width: 150px; }
+
+    #float-wrapper { width: 200px; }
+    #float { float: left; width: 100px; height: 20px; }
+    #float-bfc { display: flow-root; width: stretch; height: 20px; }
+
+    #ratio-wrapper { width: 100px; }
+    #indefinite-ratio { aspect-ratio: 2 / 1; height: stretch; }
+    #indefinite-ratio > div { width: 30px; height: 40px; }
+
+    .abspos-wrapper {
+        position: relative;
+        width: 120px;
+        height: 100px;
+    }
+    .abspos-stretch {
+        position: absolute;
+        inset: 11px 13px 17px 19px;
+        margin: 2px 3px 5px 7px;
+        border: 4px solid;
+        padding: 6px;
+    }
+    #abspos-width { width: stretch; height: 0; }
+    #abspos-min-width { width: 0; min-width: stretch; height: 0; }
+    #abspos-max-width { width: 500px; max-width: stretch; height: 0; }
+    #abspos-height { width: 0; height: stretch; }
+    #abspos-min-height { width: 0; height: 0; min-height: stretch; }
+    #abspos-max-height { width: 0; height: 500px; max-height: stretch; }
+    #abspos-static-inline { inset: auto; width: stretch; height: 0; }
+    #abspos-static-block { inset: auto; width: 0; height: stretch; }
+    #abspos-anchor {
+        position: absolute;
+        top: 0;
+        left: 20px;
+        width: 30px;
+        height: 10px;
+        anchor-name: --stretch-anchor;
+    }
+    #abspos-anchor-stretch {
+        position: absolute;
+        position-anchor: --stretch-anchor;
+        top: 0;
+        right: 10px;
+        left: anchor(right);
+        width: stretch;
+        height: 0;
+        border: 4px solid;
+        padding: 6px;
+    }
+    #abspos-zero-floor-wrapper { width: 20px; height: 20px; }
+    #abspos-zero-floor {
+        position: absolute;
+        inset: 5px;
+        width: stretch;
+        height: stretch;
+        margin: 4px;
+        border: 4px solid;
+        padding: 6px;
+    }
+
+    .table-wrapper { width: 300px; }
+    .table-wrapper table { border-spacing: 0; }
+    #table-stretch { width: stretch; }
+    #table-minimum-stretch { width: 10px; min-width: stretch; }
+    #table-maximum-stretch { width: 500px; max-width: stretch; }
+    .table-margin-wrapper { width: 200px; }
+    .table-margin-wrapper table { border-spacing: 0; margin-inline: 25px; }
+    #table-margin-stretch { width: stretch; }
+    #table-margin-minimum-stretch { width: 10px; min-width: stretch; }
+    #table-margin-maximum-stretch { width: 500px; max-width: stretch; }
+</style>
+
+<div class="indefinite" id="indefinite-preferred"><div></div></div>
+<div class="indefinite" id="indefinite-minimum"></div>
+<div class="indefinite" id="indefinite-maximum"></div>
+
+<div class="flex">
+    <div id="flex-preferred"></div>
+    <div id="flex-maximum"></div>
+</div>
+
+<div class="flex-cross-maximum">
+    <div id="flex-cross-maximum"></div>
+    <div id="flex-cross-maximum-start"></div>
+</div>
+
+<div id="flex-column-cross-maximum"><div id="flex-column-cross-maximum-item"></div></div>
+
+<div id="flex-wrapping-cross-maximum">
+    <div id="flex-wrapping-cross-maximum-item"></div>
+    <div></div>
+    <div></div>
+</div>
+
+<div class="flex-constrained-cross-size" id="flex-conflicting-cross-size">
+    <div id="flex-conflicting-cross-size-item"></div>
+</div>
+<div id="flex-percentage-cross-size-wrapper">
+    <div class="flex-constrained-cross-size" id="flex-percentage-cross-size">
+        <div id="flex-percentage-cross-size-item"></div>
+    </div>
+</div>
+<div id="flex-stretch-cross-size-wrapper">
+    <div class="flex-constrained-cross-size" id="flex-stretch-cross-size">
+        <div id="flex-stretch-cross-size-item"></div>
+    </div>
+</div>
+
+<div id="columns"></div>
+
+<div id="replaced-wrapper">
+    <canvas id="replaced" width="100" height="100"></canvas>
+    <canvas class="replaced-minimum" id="replaced-minimum-narrow" width="100" height="100"></canvas>
+    <canvas class="replaced-minimum" id="replaced-minimum-wide" width="100" height="100"></canvas>
+</div>
+
+<div id="float-wrapper">
+    <div id="float"></div>
+    <div id="float-bfc"></div>
+</div>
+
+<div id="ratio-wrapper">
+    <div id="indefinite-ratio"><div></div></div>
+</div>
+
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-width"></div></div>
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-min-width"></div></div>
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-max-width"></div></div>
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-height"></div></div>
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-min-height"></div></div>
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-max-height"></div></div>
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-static-inline"></div></div>
+<div class="abspos-wrapper"><div class="abspos-stretch" id="abspos-static-block"></div></div>
+<div class="abspos-wrapper">
+    <div id="abspos-anchor"></div>
+    <div id="abspos-anchor-stretch"></div>
+</div>
+<div class="abspos-wrapper" id="abspos-zero-floor-wrapper"><div id="abspos-zero-floor"></div></div>
+
+<div class="table-wrapper"><table id="table-stretch"><tbody><tr><td></td></tr></tbody></table></div>
+<div class="table-wrapper"><table id="table-minimum-stretch"><tbody><tr><td></td></tr></tbody></table></div>
+<div class="table-wrapper"><table id="table-maximum-stretch"><tbody><tr><td></td></tr></tbody></table></div>
+<div class="table-margin-wrapper"><table id="table-margin-stretch"><tbody><tr><td></td></tr></tbody></table></div>
+<div class="table-margin-wrapper"><table id="table-margin-minimum-stretch"><tbody><tr><td></td></tr></tbody></table></div>
+<div class="table-margin-wrapper"><table id="table-margin-maximum-stretch"><tbody><tr><td></td></tr></tbody></table></div>
+
+<script src="include.js"></script>
+<script>
+    test(() => {
+        function printSize(label, element) {
+            const rect = element.getBoundingClientRect();
+            println(`${label}: ${rect.width}x${rect.height}`);
+        }
+
+        function printWidth(label, element) {
+            println(`${label}: ${element.getBoundingClientRect().width}`);
+        }
+
+        printSize("indefinite preferred", document.querySelector("#indefinite-preferred"));
+        printSize("indefinite minimum", document.querySelector("#indefinite-minimum"));
+        printSize("indefinite maximum", document.querySelector("#indefinite-maximum"));
+        printSize("flex preferred", document.querySelector("#flex-preferred"));
+        printSize("flex maximum", document.querySelector("#flex-maximum"));
+        printSize("flex cross maximum", document.querySelector("#flex-cross-maximum"));
+        printSize("flex cross maximum start", document.querySelector("#flex-cross-maximum-start"));
+        printSize("flex column cross maximum", document.querySelector("#flex-column-cross-maximum-item"));
+        printSize("flex wrapping cross maximum", document.querySelector("#flex-wrapping-cross-maximum-item"));
+        printSize("flex conflicting cross size", document.querySelector("#flex-conflicting-cross-size-item"));
+        printSize("flex percentage cross size", document.querySelector("#flex-percentage-cross-size-item"));
+        printSize("flex stretch cross size", document.querySelector("#flex-stretch-cross-size-item"));
+
+        for (const flexBasis of ["auto", "content", "min-content", "fit-content", "max-content"]) {
+            const column = document.createElement("div");
+            column.className = "column";
+            const item = document.createElement("div");
+            item.style.flexBasis = flexBasis;
+            const canvas = document.createElement("canvas");
+            canvas.width = 5;
+            canvas.height = 5;
+            item.appendChild(canvas);
+            column.appendChild(item);
+            document.querySelector("#columns").appendChild(column);
+            printSize(`flex-basis ${flexBasis}`, item);
+        }
+
+        printSize("replaced", document.querySelector("#replaced"));
+        printSize("replaced minimum narrow", document.querySelector("#replaced-minimum-narrow"));
+        printSize("replaced minimum wide", document.querySelector("#replaced-minimum-wide"));
+
+        const floatBfcRect = document.querySelector("#float-bfc").getBoundingClientRect();
+        const floatWrapperRect = document.querySelector("#float-wrapper").getBoundingClientRect();
+        println(`float BFC: x=${floatBfcRect.x - floatWrapperRect.x} width=${floatBfcRect.width}`);
+
+        printSize("indefinite ratio", document.querySelector("#indefinite-ratio"));
+
+        printSize("abspos width", document.querySelector("#abspos-width"));
+        printSize("abspos min-width", document.querySelector("#abspos-min-width"));
+        printSize("abspos max-width", document.querySelector("#abspos-max-width"));
+        printSize("abspos height", document.querySelector("#abspos-height"));
+        printSize("abspos min-height", document.querySelector("#abspos-min-height"));
+        printSize("abspos max-height", document.querySelector("#abspos-max-height"));
+        printSize("abspos static inline", document.querySelector("#abspos-static-inline"));
+        printSize("abspos static block", document.querySelector("#abspos-static-block"));
+        printSize("abspos anchor", document.querySelector("#abspos-anchor-stretch"));
+        printSize("abspos zero floor", document.querySelector("#abspos-zero-floor"));
+
+        printWidth("table stretch", document.querySelector("#table-stretch"));
+        printWidth("table minimum stretch", document.querySelector("#table-minimum-stretch"));
+        printWidth("table maximum stretch", document.querySelector("#table-maximum-stretch"));
+        printWidth("table margin stretch", document.querySelector("#table-margin-stretch"));
+        printWidth("table margin minimum stretch", document.querySelector("#table-margin-minimum-stretch"));
+        printWidth("table margin maximum stretch", document.querySelector("#table-margin-maximum-stretch"));
+    });
+</script>

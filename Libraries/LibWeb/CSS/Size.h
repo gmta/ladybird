@@ -50,6 +50,7 @@ public:
     static Size make_max_content() { return Size { Type::MaxContent }; }
     static Size make_fit_content(LengthPercentage available_space) { return Size { Type::FitContent, move(available_space) }; }
     static Size make_fit_content() { return Size { Type::FitContent }; }
+    static Size make_stretch() { return Size { Type::Stretch }; }
     static Size make_none() { return Size { Type::None }; }
 
     static Size from_style_value(NonnullRefPtr<StyleValue const> const& value)
@@ -64,6 +65,8 @@ public:
                 return make_min_content();
             case Keyword::MaxContent:
                 return make_max_content();
+            case Keyword::Stretch:
+                return make_stretch();
             case Keyword::None:
                 return make_none();
             default:
@@ -94,6 +97,7 @@ public:
     bool is_min_content() const { return kind == Type::MinContent; }
     bool is_max_content() const { return kind == Type::MaxContent; }
     bool is_fit_content() const { return kind == Type::FitContent; }
+    bool is_stretch() const { return kind == Type::Stretch; }
     bool is_none() const { return kind == Type::None; }
     Type type() const { return kind; }
 
@@ -113,6 +117,7 @@ public:
         case Type::Auto:
         case Type::MinContent:
         case Type::MaxContent:
+        case Type::Stretch:
         case Type::None:
             return false;
         case Type::FitContent:
@@ -179,6 +184,9 @@ public:
                 length_percentage().serialize(builder, mode);
                 builder.append(")"sv);
             }
+            break;
+        case Type::Stretch:
+            builder.append("stretch"sv);
             break;
         case Type::None:
             builder.append("none"sv);

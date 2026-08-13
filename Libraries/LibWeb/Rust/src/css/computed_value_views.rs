@@ -164,6 +164,10 @@ impl ComputedSize {
         self.kind == ComputedSizeKind::FitContent
     }
 
+    pub(crate) fn is_stretch(&self) -> bool {
+        self.kind == ComputedSizeKind::Stretch
+    }
+
     pub(crate) fn is_none(&self) -> bool {
         self.kind == ComputedSizeKind::None
     }
@@ -201,6 +205,7 @@ impl ComputedSize {
             ComputedSizeKind::Auto
             | ComputedSizeKind::MinContent
             | ComputedSizeKind::MaxContent
+            | ComputedSizeKind::Stretch
             | ComputedSizeKind::None => CssPixels::default(),
             ComputedSizeKind::Calculated | ComputedSizeKind::Length | ComputedSizeKind::Percentage => {
                 self.length_percentage().to_px(reference)
@@ -216,6 +221,7 @@ impl ComputedSize {
             ComputedSizeKind::Auto
             | ComputedSizeKind::MinContent
             | ComputedSizeKind::MaxContent
+            | ComputedSizeKind::Stretch
             | ComputedSizeKind::None => false,
             ComputedSizeKind::Calculated | ComputedSizeKind::Length | ComputedSizeKind::Percentage => {
                 self.length_percentage().contains_percentage()
