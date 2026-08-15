@@ -442,6 +442,10 @@ impl<'pass> NodeFacts<'pass> {
         crate::layout::has_flag(self.data(), NodeFlag::ChildrenAreInline)
     }
 
+    pub(crate) fn is_flex_item(&self) -> bool {
+        crate::layout::has_flag(self.data(), NodeFlag::IsFlexItem)
+    }
+
     pub(crate) fn is_anonymous(&self) -> bool {
         crate::layout::has_flag(self.data(), NodeFlag::Anonymous)
     }

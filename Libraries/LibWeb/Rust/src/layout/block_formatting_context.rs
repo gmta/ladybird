@@ -2713,7 +2713,32 @@ impl BlockFormattingContext {
         available_space_for_children: AvailableSpace,
     ) {
         assert!(self.facts(block_container).children_are_inline());
-        let inline_input = self.child_layout_input(block_container, input, available_space_for_children);
+        let writing_mode = self.style(block_container).writing_mode();
+        // FIXME: Sideways IFCs need logical child space so neutral inline boundaries do not alter placement. Extend
+        //        this to flex items once their scrollable-overflow bookkeeping is flow-relative as well.
+        let use_logical_child_space = self.purpose == LayoutPurpose::Commit
+            && matches!(writing_mode, writing_mode::SIDEWAYS_LR | writing_mode::SIDEWAYS_RL)
+            && !self.facts(block_container).is_flex_item();
+        let (logical_inline_size, logical_block_size) = if use_logical_child_space {
+            crate::layout::to_logical(
+                writing_mode,
+                available_space_for_children.inline_size,
+                available_space_for_children.block_size,
+            )
+        } else {
+            (
+                available_space_for_children.inline_size,
+                available_space_for_children.block_size,
+            )
+        };
+        let inline_input = self.child_layout_input(
+            block_container,
+            input,
+            AvailableSpace {
+                inline_size: logical_inline_size,
+                block_size: logical_block_size,
+            },
+        );
         let mut context = InlineFormattingContext::new_with_rust_parent(
             run,
             block_container,
@@ -2723,8 +2748,18 @@ impl BlockFormattingContext {
             self,
         );
         context.run();
-        let automatic_inline_size = context.automatic_content_inline_size;
-        let automatic_block_size = context.automatic_content_block_size;
+        let (automatic_inline_size, automatic_block_size) = if use_logical_child_space {
+            crate::layout::to_physical(
+                writing_mode,
+                context.automatic_content_inline_size,
+                context.automatic_content_block_size,
+            )
+        } else {
+            (
+                context.automatic_content_inline_size,
+                context.automatic_content_block_size,
+            )
+        };
         if block_container == self.root {
             self.min_content_inline_size_from_max_content_layout
                 .set(context.min_content_inline_size_from_max_content_layout);

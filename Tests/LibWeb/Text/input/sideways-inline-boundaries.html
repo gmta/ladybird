@@ -1,0 +1,34 @@
+<!doctype html>
+<style>
+    .line {
+        writing-mode: sideways-rl;
+        font: 32px/1 sans-serif;
+    }
+</style>
+<div class="line" id="with-boundary">中文<span>1234</span>中文</div>
+<div class="line" id="without-boundary">中文1234中文</div>
+<script src="include.js"></script>
+<script>
+    test(() => {
+        const withBoundaryElement = document.getElementById("with-boundary");
+        const withoutBoundaryElement = document.getElementById("without-boundary");
+        const withBoundary = withBoundaryElement.getBoundingClientRect();
+        const withoutBoundary = withoutBoundaryElement.getBoundingClientRect();
+        const relativeRect = (node, start, end, containerRect) => {
+            const range = new Range();
+            range.setStart(node, start);
+            range.setEnd(node, end);
+            const rect = range.getBoundingClientRect();
+            return `${(rect.x - containerRect.x).toFixed(5)},${(rect.y - containerRect.y).toFixed(5)} ${rect.width.toFixed(5)}x${rect.height.toFixed(5)}`;
+        };
+        println(`with boundary: ${Math.round(withBoundary.width)}x${Math.round(withBoundary.height)}`);
+        println(`without boundary: ${Math.round(withoutBoundary.width)}x${Math.round(withoutBoundary.height)}`);
+        println(`with prefix: ${relativeRect(withBoundaryElement.firstChild, 0, 2, withBoundary)}`);
+        println(`with digits: ${relativeRect(withBoundaryElement.children[0].firstChild, 0, 4, withBoundary)}`);
+        println(`with suffix: ${relativeRect(withBoundaryElement.lastChild, 0, 2, withBoundary)}`);
+        println(`without prefix: ${relativeRect(withoutBoundaryElement.firstChild, 0, 2, withoutBoundary)}`);
+        println(`without digits: ${relativeRect(withoutBoundaryElement.firstChild, 2, 6, withoutBoundary)}`);
+        println(`without suffix: ${relativeRect(withoutBoundaryElement.firstChild, 6, 8, withoutBoundary)}`);
+        println(`matches: ${withBoundary.width === withoutBoundary.width && withBoundary.height === withoutBoundary.height}`);
+    });
+</script>
