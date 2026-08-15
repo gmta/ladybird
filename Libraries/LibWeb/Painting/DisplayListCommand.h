@@ -142,6 +142,7 @@ struct DrawGlyphRun {
     FontResourceId font_id;
     DisplayListDataSpan glyphs;
     Gfx::IntRect rect;
+    Gfx::FloatRect unrounded_rect;
     Gfx::IntRect glyph_bounding_rect;
     Gfx::FloatPoint translation;
     float scale { 1.0f };

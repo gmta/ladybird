@@ -51,11 +51,17 @@ static void append_text_clip_paths(DisplayListRecordingContext& context, Paintab
         auto fragment_absolute_rect = fragment.absolute_rect();
         auto fragment_absolute_device_rect = context.enclosing_device_rect(fragment_absolute_rect);
         auto scale = context.device_pixels_per_css_pixel();
+        auto unrounded_fragment_device_rect = Gfx::FloatRect {
+            fragment_absolute_rect.x().to_float() * scale,
+            fragment_absolute_rect.y().to_float() * scale,
+            fragment_absolute_rect.width().to_float() * scale,
+            fragment_absolute_rect.height().to_float() * scale,
+        };
         auto baseline_start = Gfx::FloatPoint {
             fragment_absolute_rect.x().to_float(),
             fragment_absolute_rect.y().to_float() + fragment.baseline().to_float(),
         } * scale;
-        display_list_recorder.draw_glyph_run(baseline_start, *glyph_run, Gfx::Color::Black, fragment_absolute_device_rect.template to_type<int>(), scale, fragment.orientation());
+        display_list_recorder.draw_glyph_run(baseline_start, *glyph_run, Gfx::Color::Black, fragment_absolute_device_rect.template to_type<int>(), unrounded_fragment_device_rect, scale, fragment.orientation());
     };
 
     if (auto const* inline_paintable = as_if<InlinePaintable>(paintable)) {

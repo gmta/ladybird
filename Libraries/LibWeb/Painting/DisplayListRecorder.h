@@ -104,7 +104,7 @@ public:
     void draw_text(Gfx::IntRect const&, Utf16String const&, Gfx::Font const&, Gfx::TextAlignment, Color);
 
     // Streamlined text drawing routine that does no wrapping/elision/alignment.
-    void draw_glyph_run(Gfx::FloatPoint baseline_start, Gfx::GlyphRun const& glyph_run, Color color, Gfx::IntRect const& rect, double scale, Gfx::Orientation);
+    void draw_glyph_run(Gfx::FloatPoint baseline_start, Gfx::GlyphRun const& glyph_run, Color color, Gfx::IntRect const& rect, Gfx::FloatRect const& unrounded_rect, double scale, Gfx::Orientation);
 
     void add_clip_rect(Gfx::FloatRect const& rect);
     void add_clip_rect(Gfx::IntRect const& rect) { add_clip_rect(rect.to_type<float>()); }

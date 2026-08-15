@@ -214,8 +214,8 @@ void DisplayListPlayerSkia::play_command(DrawGlyphRun const& command)
         break;
     case Gfx::Orientation::Vertical:
         canvas.save();
-        canvas.translate(command.rect.width(), 0);
-        canvas.rotate(90, command.rect.top_left().x(), command.rect.top_left().y());
+        canvas.translate(command.unrounded_rect.width(), 0);
+        canvas.rotate(90, command.unrounded_rect.top_left().x(), command.unrounded_rect.top_left().y());
         canvas.drawTextBlob(blob.get(), translation.x(), translation.y(), paint);
         canvas.restore();
         break;
@@ -675,6 +675,7 @@ void DisplayListPlayerSkia::play_command(PaintTextShadow const& command)
     play_command(DrawGlyphRun { .font_id = command.font_id,
         .glyphs = command.glyphs,
         .rect = command.text_rect,
+        .unrounded_rect = command.text_rect.to_type<float>(),
         .glyph_bounding_rect = command.shadow_bounding_rect,
         .translation = command.draw_location + command.text_rect.location().to_type<float>(),
         .scale = command.scale,

@@ -529,6 +529,12 @@ void paint_text_fragment(DisplayListRecordingContext& context, PaintableFragment
     auto fragment_absolute_rect = fragment.absolute_rect();
     auto fragment_device_rect = context.enclosing_device_rect(fragment_absolute_rect).to_type<int>();
     auto scale = context.device_pixels_per_css_pixel();
+    auto unrounded_fragment_device_rect = Gfx::FloatRect {
+        fragment_absolute_rect.x().to_float() * scale,
+        fragment_absolute_rect.y().to_float() * scale,
+        fragment_absolute_rect.width().to_float() * scale,
+        fragment_absolute_rect.height().to_float() * scale,
+    };
     auto baseline_start = Gfx::FloatPoint {
         fragment_absolute_rect.x().to_float(),
         fragment_absolute_rect.y().to_float() + fragment.baseline().to_float(),
@@ -538,7 +544,7 @@ void paint_text_fragment(DisplayListRecordingContext& context, PaintableFragment
     bool is_full_fragment = span.start_code_unit == 0 && span.end_code_unit == fragment.length_in_code_units();
     auto decoration_box = fragment_absolute_rect;
     if (is_full_fragment) {
-        painter.draw_glyph_run(baseline_start, *glyph_run, span.text_color, fragment_device_rect, scale, fragment.orientation());
+        painter.draw_glyph_run(baseline_start, *glyph_run, span.text_color, fragment_device_rect, unrounded_fragment_device_rect, scale, fragment.orientation());
     } else {
         auto range_rect = fragment.range_rect(Paintable::SelectionState::StartAndEnd,
             fragment.dom_start_offset_in_node() + span.start_code_unit,
@@ -546,7 +552,7 @@ void paint_text_fragment(DisplayListRecordingContext& context, PaintableFragment
         auto span_rect = context.rounded_device_rect(range_rect).to_type<int>();
         painter.save();
         painter.add_clip_rect(span_rect);
-        painter.draw_glyph_run(baseline_start, *glyph_run, span.text_color, fragment_device_rect, scale, fragment.orientation());
+        painter.draw_glyph_run(baseline_start, *glyph_run, span.text_color, fragment_device_rect, unrounded_fragment_device_rect, scale, fragment.orientation());
         painter.restore();
         decoration_box.set_x(range_rect.x());
         decoration_box.set_width(range_rect.width());

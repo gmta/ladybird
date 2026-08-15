@@ -61,6 +61,7 @@ static bool display_list_commands_are_equal(DisplayListCommandReference const& a
             && first.glyphs.size == second.glyphs.size
             && display_list_data_span_bytes(a.payload, first.glyphs) == display_list_data_span_bytes(b.payload, second.glyphs)
             && first.rect == second.rect
+            && first.unrounded_rect == second.unrounded_rect
             && first.glyph_bounding_rect == second.glyph_bounding_rect
             && first.translation == second.translation
             && first.scale == second.scale

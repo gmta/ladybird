@@ -599,10 +599,10 @@ void DisplayListRecorder::draw_text(Gfx::IntRect const& rect, Utf16String const&
     }
     auto metrics = font.pixel_metrics();
     float baseline_y = static_cast<float>(rect.y()) + metrics.ascent + (static_cast<float>(rect.height()) - (metrics.ascent + metrics.descent)) / 2.0f;
-    draw_glyph_run({ baseline_x, baseline_y }, *glyph_run, color, rect, 1.0, Orientation::Horizontal);
+    draw_glyph_run({ baseline_x, baseline_y }, *glyph_run, color, rect, rect.to_type<float>(), 1.0, Orientation::Horizontal);
 }
 
-void DisplayListRecorder::draw_glyph_run(Gfx::FloatPoint baseline_start, Gfx::GlyphRun const& glyph_run, Color color, Gfx::IntRect const& rect, double scale, Orientation orientation)
+void DisplayListRecorder::draw_glyph_run(Gfx::FloatPoint baseline_start, Gfx::GlyphRun const& glyph_run, Color color, Gfx::IntRect const& rect, Gfx::FloatRect const& unrounded_rect, double scale, Orientation orientation)
 {
     if (color.alpha() == 0)
         return;
@@ -615,6 +615,7 @@ void DisplayListRecorder::draw_glyph_run(Gfx::FloatPoint baseline_start, Gfx::Gl
             .font_id = resource_storage().add_font(glyph_run.font()),
             .glyphs = glyphs,
             .rect = rect,
+            .unrounded_rect = unrounded_rect,
             .glyph_bounding_rect = glyph_bounding_rect,
             .translation = baseline_start,
             .scale = static_cast<float>(scale),
