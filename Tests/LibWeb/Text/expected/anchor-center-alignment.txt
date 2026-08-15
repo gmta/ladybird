@@ -1,0 +1,1 @@
+stretch: anchor-center 0,100

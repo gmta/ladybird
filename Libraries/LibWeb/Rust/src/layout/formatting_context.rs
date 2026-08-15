@@ -18,8 +18,8 @@ pub(crate) enum LayoutMode {
     IntrinsicSizing,
 }
 
-/// The anchor() inset resolutions of one positioned box, produced by the
-/// abspos engine's resolve pass; sides without anchor functions stay
+/// The anchor-dependent resolutions of one positioned box, produced by the
+/// abspos engine's resolve pass. Sides without anchor functions stay
 /// unresolved and read from style.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ResolvedAnchorInsets {
@@ -35,6 +35,10 @@ pub(crate) struct ResolvedAnchorInsets {
     pub(crate) resolves_left: bool,
     pub(crate) left_is_auto: bool,
     pub(crate) left: CssPixels,
+    pub(crate) resolves_anchor_center_x: bool,
+    pub(crate) anchor_center_x: CssPixels,
+    pub(crate) resolves_anchor_center_y: bool,
+    pub(crate) anchor_center_y: CssPixels,
 }
 
 impl ResolvedAnchorInsets {

@@ -1,0 +1,41 @@
+<!doctype html>
+<style>
+    .container {
+        writing-mode: vertical-rl;
+        width: 100px;
+        height: 100px;
+        border: 3px solid;
+        position: relative;
+    }
+    .anchor {
+        anchor-name: --anchor;
+        position: relative;
+        width: 50px;
+        height: 50px;
+        right: 10px;
+        top: 40px;
+    }
+    .target {
+        writing-mode: horizontal-tb;
+        position-anchor: --anchor;
+        position: absolute;
+        align-self: anchor-center;
+        top: anchor(bottom);
+        height: 20px;
+    }
+    .target::after {
+        color: transparent;
+        content: "a a a a a a a a a a a a a a a a a a";
+    }
+</style>
+<div class="container">
+    <div class="anchor"></div>
+    <div class="target" id="stretch"></div>
+</div>
+<script src="include.js"></script>
+<script>
+    test(() => {
+        const target = document.getElementById("stretch");
+        println(`stretch: ${getComputedStyle(target).alignSelf} ${target.offsetLeft},${target.offsetWidth}`);
+    });
+</script>

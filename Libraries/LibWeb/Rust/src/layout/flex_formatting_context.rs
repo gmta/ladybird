@@ -1633,7 +1633,7 @@ impl<'pass> FlexFormattingContext<'pass> {
             align_self::SELF_END => align_items::SELF_END,
             align_self::FLEX_START => align_items::FLEX_START,
             align_self::FLEX_END => align_items::FLEX_END,
-            align_self::CENTER => align_items::CENTER,
+            align_self::ANCHOR_CENTER | align_self::CENTER => align_items::CENTER,
             align_self::BASELINE => align_items::BASELINE,
             align_self::START => align_items::START,
             align_self::STRETCH => align_items::STRETCH,

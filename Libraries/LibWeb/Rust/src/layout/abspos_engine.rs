@@ -572,7 +572,14 @@ impl AbsposEngine {
         let right_contains_anchor = style.inset_right().contains_anchor_function();
         let bottom_contains_anchor = style.inset_bottom().contains_anchor_function();
         let left_contains_anchor = style.inset_left().contains_anchor_function();
-        if !top_contains_anchor && !right_contains_anchor && !bottom_contains_anchor && !left_contains_anchor {
+        let uses_anchor_center = style.align_self() == align_self::ANCHOR_CENTER
+            || style.justify_self() == justify_self::ANCHOR_CENTER;
+        if !top_contains_anchor
+            && !right_contains_anchor
+            && !bottom_contains_anchor
+            && !left_contains_anchor
+            && !uses_anchor_center
+        {
             return None;
         }
 
@@ -598,6 +605,35 @@ impl AbsposEngine {
             compensates_for_vertical_scroll: false,
         };
         let mut resolved = ResolvedAnchorInsets::default();
+
+        if !default_anchor_box.is_invalid() && uses_anchor_center {
+            let anchor_rect = self.anchor_rect(
+                default_anchor_box,
+                containing_block,
+                entry_containing_block_geometry,
+                entry_coordinate_space_box,
+            );
+            let containing_block_flows_horizontally =
+                self.style(containing_block).writing_mode() == writing_mode::HORIZONTAL_TB;
+            if style.justify_self() == justify_self::ANCHOR_CENTER {
+                if containing_block_flows_horizontally {
+                    resolved.resolves_anchor_center_x = true;
+                    resolved.anchor_center_x = anchor_rect.x + anchor_rect.width / 2;
+                } else {
+                    resolved.resolves_anchor_center_y = true;
+                    resolved.anchor_center_y = anchor_rect.y + anchor_rect.height / 2;
+                }
+            }
+            if style.align_self() == align_self::ANCHOR_CENTER {
+                if containing_block_flows_horizontally {
+                    resolved.resolves_anchor_center_y = true;
+                    resolved.anchor_center_y = anchor_rect.y + anchor_rect.height / 2;
+                } else {
+                    resolved.resolves_anchor_center_x = true;
+                    resolved.anchor_center_x = anchor_rect.x + anchor_rect.width / 2;
+                }
+            }
+        }
 
         if top_contains_anchor {
             let value = self.resolve_anchor_value(
@@ -1783,6 +1819,70 @@ impl AbsposEngine {
                     _ => {}
                 }
             }
+
+            if let Some(resolved) = resolved {
+                let centered_offset = |anchor_center: CssPixels,
+                                       containing_block_offset: CssPixels,
+                                       area_start: CssPixels,
+                                       area_end: CssPixels,
+                                       margin_box_size: CssPixels| {
+                    let ideal = anchor_center - containing_block_offset - margin_box_size / 2;
+                    let latest = area_end - margin_box_size;
+                    if latest < area_start {
+                        area_start
+                    } else {
+                        ideal.max(area_start).min(latest)
+                    }
+                };
+                if resolved.resolves_anchor_center_x {
+                    let area_start = if style.inset_left().is_auto() {
+                        CssPixels::default()
+                    } else {
+                        style.inset_left().to_px(containing_block_size.inline_size)
+                    };
+                    let area_end = containing_block_size.inline_size
+                        - if style.inset_right().is_auto() {
+                            CssPixels::default()
+                        } else {
+                            style.inset_right().to_px(containing_block_size.inline_size)
+                        };
+                    let margin_box_size = used.margin_box_inline_size(collapsed);
+                    let offset = centered_offset(
+                        resolved.anchor_center_x,
+                        inputs.containing_block_info.rect.offset.inline_offset,
+                        area_start,
+                        area_end,
+                        margin_box_size,
+                    );
+                    used.inset_left.set(offset);
+                    used.inset_right
+                        .set(containing_block_size.inline_size - offset - margin_box_size);
+                }
+                if resolved.resolves_anchor_center_y {
+                    let area_start = if style.inset_top().is_auto() {
+                        CssPixels::default()
+                    } else {
+                        style.inset_top().to_px(containing_block_size.block_size)
+                    };
+                    let area_end = containing_block_size.block_size
+                        - if style.inset_bottom().is_auto() {
+                            CssPixels::default()
+                        } else {
+                            style.inset_bottom().to_px(containing_block_size.block_size)
+                        };
+                    let margin_box_size = used.margin_box_block_size(collapsed);
+                    let offset = centered_offset(
+                        resolved.anchor_center_y,
+                        inputs.containing_block_info.rect.offset.block_offset,
+                        area_start,
+                        area_end,
+                        margin_box_size,
+                    );
+                    used.inset_top.set(offset);
+                    used.inset_bottom
+                        .set(containing_block_size.block_size - offset - margin_box_size);
+                }
+            }
         }
     }
 
@@ -1808,13 +1908,18 @@ impl AbsposEngine {
         let static_offset = self.static_offset(node, inputs.static_position_rect);
         let used = self.used(node);
         let collapsed = used.uses_collapsing_borders_model.get();
+        let resolved = inputs.resolved_anchor_insets.as_ref();
         let mut used_offset = LogicalOffset {
-            inline_offset: if inputs.containing_block_info.inline_axis_mode == AbsposAxisMode::StaticPosition {
+            inline_offset: if inputs.containing_block_info.inline_axis_mode == AbsposAxisMode::StaticPosition
+                && !resolved.is_some_and(|resolved| resolved.resolves_anchor_center_x)
+            {
                 static_offset.inline_offset
             } else {
                 inputs.containing_block_info.rect.offset.inline_offset + used.inset_left.get()
             },
-            block_offset: if inputs.containing_block_info.block_axis_mode == AbsposAxisMode::StaticPosition {
+            block_offset: if inputs.containing_block_info.block_axis_mode == AbsposAxisMode::StaticPosition
+                && !resolved.is_some_and(|resolved| resolved.resolves_anchor_center_y)
+            {
                 static_offset.block_offset
             } else {
                 inputs.containing_block_info.rect.offset.block_offset + used.inset_top.get()
