@@ -4575,6 +4575,17 @@
       "text-anchor"
     ]
   },
+  "text-combine-upright": {
+    "style-group": "InheritedTextValues",
+    "affects-layout": true,
+    "animation-type": "discrete",
+    "inherited": true,
+    "initial": "none",
+    "requires-computation": "never",
+    "valid-types": [
+      "text-combine-upright"
+    ]
+  },
   "text-decoration": {
     "affects-layout": false,
     "initial": "none",

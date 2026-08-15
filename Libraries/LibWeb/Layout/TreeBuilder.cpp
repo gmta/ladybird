@@ -1496,6 +1496,47 @@ static RustFFI::NodeSlotId ffi_create_button_content_wrapper(void*, void* layout
     return Node::slot_id(content_box_wrapper.ptr());
 }
 
+static RustFFI::NodeSlotId ffi_create_text_combine_wrapper(void*, void* layout_node_pointer)
+{
+    VERIFY(layout_node_pointer);
+    auto& parent = as<NodeWithStyle>(*static_cast<Node*>(layout_node_pointer));
+    auto wrapper = parent.create_anonymous_wrapper();
+    auto font_size = parent.font_size();
+    auto has_bidi_override = parent.computed_style_record_view()->unicode_bidi() == CSS::UnicodeBidi::BidiOverride;
+    auto bidi_override_reverses_text = has_bidi_override && parent.direction() == CSS::Direction::Rtl;
+    // FIXME: Replace this single-run override handling with the Unicode bidi algorithm inside the text-combine
+    //        isolate.
+    parent.for_each_in_inclusive_subtree_of_type<TextNode>([&](auto& text_node) {
+        bool first_strong_character_is_rtl = false;
+        if (has_bidi_override && !bidi_override_reverses_text) {
+            for (auto code_point : text_node.text()) {
+                auto text_type = text_type_for_code_point(code_point);
+                if (first_is_one_of(text_type, Gfx::GlyphRun::TextType::Common, Gfx::GlyphRun::TextType::ContextDependent,
+                        Gfx::GlyphRun::TextType::EndPadding))
+                    continue;
+                first_strong_character_is_rtl = text_type == Gfx::GlyphRun::TextType::Rtl;
+                break;
+            }
+        }
+        text_node.set_text_combine_reverses_text(bidi_override_reverses_text || first_strong_character_is_rtl);
+        return TraversalDecision::Continue;
+    });
+    wrapper->modify_computed_values([&](auto& values) {
+        values.set_display(CSS::Display::from_short(CSS::Display::Short::InlineBlock));
+        values.set_writing_mode(CSS::WritingMode::HorizontalTb);
+        values.set_unicode_bidi(CSS::UnicodeBidi::Isolate);
+        if (bidi_override_reverses_text)
+            values.set_direction(CSS::Direction::Ltr);
+        values.set_width(CSS::Size::make_px(font_size));
+        values.set_height(CSS::Size::make_px(font_size));
+        values.set_text_align(CSS::TextAlign::Center);
+        values.set_text_wrap_mode(CSS::TextWrapMode::Nowrap);
+    });
+    // FIXME: Scale over-wide composed content into this 1em wrapper instead of letting it overflow.
+    parent.append_child(*wrapper);
+    return Node::slot_id(wrapper.ptr());
+}
+
 static RustFFI::NodeSlotId ffi_create_fieldset_content_wrapper(void*, void* layout_node_pointer)
 {
     VERIFY(layout_node_pointer);
@@ -1565,6 +1606,7 @@ RustFFI::FfiTreeBuilderCallbacks LayoutTreeBuildBridge::make_ffi_tree_builder_ca
             return first_is_one_of(white_space_collapse,
                 CSS::WhiteSpaceCollapse::Preserve, CSS::WhiteSpaceCollapse::PreserveBreaks, CSS::WhiteSpaceCollapse::BreakSpaces); },
         .create_button_content_wrapper = ffi_create_button_content_wrapper,
+        .create_text_combine_wrapper = ffi_create_text_combine_wrapper,
         .create_fieldset_content_wrapper = ffi_create_fieldset_content_wrapper,
         .move_nodes_to_parent = ffi_move_nodes_to_parent,
     };

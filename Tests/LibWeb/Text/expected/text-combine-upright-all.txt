@@ -1,0 +1,4 @@
+combined style: all
+combined: 32x32
+dynamic: 32x32
+sideways style: all

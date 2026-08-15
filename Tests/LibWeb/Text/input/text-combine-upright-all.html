@@ -1,0 +1,35 @@
+<!doctype html>
+<style>
+    #container {
+        writing-mode: vertical-rl;
+        font: 32px/1 serif;
+    }
+    #dynamic-container {
+        writing-mode: vertical-rl;
+        font: 32px/1 serif;
+    }
+    #combined {
+        text-combine-upright: all;
+    }
+    #sideways {
+        writing-mode: sideways-rl;
+        text-combine-upright: all;
+    }
+</style>
+<div id="container"><span id="combined">1234</span></div>
+<div id="dynamic-container"><span id="dynamic">12</span></div>
+<span id="sideways">1234</span>
+<script src="include.js"></script>
+<script>
+    test(() => {
+        const combined = document.getElementById("combined");
+        const combinedRect = combined.getBoundingClientRect();
+        println(`combined style: ${getComputedStyle(combined).textCombineUpright}`);
+        println(`combined: ${Math.round(combinedRect.width)}x${Math.round(combinedRect.height)}`);
+        const dynamic = document.getElementById("dynamic");
+        dynamic.style.textCombineUpright = "all";
+        const dynamicRect = dynamic.getBoundingClientRect();
+        println(`dynamic: ${Math.round(dynamicRect.width)}x${Math.round(dynamicRect.height)}`);
+        println(`sideways style: ${getComputedStyle(document.getElementById("sideways")).textCombineUpright}`);
+    });
+</script>

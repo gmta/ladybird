@@ -9,7 +9,7 @@ use crate::layout::layout_node_arena::LayoutNodeArena;
 use crate::layout::node_data::{GENERATED_FOR_MARKER, NodeData, NodeFlag, NodeKind, NodeSlotId};
 use crate::layout::{
     ComputedValuesView, FfiDisplay, kind_is_replaced_box, kind_is_svg_box, kind_is_svg_graphics_box,
-    node_can_have_children,
+    node_can_have_children, text_combine_upright, writing_mode,
 };
 use std::ffi::c_void;
 
@@ -1268,6 +1268,7 @@ unsafe fn update_principal_node_descendants(
             }
 
             let layout_host = host.layout();
+            wrap_text_combine_contents_if_needed(&layout_host, layout_node);
             wrap_fieldset_contents_if_needed(&layout_host, layout_node);
             wrap_button_contents_if_needed(&layout_host, layout_node);
         }
@@ -1852,6 +1853,10 @@ fn create_pseudo_element(
     let layout_node = create_pseudo_element_with_frame(host, state, frame, element, pseudo_element, insertion_mode);
     // SAFETY: `frame` is the most recently pushed pseudo-element frame and Rust no longer uses it.
     unsafe { (callbacks.pop_frame)(callbacks.builder, frame) };
+    if !layout_node.is_invalid() {
+        wrap_text_combine_contents_if_needed(&host.layout(), layout_node);
+    }
+
     layout_node
 }
 
@@ -2074,6 +2079,7 @@ pub struct FfiTreeBuilderCallbacks {
     pub prepare_first_letter_text:
         unsafe extern "C" fn(*mut c_void, *mut c_void, *mut FfiFirstLetterTextCallbacks) -> bool,
     pub create_button_content_wrapper: unsafe extern "C" fn(*mut c_void, *mut c_void) -> NodeSlotId,
+    pub create_text_combine_wrapper: unsafe extern "C" fn(*mut c_void, *mut c_void) -> NodeSlotId,
     pub create_fieldset_content_wrapper: unsafe extern "C" fn(*mut c_void, *mut c_void) -> NodeSlotId,
     pub move_nodes_to_parent: unsafe extern "C" fn(*mut c_void, *mut c_void, *const *mut c_void, usize),
 }
@@ -2897,6 +2903,47 @@ fn wrap_button_contents_if_needed(host: &TreeBuilderHost<'_>, layout_node: Layou
             );
         }
         host.set_children_are_inline(layout_node, false);
+    }
+}
+
+// https://drafts.csswg.org/css-writing-modes-3/#text-combine-layout
+fn wrap_text_combine_contents_if_needed(host: &TreeBuilderHost<'_>, layout_node: LayoutNode) {
+    assert!(!layout_node.is_invalid());
+    if !node_is_fragmented_inline(host, layout_node)
+        || !host.style(layout_node).is_some_and(|style| {
+            style.text_combine_upright() == text_combine_upright::ALL
+                && matches!(
+                    style.writing_mode(),
+                    writing_mode::VERTICAL_LR | writing_mode::VERTICAL_RL
+                )
+        })
+    {
+        return;
+    }
+
+    let mut child_shells = Vec::new();
+    let mut child = host.first_child(layout_node);
+    while !child.is_invalid() {
+        child_shells.push(host.shell(child));
+        child = host.next_sibling(child);
+    }
+    if child_shells.is_empty() {
+        return;
+    }
+
+    // SAFETY: `layout_node` remains live and owns the returned wrapper.
+    let wrapper =
+        unsafe { (host.callbacks.create_text_combine_wrapper)(host.callbacks.context, host.shell(layout_node)) };
+    assert!(!wrapper.is_invalid());
+    host.set_children_are_inline(wrapper, true);
+    // SAFETY: The wrapper remains attached and the callback retains all nodes while moving them.
+    unsafe {
+        (host.callbacks.move_nodes_to_parent)(
+            host.callbacks.context,
+            host.shell(wrapper),
+            child_shells.as_ptr(),
+            child_shells.len(),
+        );
     }
 }
 

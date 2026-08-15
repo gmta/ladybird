@@ -352,7 +352,8 @@ RequiredInvalidationAfterStyleChange compute_property_invalidation(CSS::Property
     }
 
     // These properties only change the contents of the element's own layout subtree.
-    if (AK::first_is_one_of(property_id, CSS::PropertyID::Content, CSS::PropertyID::ContentVisibility, CSS::PropertyID::TextTransform))
+    if (AK::first_is_one_of(property_id, CSS::PropertyID::Content, CSS::PropertyID::ContentVisibility,
+            CSS::PropertyID::TextCombineUpright, CSS::PropertyID::TextTransform))
         return RequiredInvalidationAfterStyleChange::rebuild_layout_tree_from(LayoutTreeRebuildRoot::Self);
 
     // NB: Other display, float, or position changes have to rebuild from the parent.

@@ -409,6 +409,7 @@ scalar_accessors! {
         word_spacing: CssPixels => word_spacing,
         text_indent_each_line: bool => text_indent.each_line,
         text_indent_hanging: bool => text_indent.hanging,
+        text_combine_upright: u8 => text_combine_upright,
         tab_size_is_number: bool => tab_size_is_number,
         tab_size: CssPixels => tab_size_length,
         tab_size_number: f64 => tab_size_number,

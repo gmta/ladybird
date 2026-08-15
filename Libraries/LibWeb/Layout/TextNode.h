@@ -38,6 +38,7 @@ public:
     Utf16String const& text_for_rendering() const;
 
     void invalidate_text_for_rendering();
+    void set_text_combine_reverses_text(bool reverses_text);
 
     void enroll_for_arena_text_content_sync() const;
     bool sync_text_content_to_arena() const;
@@ -63,6 +64,7 @@ private:
         CSS::WhiteSpaceCollapse white_space_collapse { CSS::WhiteSpaceCollapse::Collapse };
         Optional<Utf16String> lang;
         bool is_password_input { false };
+        bool text_combine_reverses_text { false };
         size_t dom_start_offset { 0 };
         size_t dom_length { 0 };
 
@@ -80,6 +82,7 @@ private:
     TextDependentCache const& ensure_text_dependent_cache() const;
 
     mutable Optional<TextDependentCache> m_text_dependent_cache;
+    bool m_text_combine_reverses_text { false };
     mutable bool m_arena_text_content_in_sync { false };
     mutable bool m_enrolled_for_arena_text_content_sync { false };
 };

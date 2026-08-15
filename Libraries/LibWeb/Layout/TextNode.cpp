@@ -386,6 +386,7 @@ TextNode::TextForRenderingCacheKey TextNode::create_text_for_rendering_cache_key
         .white_space_collapse = parent()->white_space_collapse(),
         .lang = move(lang),
         .is_password_input = is_password_input(),
+        .text_combine_reverses_text = m_text_combine_reverses_text,
         .dom_start_offset = dom_start_offset(),
         .dom_length = dom_length(),
     };
@@ -396,6 +397,14 @@ void TextNode::invalidate_text_for_rendering()
     m_text_dependent_cache = {};
     m_arena_text_content_in_sync = false;
     enroll_for_arena_text_content_sync();
+}
+
+void TextNode::set_text_combine_reverses_text(bool reverses_text)
+{
+    if (m_text_combine_reverses_text == reverses_text)
+        return;
+    m_text_combine_reverses_text = reverses_text;
+    invalidate_text_for_rendering();
 }
 
 Utf16String const& TextNode::text_for_rendering() const
@@ -461,6 +470,17 @@ Utf16String TextNode::compute_text_for_rendering(TextForRenderingCacheKey const&
     auto text = apply_text_transform(text_data, cache_key.text_transform, lang);
     if (cache_key.dom_start_offset > 0 || cache_key.dom_length < text_data.length_in_code_units())
         text = Utf16String::from_utf16(text.utf16_view().substring_view(cache_key.dom_start_offset, cache_key.dom_length));
+
+    if (cache_key.text_combine_reverses_text) {
+        Vector<u32> code_points;
+        code_points.ensure_capacity(text.length_in_code_points());
+        for (auto code_point : text)
+            code_points.unchecked_append(code_point);
+        Utf16StringBuilder builder { text.length_in_code_units() };
+        for (auto code_point : code_points.in_reverse())
+            builder.append_code_point(code_point);
+        text = builder.to_string();
+    }
 
     // The logic below deals with converting whitespace characters. If we don't have them, return early.
     if (text.is_empty() || !any_of(text, is_ascii_space)) {

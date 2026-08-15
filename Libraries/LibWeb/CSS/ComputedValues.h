@@ -2638,6 +2638,12 @@ public:
             return;
         m_values.m_inherited.text.access().text_align = to_underlying(text_align);
     }
+    void set_text_wrap_mode(TextWrapMode text_wrap_mode)
+    {
+        if (m_values.m_inherited.text->text_wrap_mode_value() == text_wrap_mode)
+            return;
+        m_values.m_inherited.text.access().text_wrap_mode = to_underlying(text_wrap_mode);
+    }
     void set_text_decoration_line(Vector<TextDecorationLine> value)
     {
         if (m_values.text_decoration_line() == value.span())
@@ -2872,6 +2878,12 @@ public:
         if (m_values.m_inherited.box->direction == to_underlying(value))
             return;
         m_values.m_inherited.box.access().direction = to_underlying(value);
+    }
+    void set_unicode_bidi(UnicodeBidi value)
+    {
+        if (m_values.m_noninherited.box->unicode_bidi == to_underlying(value))
+            return;
+        m_values.m_noninherited.box.access().unicode_bidi = to_underlying(value);
     }
     void set_writing_mode(WritingMode value)
     {
