@@ -2089,7 +2089,7 @@ impl GridFormattingContext {
         let maximum = if max.is_length_percentage() && !max.contains_percentage() {
             max.to_px(CssPixels::default())
         } else {
-            CssPixels::from_raw(i32::MAX)
+            CssPixels::max()
         };
         let content = if self.preferred_behaves_as_auto(item, axis) {
             if axis.is_column() && self.facts(item.box_).is_scroll_container() {
@@ -2119,7 +2119,7 @@ impl GridFormattingContext {
         let maximum = if max.is_length_percentage() && !max.contains_percentage() {
             max.to_px(CssPixels::default())
         } else {
-            CssPixels::from_raw(i32::MAX)
+            CssPixels::max()
         };
         let preferred = self.preferred_size(item, axis);
         let content = if self.preferred_behaves_as_auto(item, axis) || preferred.is_fit_content() {
@@ -4049,7 +4049,7 @@ pub(crate) fn maximize_tracks(tracks: &mut [Track], gap_size: CssPixels, availab
             CssPixels::default().max(available_size - track_sum)
         }
         AvailableSize::MinContent => CssPixels::default(),
-        AvailableSize::MaxContent | AvailableSize::Indefinite => CssPixels::from_raw(i32::MAX),
+        AvailableSize::MaxContent | AvailableSize::Indefinite => CssPixels::max(),
     };
     let mut growable = tracks
         .iter()
@@ -4081,7 +4081,7 @@ pub(crate) fn maximize_tracks(tracks: &mut [Track], gap_size: CssPixels, availab
                 CssPixels::default().max(available_size - sum)
             }
             AvailableSize::MinContent => CssPixels::default(),
-            _ => CssPixels::from_raw(i32::MAX),
+            _ => CssPixels::max(),
         };
         if free_space == old_free_space {
             break;

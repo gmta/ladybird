@@ -2537,7 +2537,7 @@ impl BlockFormattingContext {
             let float_containing_block_inline_size = match self.used(node).inline_size_constraint.get() {
                 SizeConstraint::MinContent => CssPixels::default(),
                 // Preserve the MaxContent saturation quirk from the C++ fixed-point subtraction.
-                SizeConstraint::MaxContent => CssPixels::from_raw(i32::MAX),
+                SizeConstraint::MaxContent => CssPixels::max(),
                 SizeConstraint::None => floating_box.percentage_basis_inline_size.unwrap_or_default(),
             };
             float_containing_block_inline_size - floating_box.offset_from_edge

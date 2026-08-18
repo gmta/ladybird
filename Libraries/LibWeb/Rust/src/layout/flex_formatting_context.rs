@@ -931,7 +931,7 @@ impl<'pass> FlexFormattingContext<'pass> {
         {
             self.resolve_inner_inline_size(index, SizingProperty::MaxWidth)
         } else {
-            CssPixels::from_raw(i32::MAX)
+            CssPixels::max()
         };
 
         let inline_size = if self.should_treat_size_as_auto(node, SizingAxis::Inline) || style.width().is_fit_content()
@@ -1511,7 +1511,7 @@ impl<'pass> FlexFormattingContext<'pass> {
                 let max_size = if self.has_main_max_size(node) {
                     self.specified_main_max_size(index)
                 } else {
-                    CssPixels::from_raw(i32::MAX)
+                    CssPixels::max()
                 };
                 let original = self.flex_items[index].target_main_size;
                 let target = css_clamp(original, min_size, max_size).max(CssPixels::default());
@@ -1635,7 +1635,7 @@ impl<'pass> FlexFormattingContext<'pass> {
             self.specified_cross_min_size(index)
         };
         let clamp_max = if self.should_treat_max_size_as_none(node, true) {
-            CssPixels::from_raw(i32::MAX)
+            CssPixels::max()
         } else {
             self.specified_cross_max_size(index)
         };
@@ -1765,7 +1765,7 @@ impl<'pass> FlexFormattingContext<'pass> {
                 self.calculate_inner_container_cross_size(self.computed_cross_min_size(self.flex_container).1)
             };
             let cross_max = if self.should_treat_max_size_as_none(self.flex_container, true) {
-                CssPixels::from_raw(i32::MAX)
+                CssPixels::max()
             } else {
                 self.calculate_inner_container_cross_size(self.computed_cross_max_size(self.flex_container).1)
             };
@@ -1831,7 +1831,7 @@ impl<'pass> FlexFormattingContext<'pass> {
                         self.specified_cross_min_size(index)
                     };
                     let cross_max = if self.should_treat_max_size_as_none(node, true) {
-                        CssPixels::from_raw(i32::MAX)
+                        CssPixels::max()
                     } else {
                         self.specified_cross_max_size(index)
                     };
@@ -2647,7 +2647,7 @@ impl<'pass> FlexFormattingContext<'pass> {
         {
             self.specified_cross_max_size(index)
         } else {
-            CssPixels::from_raw(i32::MAX)
+            CssPixels::max()
         };
         self.flex_items[index].add_cross_margin_box_sizes(css_clamp(size, clamp_min, clamp_max))
     }
@@ -2660,7 +2660,7 @@ impl<'pass> FlexFormattingContext<'pass> {
         let node = self.flex_items[index].box_;
         let max = self.computed_main_max_size(node).0;
         if self.should_treat_max_size_as_none(node, false) {
-            return CssPixels::from_raw(i32::MAX);
+            return CssPixels::max();
         }
         if !max.contains_percentage() {
             return self.specified_main_max_size(index);
@@ -2669,10 +2669,10 @@ impl<'pass> FlexFormattingContext<'pass> {
             if self.facts(node).is_replaced_box() {
                 return CssPixels::default();
             }
-            return CssPixels::from_raw(i32::MAX);
+            return CssPixels::max();
         }
         if available_size == AvailableSize::MaxContent {
-            return CssPixels::from_raw(i32::MAX);
+            return CssPixels::max();
         }
         self.specified_main_max_size(index)
     }
@@ -2830,7 +2830,7 @@ impl<'pass> FlexFormattingContext<'pass> {
                 };
             } else if result < CssPixels::default() {
                 adjusted = if self.flex_items[index].scaled_flex_shrink_factor == 0.0 {
-                    CssPixels::from_raw(i32::MIN)
+                    CssPixels::min()
                 } else {
                     result.scaled(1.0 / self.flex_items[index].scaled_flex_shrink_factor)
                 };
@@ -3008,7 +3008,7 @@ impl<'pass> FlexFormattingContext<'pass> {
                 let max_size = if self.has_cross_max_size(node) {
                     self.specified_cross_max_size(index)
                 } else {
-                    CssPixels::from_raw(i32::MAX)
+                    CssPixels::max()
                 };
                 let outer = css_clamp(container_cross_size, min_size, max_size);
                 let item = &self.flex_items[index];
@@ -3071,7 +3071,7 @@ impl<'pass> FlexFormattingContext<'pass> {
             let clamp_max = if self.has_main_max_size(node) {
                 self.specified_main_max_size(index)
             } else {
-                CssPixels::from_raw(i32::MAX)
+                CssPixels::max()
             };
             let facts = self.facts(node);
             let can_skip_for_item = !facts.is_scroll_container()

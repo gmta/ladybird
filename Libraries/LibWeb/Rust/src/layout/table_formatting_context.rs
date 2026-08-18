@@ -1290,7 +1290,7 @@ impl TableFormattingContext {
             let mut max_inline = if max_width.is_length() {
                 max_width.to_px(inline_basis)
             } else {
-                CssPixels::from_raw(i32::MAX)
+                CssPixels::max()
             };
             if style.box_sizing() == box_sizing::BORDER_BOX {
                 min_inline -= inline_offsets;
@@ -1337,7 +1337,7 @@ impl TableFormattingContext {
                 let max_block = if max_height.is_length() {
                     max_height.to_px(block_basis)
                 } else {
-                    CssPixels::from_raw(i32::MAX)
+                    CssPixels::max()
                 };
                 self.cells[cell_index].outer_max_block_size = if self.rows[cell.row_index].is_constrained {
                     // The outer max-content height of a table-cell in a constrained row is
@@ -1378,7 +1378,7 @@ impl TableFormattingContext {
             let max_size = if style.max_height().is_length() {
                 style.max_height().to_px(basis)
             } else {
-                CssPixels::from_raw(i32::MAX)
+                CssPixels::max()
             };
             let size = style.height().to_px(basis);
             // The outer min-content block size of a table row or row group is max(min-block-size, block-size).
@@ -1398,7 +1398,7 @@ impl TableFormattingContext {
                 let max_size = if style.max_width().is_length() {
                     style.max_width().to_px(basis)
                 } else {
-                    CssPixels::from_raw(i32::MAX)
+                    CssPixels::max()
                 };
                 let size = style.width().to_px(basis);
                 // The outer min-content inline size of a table-column or table-column-group is max(min-width, width).

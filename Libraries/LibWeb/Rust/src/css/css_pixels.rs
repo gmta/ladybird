@@ -62,6 +62,14 @@ impl CssPixels {
         Self(raw)
     }
 
+    pub const fn min() -> Self {
+        Self(i32::MIN)
+    }
+
+    pub const fn max() -> Self {
+        Self(i32::MAX)
+    }
+
     pub fn raw_value(self) -> i32 {
         self.0
     }

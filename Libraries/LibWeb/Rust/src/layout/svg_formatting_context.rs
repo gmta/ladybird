@@ -235,10 +235,10 @@ fn css_pixels_from_f32(value: f32) -> CssPixels {
     }
     let scaled = value * 64.0;
     if scaled >= i32::MAX as f32 {
-        return CssPixels::from_raw(i32::MAX);
+        return CssPixels::max();
     }
     if scaled <= i32::MIN as f32 {
-        return CssPixels::from_raw(i32::MIN);
+        return CssPixels::min();
     }
     CssPixels::from_raw(scaled.round_ties_even() as i32)
 }
