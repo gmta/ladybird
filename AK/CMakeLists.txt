@@ -77,15 +77,17 @@ endif()
 target_link_libraries(AK ${MIMALLOC_VISIBILITY} mimalloc)
 
 # FIXME: Make this generic for all imported shared library dependencies and apply globally
-if (BUILD_SHARED_LIBS AND NOT CMAKE_SKIP_INSTALL_RULES AND NOT "${VCPKG_INSTALLED_DIR}" STREQUAL "")
-    install(IMPORTED_RUNTIME_ARTIFACTS simdutf::simdutf
-            LIBRARY COMPONENT Lagom_Runtime NAMELINK_COMPONENT Lagom_Development
-            FRAMEWORK COMPONENT Lagom_Runtime
-    )
-    install(IMPORTED_RUNTIME_ARTIFACTS mimalloc
-            LIBRARY COMPONENT Lagom_Runtime NAMELINK_COMPONENT Lagom_Development
-            FRAMEWORK COMPONENT Lagom_Runtime
-    )
+if (NOT CMAKE_SKIP_INSTALL_RULES AND NOT "${VCPKG_INSTALLED_DIR}" STREQUAL "")
+    # Only shared imported targets have runtime artifacts to install.
+    foreach (imported_dependency IN ITEMS simdutf::simdutf mimalloc)
+        get_target_property(imported_dependency_type ${imported_dependency} TYPE)
+        if (imported_dependency_type STREQUAL "SHARED_LIBRARY")
+            install(IMPORTED_RUNTIME_ARTIFACTS ${imported_dependency}
+                    LIBRARY COMPONENT Lagom_Runtime NAMELINK_COMPONENT Lagom_Development
+                    FRAMEWORK COMPONENT Lagom_Runtime
+            )
+        endif()
+    endforeach()
 endif()
 
 if (WIN32)
