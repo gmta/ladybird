@@ -33,6 +33,31 @@ install(TARGETS ${ladybird_helper_processes}
     DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}
 )
 
+# Nothing else installs the shared libraries vcpkg produced. With a static triplet, those are
+# exactly the ports we deliberately made dynamic.
+if (BUILD_SHARED_LIBS AND NOT APPLE AND NOT WIN32 AND NOT ANDROID AND NOT "${VCPKG_INSTALLED_DIR}" STREQUAL "")
+    install(DIRECTORY "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib/"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        COMPONENT ladybird_Runtime
+        FILES_MATCHING
+            PATTERN "*.so.*"
+            PATTERN "pkgconfig" EXCLUDE
+            PATTERN "cmake" EXCLUDE
+    )
+
+    # install(DIRECTORY) does not honour --strip. Respect DESTDIR: a packaging run stages into one.
+    install(CODE "
+        if (CMAKE_INSTALL_DO_STRIP)
+            file(GLOB vendored_libraries \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/*.so*\")
+            foreach (vendored_library IN LISTS vendored_libraries)
+                if (NOT IS_SYMLINK \"\${vendored_library}\")
+                    execute_process(COMMAND \"${CMAKE_STRIP}\" --strip-unneeded \"\${vendored_library}\")
+                endif()
+            endforeach()
+        endif()
+    " COMPONENT ladybird_Runtime)
+endif()
+
 include("${LADYBIRD_SOURCE_DIR}/Meta/CMake/get_linked_lagom_libraries.cmake")
 foreach (application IN LISTS ladybird_applications)
   get_linked_lagom_libraries("${application}" "${application}_lagom_libraries")
