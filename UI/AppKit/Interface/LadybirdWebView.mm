@@ -14,6 +14,7 @@
 #include <LibWeb/HTML/SelectedFile.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/CrashReport.h>
+#include <LibWebView/CrashReportStore.h>
 #include <LibWebView/URL.h>
 #include <LibWebView/Utilities.h>
 
@@ -1293,7 +1294,7 @@ static NSImage* crash_overlay_icon()
 
 - (void)showCrashReports:(id)sender
 {
-    if (WebView::CrashReport::show_directory().is_error()) {
+    if (WebView::CrashReportStore::the().show_directory().is_error()) {
         auto* alert = [[NSAlert alloc] init];
         [alert setMessageText:@"Could not open the crash reports folder."];
         [alert beginSheetModalForWindow:[self window] completionHandler:nil];

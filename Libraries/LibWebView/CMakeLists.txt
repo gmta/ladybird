@@ -21,6 +21,7 @@ set(SOURCES
     ConsoleOutput.cpp
     CookieJar.cpp
     CrashReport.cpp
+    CrashReportStore.cpp
     Debugger.cpp
     DictionaryLookup.cpp
     DOMNodeProperties.cpp
