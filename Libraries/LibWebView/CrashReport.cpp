@@ -68,7 +68,9 @@ static StringView signal_name(int signal)
     }
 }
 
-ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
+// A recovered browser crash passes the time it actually crashed, which can be long before the
+// launch that formats and stores it.
+ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path, Optional<UnixDateTime> crashed_at)
 {
     if ((WIFEXITED(wait_status) && WEXITSTATUS(wait_status) == 0) || (WIFSIGNALED(wait_status) && (WTERMSIG(wait_status) == SIGTERM || WTERMSIG(wait_status) == SIGKILL)))
         return {};
@@ -77,7 +79,8 @@ ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
     builder.appendff("Ladybird crash report, format 1\nProcess: {}\n", process_name_from_type(m_process_type));
     builder.appendff("Version: {}\nPlatform: {}\nArchitecture: {}\n", BROWSER_VERSION, OS_STRING, CPU_STRING);
     append_build_information_for_process(builder, m_process_type);
-    builder.appendff("Process uptime (seconds): {}\n", (MonotonicTime::now() - m_started_at).to_seconds());
+    if (m_process_type != ProcessType::Browser)
+        builder.appendff("Process uptime (seconds): {}\n", (MonotonicTime::now() - m_started_at).to_seconds());
 #    ifdef NDEBUG
     builder.append("Build configuration: release\n"sv);
 #    else
@@ -148,7 +151,8 @@ ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
         builder.append("Unavailable: the process exited without a captured native stack.\n"sv);
     builder.append("\nStacks may be partial.\n"sv);
 
-    return CrashReportStore { path }.store_report(m_process_type, builder.string_view());
+    return CrashReportStore { path }.store_report(m_process_type, builder.string_view(),
+        crashed_at.value_or(UnixDateTime::now()));
 }
 
 #else
@@ -158,7 +162,7 @@ ErrorOr<NonnullOwnPtr<CrashReport>> CrashReport::create(ProcessType)
     return Error::from_string_literal("Crash reports are not supported on Windows yet");
 }
 
-ErrorOr<void> CrashReport::save(int, ByteString const&) { return {}; }
+ErrorOr<void> CrashReport::save(int, ByteString const&, Optional<UnixDateTime>) { return {}; }
 
 #endif
 

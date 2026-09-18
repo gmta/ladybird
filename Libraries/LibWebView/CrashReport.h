@@ -7,6 +7,7 @@
 #pragma once
 
 #include <AK/ByteString.h>
+#include <AK/Optional.h>
 #include <AK/OwnPtr.h>
 #include <AK/Time.h>
 #include <LibCore/File.h>
@@ -33,7 +34,8 @@ public:
 
     int fd() const { return m_file->fd(); }
 
-    ErrorOr<void> save(int wait_status, ByteString const& directory = CrashReportStore::default_directory());
+    ErrorOr<void> save(int wait_status, ByteString const& directory = CrashReportStore::default_directory(),
+        Optional<UnixDateTime> crashed_at = {});
 
     explicit CrashReport(NonnullOwnPtr<Core::File> file, ProcessType process_type)
         : m_file(move(file))

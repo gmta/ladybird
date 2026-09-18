@@ -8,6 +8,7 @@
 #include <LibMain/Main.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/BrowserProcess.h>
+#include <LibWebView/CrashReportStore.h>
 #include <LibWebView/URL.h>
 
 #import <Application/Application.h>
@@ -41,6 +42,9 @@ static void open_urls_from_client(Vector<URL::URL> const& urls, WebView::NewWind
 ErrorOr<int> ladybird_main(Main::Arguments arguments)
 {
     AK::set_rich_debug_enabled(true);
+
+    if (auto result = WebView::CrashReportStore::the().initialize_browser_crash_handler(); result.is_error())
+        warnln("Could not prepare Browser crash reporting: {}", result.error());
 
     auto app = TRY(Ladybird::Application::create(arguments));
     if (app->should_exit_after_profile_coordination()) {
