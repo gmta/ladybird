@@ -3207,7 +3207,7 @@ void ViewImplementation::dump_session_history(StringView reason, SessionHistoryD
         history_log_entries(m_top_level_traversable.session_history()));
 }
 
-void ViewImplementation::handle_web_content_process_crash()
+void ViewImplementation::handle_web_content_process_crash(ByteString const& report_name)
 {
     auto failed_url = m_url;
     Optional<URL::URL> navigation_to_retry;
@@ -3255,7 +3255,6 @@ void ViewImplementation::handle_web_content_process_crash()
 
     if (recovery_mode == RecoveryMode::ShowOverlay) {
         dbgln("\033[31;1mWebContent process crashed!\033[0m Last page loaded: {}", failed_url);
-        dbgln("Consider raising an issue at https://github.com/LadybirdBrowser/ladybird/issues/new/choose");
     }
 
     reset_page_media_state();
@@ -3286,6 +3285,7 @@ void ViewImplementation::handle_web_content_process_crash()
         m_top_level_traversable.abandon_after_web_content_process_crash();
         set_crash_state(CrashState {
             .failed_url = move(failed_url),
+            .report_name = report_name,
             .navigation_to_retry = move(navigation_to_retry),
         });
     } else {
@@ -3335,6 +3335,29 @@ void ViewImplementation::set_crash_state(Optional<CrashState> state)
 String ViewImplementation::crash_overlay_failed_url() const
 {
     return m_crash_state.has_value() ? m_crash_state->failed_url.serialize() : m_url.serialize();
+}
+
+URL::URL ViewImplementation::crash_report_review_url() const
+{
+    auto review_url = URL::Parser::basic_parse("about:crash-report"sv).release_value();
+    if (!m_crash_state.has_value() || m_crash_state->report_name.is_empty())
+        return review_url;
+
+    // Name the report this crash produced. Without it the page would review whichever report is
+    // newest, which is not the one the crash screen is asking about.
+    auto report_name = MUST(String::from_byte_string(m_crash_state->report_name));
+    StringBuilder query;
+    query.appendff("report={}", URL::percent_encode(report_name, URL::PercentEncodeSet::Component));
+
+    // The page offers the failed URL for the reviewer to include; nothing is sent unless they do.
+    auto const& failed_url = m_crash_state->failed_url;
+    if (failed_url.scheme() == "http"sv || failed_url.scheme() == "https"sv) {
+        if (auto serialized_url = failed_url.serialize(); serialized_url.bytes().size() <= 1024)
+            query.appendff("&website={}", URL::percent_encode(serialized_url, URL::PercentEncodeSet::Component));
+    }
+
+    review_url.set_query(query.string_view());
+    return review_url;
 }
 
 String ViewImplementation::current_host_for_settings() const

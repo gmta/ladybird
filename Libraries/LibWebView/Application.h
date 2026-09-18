@@ -85,6 +85,11 @@ public:
 
     static Application& the() { return *s_the; }
 
+    // The tabs a window opens on launch: a crash still waiting for an answer is reviewed first,
+    // then whatever the browser was asked to open. The new tab page stands in only when that
+    // would leave the window with nothing to show.
+    Vector<URL::URL> initial_window_urls() const;
+
     static Settings& settings() { return *the().m_settings; }
     static Profile const& profile() { return *the().m_profile; }
     BrowserProcess& browser_process() { return *m_browser_process; }

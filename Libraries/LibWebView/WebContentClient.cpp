@@ -604,7 +604,7 @@ void WebContentClient::notify_compositor_process_reconnected(Badge<Application>)
     async_compositor_process_reconnected();
 }
 
-void WebContentClient::notify_all_views_of_crash()
+void WebContentClient::notify_all_views_of_crash(ByteString const& report_name)
 {
     // Removing remote pages can release the last reference to this client.
     RefPtr self = this;
@@ -641,11 +641,11 @@ void WebContentClient::notify_all_views_of_crash()
 
     auto crash_reason = m_rejected_ipc ? ViewImplementation::WebContentCrashReason::RejectedIPC : ViewImplementation::WebContentCrashReason::ProcessCrash;
     for (auto view_id : view_ids) {
-        Core::deferred_invoke([view_id, crash_reason] {
+        Core::deferred_invoke([view_id, crash_reason, report_name] {
             auto view = ViewImplementation::find_view_by_id(view_id);
             if (!view.has_value())
                 return;
-            view->handle_web_content_process_crash();
+            view->handle_web_content_process_crash(report_name);
             if (view->on_web_content_crashed)
                 view->on_web_content_crashed(crash_reason);
         });

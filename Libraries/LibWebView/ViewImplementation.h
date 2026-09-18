@@ -140,6 +140,7 @@ public:
     static constexpr StringView crash_overlay_message() { return "The web page has crashed.\nYou can reload the page to try again."sv; }
     static constexpr StringView crash_overlay_reload_button_text() { return "Reload Page"sv; }
     String crash_overlay_failed_url() const;
+    URL::URL crash_report_review_url() const;
 
     struct SessionHistoryTraversalMenuItem {
         i32 step { 0 };
@@ -590,7 +591,7 @@ protected:
     void reset_page_media_state();
 
     struct CrashState;
-    void handle_web_content_process_crash();
+    void handle_web_content_process_crash(ByteString const& report_name);
     void respawn_web_content_process_after_crash();
     void prepare_for_navigation_after_crash(Optional<URL::URL> navigation_to_retry = {});
     void set_crash_state(Optional<CrashState>);
@@ -651,6 +652,7 @@ protected:
 
     struct CrashState {
         URL::URL failed_url;
+        ByteString report_name;
         Optional<URL::URL> navigation_to_retry;
         bool recovery_started { false };
     };

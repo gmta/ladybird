@@ -9,12 +9,12 @@
 #include <AK/Optional.h>
 #include <AK/RefCounted.h>
 #include <Interface/LadybirdWebViewBridge.h>
+#include <LibURL/Parser.h>
 #include <LibURL/URL.h>
 #include <LibWakeLock/DisplaySleepInhibitor.h>
 #include <LibWeb/HTML/SelectedFile.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/CrashReport.h>
-#include <LibWebView/CrashReportStore.h>
 #include <LibWebView/URL.h>
 #include <LibWebView/Utilities.h>
 
@@ -1258,7 +1258,7 @@ static NSImage* crash_overlay_icon()
         [stack setCustomSpacing:16 afterView:title];
         [stack setCustomSpacing:24 afterView:message];
         if (WebView::CrashReport::is_supported()) {
-            auto* reports_button = [NSButton buttonWithTitle:@"View crash reports"
+            auto* reports_button = [NSButton buttonWithTitle:@"Review crash report"
                                                       target:self
                                                       action:@selector(showCrashReports:)];
             [stack addArrangedSubview:reports_button];
@@ -1292,11 +1292,7 @@ static NSImage* crash_overlay_icon()
 
 - (void)showCrashReports:(id)sender
 {
-    if (WebView::CrashReportStore::the().show_directory().is_error()) {
-        auto* alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Could not open the crash reports folder."];
-        [alert beginSheetModalForWindow:[self window] completionHandler:nil];
-    }
+    [self loadURL:m_web_view_bridge->crash_report_review_url()];
 }
 
 #pragma mark - NSView

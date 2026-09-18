@@ -132,7 +132,7 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
             configuration.x = last_position->x();
             configuration.y = last_position->y();
         }
-        auto& window = app->new_window(browser_options.urls, configuration);
+        auto& window = app->new_window(app->initial_window_urls(), configuration);
         window.setWindowTitle("Ladybird");
     }
 

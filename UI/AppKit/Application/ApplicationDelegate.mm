@@ -858,7 +858,7 @@ static char s_tab_group_observation_context;
 
     Tab* tab = nil;
 
-    for (auto const& url : browser_options.urls) {
+    for (auto const& url : WebView::Application::the().initial_window_urls()) {
         auto activate_tab = tab == nil ? Web::HTML::ActivateTab::Yes : Web::HTML::ActivateTab::No;
 
         auto* controller = [self createNewTab:url

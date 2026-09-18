@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/ByteString.h>
 #include <AK/Function.h>
 #include <AK/HashMap.h>
 #include <AK/NonnullRawPtr.h>
@@ -139,7 +140,7 @@ public:
     bool has_views() const { return !m_views.is_empty(); }
     Optional<ViewImplementation&> view_for_page(Badge<WebUI>, Web::PageId page_id) { return view_for_page_id(page_id); }
 
-    void notify_all_views_of_crash();
+    void notify_all_views_of_crash(ByteString const& report_name);
     ErrorOr<void> reconnect_to_compositor_process(Badge<Application>);
     ErrorOr<void> recreate_compositor_contexts(Badge<Application>);
     void replay_compositor_view_state_after_reconnect(Badge<Application>);
