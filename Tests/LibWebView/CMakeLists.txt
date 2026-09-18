@@ -26,7 +26,7 @@ set(TEST_SOURCES
 )
 
 if (APPLE OR LINUX)
-    list(APPEND TEST_SOURCES TestCrashReport.cpp)
+    list(APPEND TEST_SOURCES TestCrashReport.cpp TestCrashReportStore.cpp)
 endif()
 
 foreach(source IN LISTS TEST_SOURCES)

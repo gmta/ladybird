@@ -10,6 +10,7 @@
 #include <AK/OwnPtr.h>
 #include <AK/Time.h>
 #include <LibCore/File.h>
+#include <LibWebView/CrashReportStore.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/ProcessType.h>
 
@@ -21,16 +22,20 @@ struct ReportFrame;
 
 namespace WebView {
 
+// The capture file for one process, and the report text formatted from it once that process is gone.
+// CrashReportStore owns everything that lives in the crash report directory.
+//
 // Only bounded native diagnostics and assertion text cross the helper boundary.
 // stderr, page data, and process memory are never saved.
 class WEBVIEW_API CrashReport {
 public:
     static ErrorOr<NonnullOwnPtr<CrashReport>> create(ProcessType);
-    static ByteString directory();
     static bool is_supported();
-    static ErrorOr<void> show_directory();
+
     int fd() const { return m_file->fd(); }
-    ErrorOr<void> save(int wait_status, ByteString const& directory = CrashReport::directory());
+    ByteString const& saved_name() const { return m_saved_name; }
+
+    ErrorOr<void> save(int wait_status, ByteString const& directory = CrashReportStore::default_directory());
 
     explicit CrashReport(NonnullOwnPtr<Core::File> file, ProcessType process_type)
         : m_file(move(file))
@@ -44,6 +49,7 @@ private:
     NonnullOwnPtr<Core::File> m_file;
     [[maybe_unused]] ProcessType m_process_type;
     MonotonicTime m_started_at { MonotonicTime::now() };
+    ByteString m_saved_name;
 };
 
 }
