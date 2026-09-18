@@ -9,6 +9,7 @@
 #include <AK/ByteString.h>
 #include <AK/Error.h>
 #include <AK/Time.h>
+#include <AK/Vector.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/ProcessType.h>
 
@@ -16,6 +17,12 @@ namespace WebView {
 
 class WEBVIEW_API CrashReportStore {
 public:
+    struct SavedReport {
+        ByteString name;
+        ByteString text;
+        ByteString prepared_manifest;
+    };
+
     static CrashReportStore& the();
     static ByteString default_directory();
 
@@ -25,6 +32,16 @@ public:
     }
 
     ByteString const& directory() const { return m_directory; }
+
+    ErrorOr<SavedReport> saved_report(ByteString const& name) const;
+
+    // The reports the user has not answered yet, newest first.
+    ErrorOr<Vector<ByteString>> pending_report_names() const;
+    bool has_pending_reports() const;
+
+    ErrorOr<void> mark_ignored(ByteString const& name) const;
+    ErrorOr<void> remove_sent_report(ByteString const& name) const;
+    ErrorOr<ByteString> prepare_submission(ByteString const& name, ByteString const& manifest) const;
 
     ErrorOr<void> store_report(ProcessType, StringView text, UnixDateTime crashed_at) const;
 
