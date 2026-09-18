@@ -7,6 +7,7 @@
 #include <LibIPC/Transport.h>
 #include <LibIPC/TransportHandle.h>
 #include <LibWebView/WebContentClient.h>
+#include <LibWebView/WebContentPage.h>
 #include <LibWebView/WebUI.h>
 #include <LibWebView/WebUI/BookmarksUI.h>
 #include <LibWebView/WebUI/DownloadsUI.h>
@@ -43,37 +44,35 @@ Optional<WebUI::Page const&> WebUI::page_for_host(StringView host)
 }
 
 template<typename WebUIType>
-static ErrorOr<NonnullRefPtr<WebUIType>> create_web_ui(WebContentClient& client, Compositing::PageId page_id, String host)
+static ErrorOr<NonnullRefPtr<WebUIType>> create_web_ui(WebContentPage& page, String host)
 {
-    VERIFY(page_id > 0);
-
     auto paired = TRY(IPC::Transport::create_paired());
     auto handle = move(paired.remote_handle);
 
-    auto web_ui = WebUIType::create(client, move(paired.local), move(host));
-    client.async_connect_to_web_ui(page_id, move(handle));
+    auto web_ui = WebUIType::create(page, move(paired.local), move(host));
+    page.client().async_connect_to_web_ui(page.id(), move(handle));
 
     return web_ui;
 }
 
-ErrorOr<RefPtr<WebUI>> WebUI::create(WebContentClient& client, Compositing::PageId page_id, String host)
+ErrorOr<RefPtr<WebUI>> WebUI::create(WebContentPage& web_content_page, String host)
 {
-    auto page = page_for_host(host);
-    if (!page.has_value() || page->type == PageType::Static)
+    auto page_info = page_for_host(host);
+    if (!page_info.has_value() || page_info->type == PageType::Static)
         return nullptr;
 
     RefPtr<WebUI> web_ui;
 
-    if (page->host == "bookmarks"sv)
-        web_ui = TRY(create_web_ui<BookmarksUI>(client, page_id, move(host)));
-    else if (page->host == "downloads"sv)
-        web_ui = TRY(create_web_ui<DownloadsUI>(client, page_id, move(host)));
-    else if (page->host == "history"sv)
-        web_ui = TRY(create_web_ui<HistoryUI>(client, page_id, move(host)));
-    else if (page->host == "settings"sv)
-        web_ui = TRY(create_web_ui<SettingsUI>(client, page_id, move(host)));
-    else if (page->host == "version"sv)
-        web_ui = TRY(create_web_ui<VersionUI>(client, page_id, move(host)));
+    if (page_info->host == "bookmarks"sv)
+        web_ui = TRY(create_web_ui<BookmarksUI>(web_content_page, move(host)));
+    else if (page_info->host == "downloads"sv)
+        web_ui = TRY(create_web_ui<DownloadsUI>(web_content_page, move(host)));
+    else if (page_info->host == "history"sv)
+        web_ui = TRY(create_web_ui<HistoryUI>(web_content_page, move(host)));
+    else if (page_info->host == "settings"sv)
+        web_ui = TRY(create_web_ui<SettingsUI>(web_content_page, move(host)));
+    else if (page_info->host == "version"sv)
+        web_ui = TRY(create_web_ui<VersionUI>(web_content_page, move(host)));
 
     VERIFY(web_ui);
     web_ui->register_interfaces();
@@ -81,11 +80,19 @@ ErrorOr<RefPtr<WebUI>> WebUI::create(WebContentClient& client, Compositing::Page
     return web_ui;
 }
 
-WebUI::WebUI(WebContentClient& client, NonnullOwnPtr<IPC::Transport> transport, String host)
+WebUI::WebUI(WebContentPage& page, NonnullOwnPtr<IPC::Transport> transport, String host)
     : IPC::ConnectionToServer<WebUIClientEndpoint, WebUIServerEndpoint>(*this, move(transport))
-    , m_client(client)
+    , m_client(page.client())
+    , m_page(page)
     , m_host(move(host))
 {
+}
+
+Optional<ViewImplementation&> WebUI::view() const
+{
+    if (!m_page->is_open() || !m_page->displays_tab())
+        return {};
+    return m_page->view();
 }
 
 WebUI::~WebUI() = default;

@@ -16,7 +16,6 @@
 #include <AK/String.h>
 #include <AK/StringView.h>
 #include <AK/Types.h>
-#include <LibCompositing/PageId.h>
 #include <LibIPC/ConnectionToServer.h>
 #include <LibIPC/Transport.h>
 #include <LibWebView/Forward.h>
@@ -42,15 +41,17 @@ public:
 
     static ReadonlySpan<Page> pages();
     static Optional<Page const&> page_for_host(StringView);
-    static ErrorOr<RefPtr<WebUI>> create(WebContentClient&, Compositing::PageId page_id, String host);
+    static ErrorOr<RefPtr<WebUI>> create(WebContentPage&, String host);
     virtual ~WebUI();
 
     String const& host() const { return m_host; }
 
 protected:
-    WebUI(WebContentClient&, NonnullOwnPtr<IPC::Transport>, String host);
+    WebUI(WebContentPage&, NonnullOwnPtr<IPC::Transport>, String host);
 
     WebContentClient& client() const { return m_client; }
+    // The tab this page is displayed in, if it is still around.
+    Optional<ViewImplementation&> view() const;
 
     using Interface = Function<void(JsonValue)>;
 
@@ -62,22 +63,23 @@ private:
     virtual void received_message(String name, JsonValue data) override;
 
     WebContentClient& m_client;
+    NonnullRefPtr<WebContentPage> m_page;
     String m_host;
 
     HashMap<StringView, Interface> m_interfaces;
 };
 
-#define WEB_UI(WebUIType)                                                                                                  \
-public:                                                                                                                    \
-    static NonnullRefPtr<WebUIType> create(WebContentClient& client, NonnullOwnPtr<IPC::Transport> transport, String host) \
-    {                                                                                                                      \
-        return adopt_ref(*new WebUIType(client, move(transport), move(host)));                                             \
-    }                                                                                                                      \
-                                                                                                                           \
-private:                                                                                                                   \
-    WebUIType(WebContentClient& client, NonnullOwnPtr<IPC::Transport> transport, String host)                              \
-        : WebView::WebUI(client, move(transport), move(host))                                                              \
-    {                                                                                                                      \
+#define WEB_UI(WebUIType)                                                                                              \
+public:                                                                                                                \
+    static NonnullRefPtr<WebUIType> create(WebContentPage& page, NonnullOwnPtr<IPC::Transport> transport, String host) \
+    {                                                                                                                  \
+        return adopt_ref(*new WebUIType(page, move(transport), move(host)));                                           \
+    }                                                                                                                  \
+                                                                                                                       \
+private:                                                                                                               \
+    WebUIType(WebContentPage& page, NonnullOwnPtr<IPC::Transport> transport, String host)                              \
+        : WebView::WebUI(page, move(transport), move(host))                                                            \
+    {                                                                                                                  \
     }
 
 }

@@ -1847,7 +1847,7 @@ void WebContentPage::did_finish_loading(Web::HTML::CrossProcessId navigable_id, 
         auto const& committed_url = view().url();
 
         if (committed_url.scheme() == "about"sv && committed_url.path_segment_count() == 1) {
-            if (auto web_ui = WebUI::create(client(), m_id, MUST(String::from_utf8(committed_url.path_segments().first()))); web_ui.is_error())
+            if (auto web_ui = WebUI::create(*this, MUST(String::from_utf8(committed_url.path_segments().first()))); web_ui.is_error())
                 warnln("Could not create WebUI for {}: {}", committed_url, web_ui.error());
             else
                 client().set_web_ui(web_ui.release_value());
