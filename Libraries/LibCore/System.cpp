@@ -572,6 +572,14 @@ ErrorOr<int> mkstemp(Span<char> pattern)
     return fd;
 }
 
+ErrorOr<int> mkstemps(Span<char> pattern, int suffix_length)
+{
+    int fd = ::mkstemps(pattern.data(), suffix_length);
+    if (fd < 0)
+        return Error::from_syscall("mkstemps"sv, errno);
+    return fd;
+}
+
 ErrorOr<void> rename(StringView old_path, StringView new_path)
 {
     ByteString old_path_string = old_path;

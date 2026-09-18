@@ -103,6 +103,7 @@ CORE_API ErrorOr<void> symlink(StringView target, StringView link_path);
 CORE_API ErrorOr<void> mkdir(StringView path, mode_t);
 CORE_API ErrorOr<void> rmdir(StringView path);
 CORE_API ErrorOr<int> mkstemp(Span<char> pattern);
+CORE_API ErrorOr<int> mkstemps(Span<char> pattern, int suffix_length);
 CORE_API ErrorOr<void> fchmod(int fd, mode_t mode);
 CORE_API ErrorOr<void> rename(StringView old_path, StringView new_path);
 CORE_API ErrorOr<void> unlink(StringView path);
