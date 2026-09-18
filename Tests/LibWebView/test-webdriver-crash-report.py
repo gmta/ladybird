@@ -112,17 +112,18 @@ def run_test(webdriver_binary, process_name):
                 reports[0].name,
             ), reports[0].name
             assert f"Process: {process_name}\n" in text, text
-            assert "Captured signal:" in text, text
-            captured_signal = re.search(r"^Captured signal: (.+)$", text, re.MULTILINE)
-            assert captured_signal is not None, text
-            assert f"Termination signal: {captured_signal.group(1)}\n" in text, text
+            captured_signal = re.search(r"^Captured signal name: (.+)$", text, re.MULTILINE)
+            captured_number = re.search(r"^Captured signal number: (\d+)$", text, re.MULTILINE)
+            assert captured_signal is not None and captured_number is not None, text
+            assert f"Termination signal name: {captured_signal.group(1)}\n" in text, text
+            assert f"Termination signal number: {captured_number.group(1)}\n" in text, text
             if process_name == "WebContent":
                 assert "Verification failed: false at Services/WebContent/WebDriverConnection.cpp:" in text, text
             else:
                 assert "Verification failed:" not in text and "Assertion failed:" not in text, text
             assert "Executable build ID:" in text, text
             assert re.search(r"^Git commit: ([0-9a-f]{40}|[0-9a-f]{64}|unknown)$", text, re.MULTILINE), text
-            assert "C++ compiler:" in text and "C++ flags (" in text and "Build options:" in text, text
+            assert "C++ compiler:" in text and "C++ flags:" in text and "Build options:" in text, text
             assert "#0 " in text and "#1 " in text, text
             assert " + 0x" in text or " at Services/" in text, text
             assert "PRIVATE_CRASH" not in text, text

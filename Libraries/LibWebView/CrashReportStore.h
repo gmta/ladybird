@@ -14,8 +14,8 @@
 
 namespace WebView {
 
-// The directory of saved crash reports. CrashReport captures a crashing process; this owns
-// everything that lives on disk.
+// The directory of saved crash reports and the browser's own pending capture file. CrashReport
+// captures a crashing process; this owns everything that lives on disk.
 //
 // Every entry point opens the directory through one helper that refuses a directory owned by another
 // user, and reads only regular, bounded files that the current user owns.
@@ -35,6 +35,13 @@ public:
     // Writes report text under a name derived from the time of the crash and returns that name,
     // then drops the oldest reports beyond the retention limit.
     ErrorOr<ByteString> store_report(ProcessType, StringView text, UnixDateTime crashed_at) const;
+
+    // Formats the signal-safe records left by browsers that are no longer running, and returns how
+    // many were recovered. A report keeps the time of the crash, not the time it was recovered.
+    ErrorOr<size_t> recover_pending_reports() const;
+
+    // Recovers earlier crashes, then installs this process's handler. Browser processes only.
+    ErrorOr<void> initialize_browser_crash_handler();
 
     ErrorOr<void> show_directory() const;
 

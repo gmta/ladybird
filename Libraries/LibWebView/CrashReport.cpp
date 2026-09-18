@@ -68,7 +68,7 @@ static StringView signal_name(int signal)
     }
 }
 
-ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
+ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path, Optional<UnixDateTime> crashed_at)
 {
     if ((WIFEXITED(wait_status) && WEXITSTATUS(wait_status) == 0) || (WIFSIGNALED(wait_status) && (WTERMSIG(wait_status) == SIGTERM || WTERMSIG(wait_status) == SIGKILL)))
         return {};
@@ -77,7 +77,8 @@ ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
     builder.appendff("Ladybird crash report, format 1\nProcess: {}\n", process_name_from_type(m_process_type));
     builder.appendff("Version: {}\nPlatform: {}\nArchitecture: {}\n", BROWSER_VERSION, OS_STRING, CPU_STRING);
     append_build_information_for_process(builder, m_process_type);
-    builder.appendff("Process uptime (seconds): {}\n", (MonotonicTime::now() - m_started_at).to_seconds());
+    if (m_process_type != ProcessType::Browser)
+        builder.appendff("Process uptime (seconds): {}\n", (MonotonicTime::now() - m_started_at).to_seconds());
 #    ifdef NDEBUG
     builder.append("Build configuration: release\n"sv);
 #    else
@@ -93,7 +94,8 @@ ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
         builder.appendff("Kernel release: {}\n", release.substring_view(0, length));
     }
     if (WIFSIGNALED(wait_status))
-        builder.appendff("Termination signal: {} ({})\n", signal_name(WTERMSIG(wait_status)), WTERMSIG(wait_status));
+        builder.appendff("Termination signal name: {}\nTermination signal number: {}\n",
+            signal_name(WTERMSIG(wait_status)), WTERMSIG(wait_status));
     else if (WIFEXITED(wait_status))
         builder.appendff("Exit code: {}\n", WEXITSTATUS(wait_status));
 
@@ -101,7 +103,8 @@ ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
     auto has_header = pread(fd(), &header, sizeof(header), 0) == sizeof(header) && header.magic == report_magic;
     if (has_header) {
         if (header.signal)
-            builder.appendff("Captured signal: {} ({})\nSignal code: {}\n", signal_name(header.signal), header.signal, header.code);
+            builder.appendff("Captured signal name: {}\nCaptured signal number: {}\nSignal code: {}\n",
+                signal_name(header.signal), header.signal, header.code);
         auto const& assertion = header.assertion;
         if ((assertion.kind == 1 || assertion.kind == 2 || assertion.kind == 3) && assertion.length <= assertion.message.size()) {
             builder.append(assertion.kind == 1 ? "Verification failed: "sv : assertion.kind == 2 ? "Assertion failed: "sv
@@ -149,7 +152,7 @@ ErrorOr<void> CrashReport::save(int wait_status, ByteString const& path)
     builder.append("\nStacks may be partial.\n"sv);
 
     m_saved_name = TRY(CrashReportStore { path }.store_report(m_process_type, builder.string_view(),
-        UnixDateTime::now()));
+        crashed_at.value_or(UnixDateTime::now())));
     return {};
 }
 
@@ -160,7 +163,7 @@ ErrorOr<NonnullOwnPtr<CrashReport>> CrashReport::create(ProcessType)
     return Error::from_string_literal("Crash reports are not supported on Windows yet");
 }
 
-ErrorOr<void> CrashReport::save(int, ByteString const&) { return {}; }
+ErrorOr<void> CrashReport::save(int, ByteString const&, Optional<UnixDateTime>) { return {}; }
 
 #endif
 

@@ -9,23 +9,32 @@
 #include <AK/NeverDestroyed.h>
 #include <AK/QuickSort.h>
 #include <AK/ScopeGuard.h>
+#include <LibCore/CrashHandler.h>
+#include <LibCore/CrashReportData.h>
 #include <LibCore/DirIterator.h>
 #include <LibCore/Directory.h>
 #include <LibCore/File.h>
 #include <LibCore/Process.h>
 #include <LibCore/StandardPaths.h>
 #include <LibCore/System.h>
+#include <LibWebView/CrashReport.h>
 #include <LibWebView/CrashReportStore.h>
 #include <LibWebView/ProcessManager.h>
 
 #if !defined(AK_OS_WINDOWS)
 #    include <fcntl.h>
+#    include <stdlib.h>
+#    include <sys/file.h>
 #    include <time.h>
 #    include <unistd.h>
 #endif
 
 namespace WebView {
 
+using namespace Core::CrashReportData;
+
+static constexpr auto pending_prefix = "Browser-"sv;
+static constexpr auto pending_suffix = ".pending"sv;
 static constexpr size_t retained_report_count = 20;
 
 ByteString CrashReportStore::default_directory()
@@ -56,8 +65,9 @@ bool CrashReportStore::is_saved_report_name(StringView name)
         if (has_timestamp)
             suffix = name.substring_view(timestamp_pattern.length());
     }
-    for (auto type : { ProcessType::WebContent, ProcessType::WebWorker, ProcessType::RequestServer,
-             ProcessType::ImageDecoder, ProcessType::Compositor, ProcessType::WasmCompiler }) {
+    for (auto type : { ProcessType::Browser, ProcessType::WebContent, ProcessType::WebWorker,
+             ProcessType::RequestServer, ProcessType::ImageDecoder, ProcessType::Compositor,
+             ProcessType::WasmCompiler }) {
         auto prefix = ByteString::formatted("{}-", process_name_from_type(type));
         if (suffix.starts_with(prefix) && suffix.length() == prefix.length() + 10)
             return true;
@@ -66,6 +76,9 @@ bool CrashReportStore::is_saved_report_name(StringView name)
 }
 
 #if !defined(AK_OS_WINDOWS)
+
+static NeverDestroyed<ByteString> s_browser_pending_path;
+static NeverDestroyed<OwnPtr<CrashReport>> s_browser_crash_report;
 
 // The one way in. A directory that another user owns is never touched.
 static ErrorOr<Core::Directory> open_report_directory(ByteString const& path)
@@ -165,6 +178,84 @@ ErrorOr<ByteString> CrashReportStore::store_report(ProcessType process_type, Str
     return LexicalPath::basename(report_path);
 }
 
+ErrorOr<size_t> CrashReportStore::recover_pending_reports() const
+{
+    auto directory = TRY(open_report_directory(m_directory));
+    size_t recovered_count = 0;
+
+    Core::DirIterator iterator(m_directory, Core::DirIterator::SkipDots);
+    while (iterator.has_next()) {
+        auto name = iterator.next_path();
+        if (!name.starts_with(pending_prefix) || !name.ends_with(pending_suffix))
+            continue;
+
+        auto fd = openat(directory.fd(), name.characters(), O_RDWR | O_CLOEXEC | O_NOFOLLOW);
+        if (fd < 0)
+            continue;
+        auto file = TRY(Core::File::adopt_fd(fd, Core::File::OpenMode::ReadWrite));
+
+        // A running browser holds this lock for its lifetime, so taking it means the owner is gone.
+        // Process IDs are recycled, which makes them an unreliable way to tell.
+        if (flock(fd, LOCK_EX | LOCK_NB) != 0)
+            continue;
+
+        struct stat status {};
+        if (fstat(fd, &status) != 0 || !is_owned_regular_file(status))
+            continue;
+
+        ReportHeader header {};
+        if (pread(fd, &header, sizeof(header), 0) != sizeof(header) || header.magic != report_magic
+            || !header.signal) {
+            (void)unlinkat(directory.fd(), name.characters(), 0);
+            continue;
+        }
+
+        // The file was last written as the browser died, so this is when the crash happened, which
+        // can be much earlier than the launch that recovers it.
+        auto crashed_at = UnixDateTime::from_unix_timespec(modified_time(status));
+
+        CrashReport recovered(move(file), ProcessType::Browser);
+        if (auto result = recovered.save(header.signal, m_directory, crashed_at); result.is_error()) {
+            warnln("Could not recover Browser crash report: {}", result.error());
+            continue;
+        }
+        (void)unlinkat(directory.fd(), name.characters(), 0);
+        ++recovered_count;
+    }
+    return recovered_count;
+}
+
+static void remove_clean_browser_report()
+{
+    if (!s_browser_pending_path->is_empty())
+        (void)unlink(s_browser_pending_path->characters());
+}
+
+ErrorOr<void> CrashReportStore::initialize_browser_crash_handler()
+{
+    TRY(open_report_directory(m_directory));
+
+    // A browser cannot format its own fatal signal, so earlier ones are recovered before this
+    // process installs a handler of its own. One unreadable file must not prevent that.
+    if (auto result = recover_pending_reports(); result.is_error())
+        warnln("Could not recover browser crash reports: {}", result.error());
+
+    auto pattern = ByteString::formatted("{}/{}XXXXXX{}", m_directory, pending_prefix, pending_suffix);
+    auto file = TRY(create_temporary_file(pattern, static_cast<int>(pending_suffix.length()),
+        *s_browser_pending_path));
+
+    // Held until this process exits. Recovery takes it to tell a crashed browser from a live one.
+    auto fd = file->fd();
+    if (flock(fd, LOCK_EX | LOCK_NB) != 0)
+        return Error::from_errno(errno);
+
+    *s_browser_crash_report = make<CrashReport>(move(file), ProcessType::Browser);
+    TRY(Core::CrashHandler::initialize(fd));
+    if (atexit(remove_clean_browser_report) != 0)
+        return Error::from_string_literal("Could not register browser crash report cleanup");
+    return {};
+}
+
 ErrorOr<void> CrashReportStore::show_directory() const
 {
     TRY(open_report_directory(m_directory));
@@ -184,6 +275,13 @@ ErrorOr<void> CrashReportStore::show_directory() const
 #else
 
 ErrorOr<ByteString> CrashReportStore::store_report(ProcessType, StringView, UnixDateTime) const
+{
+    return Error::from_string_literal("Crash reports are not supported on this platform yet");
+}
+
+ErrorOr<size_t> CrashReportStore::recover_pending_reports() const { return 0; }
+
+ErrorOr<void> CrashReportStore::initialize_browser_crash_handler()
 {
     return Error::from_string_literal("Crash reports are not supported on this platform yet");
 }

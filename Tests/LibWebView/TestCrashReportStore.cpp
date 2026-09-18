@@ -5,6 +5,7 @@
  */
 
 #include <AK/ScopeGuard.h>
+#include <LibCore/CrashReportData.h>
 #include <LibCore/DirIterator.h>
 #include <LibCore/Directory.h>
 #include <LibCore/File.h>
@@ -12,6 +13,7 @@
 #include <LibFileSystem/FileSystem.h>
 #include <LibTest/TestCase.h>
 #include <LibWebView/CrashReportStore.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -89,4 +91,66 @@ TEST_CASE(retention_drops_the_oldest_reports)
     EXPECT_EQ(entries.size(), 20u);
     EXPECT(!entries.contains_slow(names[0]));
     EXPECT(entries.contains_slow(names[1]));
+}
+
+static ByteString write_pending_report(int signal, time_t modified)
+{
+    Core::CrashReportData::ReportHeader header {};
+    header.magic = Core::CrashReportData::report_magic;
+    header.signal = signal;
+
+    auto path = ByteString::formatted("{}/Browser-abc123.pending", test_directory());
+    MUST(Core::Directory::create(test_directory(), Core::Directory::CreateDirectories::Yes));
+    auto file = MUST(Core::File::open(path, Core::File::OpenMode::Write));
+    MUST(file->write_until_depleted({ &header, sizeof(header) }));
+
+    timespec times[2] { { modified, 0 }, { modified, 0 } };
+    VERIFY(futimens(file->fd(), times) == 0);
+    return path;
+}
+
+TEST_CASE(a_recovered_browser_crash_keeps_the_time_it_crashed)
+{
+    cleanup();
+    ScopeGuard guard = cleanup;
+
+    write_pending_report(SIGSEGV, 1772000767);
+    EXPECT_EQ(MUST(test_store().recover_pending_reports()), 1u);
+
+    auto entries = directory_entries();
+    EXPECT_EQ(entries.size(), 1u);
+    // Not the time of this launch, which is what a report named after "now" would record.
+    EXPECT(entries[0].starts_with("2026-02-25T06-26-07Z-Browser-"sv));
+
+    auto path = ByteString::formatted("{}/{}", test_directory(), entries[0]);
+    auto text = ByteString::copy(MUST(MUST(Core::File::open(path, Core::File::OpenMode::Read))->read_until_eof()));
+    EXPECT(text.contains("Termination signal name: SIGSEGV"sv));
+}
+
+TEST_CASE(a_pending_report_held_by_a_running_browser_is_left_alone)
+{
+    cleanup();
+    ScopeGuard guard = cleanup;
+
+    auto path = write_pending_report(SIGSEGV, 1772000767);
+    auto held = MUST(Core::File::open(path, Core::File::OpenMode::Read));
+
+    // A live browser holds this lock for its lifetime. Process IDs get recycled, so they could not
+    // tell a running browser from an unrelated process that inherited its number.
+    VERIFY(flock(held->fd(), LOCK_EX | LOCK_NB) == 0);
+    EXPECT_EQ(MUST(test_store().recover_pending_reports()), 0u);
+
+    held->close();
+    EXPECT_EQ(MUST(test_store().recover_pending_reports()), 1u);
+}
+
+TEST_CASE(a_pending_report_without_a_captured_signal_is_discarded)
+{
+    cleanup();
+    ScopeGuard guard = cleanup;
+
+    // A clean exit leaves no signal behind, and must not be reported as a crash.
+    write_pending_report(0, 1772000767);
+    EXPECT_EQ(MUST(test_store().recover_pending_reports()), 0u);
+    EXPECT(directory_entries().is_empty());
 }

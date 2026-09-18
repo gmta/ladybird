@@ -7,6 +7,7 @@
 #pragma once
 
 #include <AK/ByteString.h>
+#include <AK/Optional.h>
 #include <AK/OwnPtr.h>
 #include <AK/Time.h>
 #include <LibCore/File.h>
@@ -35,7 +36,10 @@ public:
     int fd() const { return m_file->fd(); }
     ByteString const& saved_name() const { return m_saved_name; }
 
-    ErrorOr<void> save(int wait_status, ByteString const& directory = CrashReportStore::default_directory());
+    // Formats and stores the report. A recovered browser crash passes the time it actually crashed,
+    // which can be long before the launch that recovers it.
+    ErrorOr<void> save(int wait_status, ByteString const& directory = CrashReportStore::default_directory(),
+        Optional<UnixDateTime> crashed_at = {});
 
     explicit CrashReport(NonnullOwnPtr<Core::File> file, ProcessType process_type)
         : m_file(move(file))

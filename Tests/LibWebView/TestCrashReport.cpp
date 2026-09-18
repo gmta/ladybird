@@ -98,7 +98,8 @@ TEST_CASE(capture_native_crash_without_personal_data)
         auto file = MUST(Core::File::open(path, Core::File::OpenMode::Read));
         auto contents = MUST(file->read_until_eof());
         StringView text { contents };
-        EXPECT(text.contains("Captured signal:"sv));
+        EXPECT(text.contains("Captured signal name:"sv));
+        EXPECT(text.contains("Captured signal number:"sv));
         EXPECT(text.contains("Executable build ID:"sv));
         EXPECT(text.contains("#0 "sv));
         EXPECT(text.contains("#1 "sv));
@@ -156,7 +157,8 @@ TEST_CASE(missing_or_malformed_capture_produces_a_minimal_report)
     auto file = MUST(Core::File::open(paths[0], Core::File::OpenMode::Read));
     auto contents = MUST(file->read_until_eof());
     StringView text { contents };
-    EXPECT(text.contains("Termination signal: SIGSEGV"sv));
+    EXPECT(text.contains("Termination signal name: SIGSEGV"sv));
+    EXPECT(text.contains("Termination signal number: 11"sv));
     EXPECT(text.contains("Unavailable:"sv));
     EXPECT(!text.contains(private_text));
 }
@@ -266,7 +268,8 @@ TEST_CASE(main_thread_stack_overflow)
     EXPECT_EQ(paths.size(), 1u);
     auto file = MUST(Core::File::open(paths[0], Core::File::OpenMode::Read));
     auto contents = MUST(file->read_until_eof());
-    EXPECT(StringView { contents }.contains("Captured signal:"sv));
+    EXPECT(StringView { contents }.contains("Captured signal name:"sv));
+    EXPECT(StringView { contents }.contains("Captured signal number:"sv));
     EXPECT(StringView { contents }.contains("#0 "sv));
 }
 
@@ -334,7 +337,8 @@ TEST_CASE(assertion_text_and_source_location)
     ByteString terminal;
     auto text = assertion_report(AK::AssertionFailureKind::Verification, "value != 0 at " __FILE__ ":123", &terminal);
     EXPECT(text.contains("Verification failed: value != 0 at Tests/LibWebView/TestCrashReport.cpp:123\n"sv));
-    EXPECT(text.contains("Captured signal:"sv));
+    EXPECT(text.contains("Captured signal name:"sv));
+    EXPECT(text.contains("Captured signal number:"sv));
     EXPECT(text.contains("#0 "sv));
     EXPECT(!text.contains(Core::StandardPaths::home_directory()));
 #if defined(TEST_HAS_CPPTRACE)
