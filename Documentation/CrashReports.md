@@ -21,6 +21,15 @@ page without adding a crash-screen history entry; Back and Forward continue to
 use the original session history. The crash overlay is native browser UI, so
 displaying it does not require the replacement renderer to load a crash document.
 
+`about:crash-report` lets the user inspect a saved report and choose whether to
+send it. Submissions omit the website URL by default; the user can edit and
+explicitly include it, and can add a description. Ladybird does not collect
+contact information. Network errors, timeouts, rate limits and server errors are
+retried a few times, honoring the server's `Retry-After`; a report the server
+rejects is not. A failed submission keeps the report available for retry, while
+a successful submission removes the local copy. Declining also keeps the report
+on the device.
+
 Reports and filenames identify the process type. Build information includes the
 full Git commit, tracked-source modification state, C++ compiler identity and
 version, macOS SDK version when applicable, CMake build options, and flags from
@@ -40,12 +49,12 @@ object addresses with the load relocation removed. When a binary is also loaded
 in the surviving browser, its nearest available native symbol and the offset
 from that symbol are included. Binary IDs identify builds, not users or devices.
 
-Reports do not collect page URLs, titles, content, JavaScript stacks, cookies,
-network requests, console output, stderr, command lines, environment variables,
-usernames, hostnames, installation paths, absolute source paths, general
-register values, or memory dumps. Native symbol names containing paths or
-non-printable characters are omitted. This also applies to crashes in private
-windows.
+Saved crash diagnostics do not collect page URLs, titles, content, JavaScript
+stacks, cookies, network requests, console output, stderr, command lines,
+environment variables, usernames, hostnames, installation paths, absolute
+source paths, general register values, or memory dumps. Native symbol names
+containing paths or non-printable characters are omitted. This also applies to
+crashes in private windows.
 
 Fatal `VERIFY` and `ASSERT` failures include their compile-time expression and
 source location. Locations inside the checkout are repository-relative; external

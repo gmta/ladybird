@@ -21,7 +21,9 @@ set(SOURCES
     ConsoleOutput.cpp
     CookieJar.cpp
     CrashReport.cpp
+    CrashReportDiagnostics.cpp
     CrashReportStore.cpp
+    CrashReportSubmission.cpp
     Debugger.cpp
     DictionaryLookup.cpp
     DOMNodeProperties.cpp
@@ -72,6 +74,7 @@ set(SOURCES
     WebDriverBrowserConnection.cpp
     WebUI.cpp
     WebUI/BookmarksUI.cpp
+    WebUI/CrashReportUI.cpp
     WebUI/DownloadsUI.cpp
     WebUI/HistoryUI.cpp
     WebUI/SettingsUI.cpp

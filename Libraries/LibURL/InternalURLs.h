@@ -12,27 +12,28 @@
 
 namespace URL {
 
-#define ENUMERATE_INTERNAL_URLS \
-    __URL_ENUMERATE(bookmarks)  \
-    __URL_ENUMERATE(downloads)  \
-    __URL_ENUMERATE(history)    \
-    __URL_ENUMERATE(newtab)     \
-    __URL_ENUMERATE(settings)   \
-    __URL_ENUMERATE(version)
+#define ENUMERATE_INTERNAL_URLS                          \
+    __URL_ENUMERATE(bookmarks, "bookmarks"_string)       \
+    __URL_ENUMERATE(crash_report, "crash-report"_string) \
+    __URL_ENUMERATE(downloads, "downloads"_string)       \
+    __URL_ENUMERATE(history, "history"_string)           \
+    __URL_ENUMERATE(newtab, "newtab"_string)             \
+    __URL_ENUMERATE(settings, "settings"_string)         \
+    __URL_ENUMERATE(version, "version"_string)
 
-#define __URL_ENUMERATE(url)                                        \
-    inline URL const& about_##url()                                 \
-    {                                                               \
-        static NeverDestroyed<URL> url = URL::about(#url##_string); \
-        return *url;                                                \
+#define __URL_ENUMERATE(name, value)                        \
+    inline URL const& about_##name()                        \
+    {                                                       \
+        static NeverDestroyed<URL> url = URL::about(value); \
+        return *url;                                        \
     }
 ENUMERATE_INTERNAL_URLS
 #undef __URL_ENUMERATE
 
 inline bool is_webui_url(URL const& url)
 {
-#define __URL_ENUMERATE(internal_url)  \
-    if (url == about_##internal_url()) \
+#define __URL_ENUMERATE(name, value) \
+    if (url == about_##name())       \
         return true;
     ENUMERATE_INTERNAL_URLS
 #undef __URL_ENUMERATE

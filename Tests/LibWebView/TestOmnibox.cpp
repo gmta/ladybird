@@ -5,6 +5,7 @@
  */
 
 #include <LibTest/TestCase.h>
+#include <LibURL/InternalURLs.h>
 #include <LibWebView/Omnibox.h>
 #include <LibWebView/WebUI.h>
 
@@ -204,6 +205,7 @@ TEST_CASE(all_web_ui_pages_are_suggested)
         "about:about"sv,
         "about:blocking"sv,
         "about:bookmarks"sv,
+        "about:crash-report"sv,
         "about:downloads"sv,
         "about:history"sv,
         "about:newtab"sv,
@@ -220,6 +222,12 @@ TEST_CASE(all_web_ui_pages_are_suggested)
         EXPECT_EQ(suggestions[index].source, WebView::AutocompleteSuggestionSource::WebUI);
         EXPECT_EQ(suggestions[index].text, expected_urls[index]);
     }
+}
+
+TEST_CASE(crash_report_is_an_internal_web_ui_url)
+{
+    EXPECT_EQ(URL::about_crash_report().serialize(), "about:crash-report"sv);
+    EXPECT(URL::is_webui_url(URL::about_crash_report()));
 }
 
 TEST_CASE(paste_and_go_treats_external_urls_as_urls)

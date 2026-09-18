@@ -10,6 +10,7 @@
 #include <LibWebView/WebContentPage.h>
 #include <LibWebView/WebUI.h>
 #include <LibWebView/WebUI/BookmarksUI.h>
+#include <LibWebView/WebUI/CrashReportUI.h>
 #include <LibWebView/WebUI/DownloadsUI.h>
 #include <LibWebView/WebUI/HistoryUI.h>
 #include <LibWebView/WebUI/SettingsUI.h>
@@ -21,6 +22,7 @@ static constexpr auto s_pages = to_array<WebUI::Page>({
     { "about"sv, "About URLs"sv, WebUI::PageType::Static },
     { "blocking"sv, "Blocking"sv, WebUI::PageType::Static },
     { "bookmarks"sv, "Bookmarks"sv, WebUI::PageType::Dynamic },
+    { "crash-report"sv, "Crash report"sv, WebUI::PageType::Dynamic },
     { "downloads"sv, "Downloads"sv, WebUI::PageType::Dynamic },
     { "history"sv, "History"sv, WebUI::PageType::Dynamic },
     { "newtab"sv, "New Tab"sv, WebUI::PageType::Static },
@@ -65,6 +67,8 @@ ErrorOr<RefPtr<WebUI>> WebUI::create(WebContentPage& web_content_page, String ho
 
     if (page_info->host == "bookmarks"sv)
         web_ui = TRY(create_web_ui<BookmarksUI>(web_content_page, move(host)));
+    else if (page_info->host == "crash-report"sv)
+        web_ui = TRY(create_web_ui<CrashReportUI>(web_content_page, move(host)));
     else if (page_info->host == "downloads"sv)
         web_ui = TRY(create_web_ui<DownloadsUI>(web_content_page, move(host)));
     else if (page_info->host == "history"sv)

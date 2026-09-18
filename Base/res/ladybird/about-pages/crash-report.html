@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="color-scheme" content="light dark" />
+        <title>Crash report</title>
+        <link rel="icon" type="image/png" href="resource://icons/48x48/app-browser.png" />
+        <link rel="stylesheet" href="resource://ladybird/ladybird.css" />
+        <link rel="stylesheet" href="resource://ladybird/about-pages/webui.css" />
+        <style>
+            body {
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 32px 24px 80px;
+                line-height: 1.5;
+            }
+            .report-card,
+            .status-panel {
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                margin: 0 0 20px;
+                overflow: hidden;
+            }
+            .report-heading {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 18px 22px;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .report-heading img {
+                width: 48px;
+                height: 48px;
+                flex: none;
+            }
+            .report-heading h2 {
+                margin: 0;
+                font-size: 1.4rem;
+            }
+            .report-body {
+                padding: 20px 22px;
+            }
+            .report-intro {
+                margin-bottom: 22px;
+            }
+            .report-intro h3 {
+                margin: 0 0 6px;
+                font-size: 1.05rem;
+            }
+            .report-intro p {
+                margin: 0;
+                color: var(--secondary-text-color);
+                max-width: 68ch;
+            }
+            .summary-fields,
+            .technical-fields {
+                margin: 0;
+            }
+            .report-body p:first-child {
+                margin-top: 0;
+            }
+            .field-row {
+                display: grid;
+                grid-template-columns: 220px minmax(0, 1fr);
+                gap: 18px;
+                padding: 8px 0;
+                border-bottom: 1px solid var(--border-color);
+            }
+            .field-row:last-child {
+                border-bottom: 0;
+            }
+            .field-row dt {
+                opacity: 0.65;
+                white-space: nowrap;
+            }
+            .field-row dd {
+                margin: 0;
+                min-width: 0;
+                overflow-wrap: anywhere;
+            }
+            .website-field dd {
+                display: grid;
+                gap: 8px;
+                min-width: 0;
+            }
+            .website-value {
+                box-sizing: border-box;
+                width: 100%;
+                min-width: 0;
+                padding: 8px 10px;
+                border: 1px solid var(--border-color);
+                border-radius: 7px;
+                background: var(--menu-background-color);
+                color: var(--text-color);
+                font: inherit;
+                font-weight: 400;
+            }
+            .website-value::placeholder {
+                color: var(--secondary-text-color);
+                opacity: 0.65;
+            }
+            .review-options {
+                display: grid;
+                gap: 10px;
+                margin: 24px 0;
+            }
+            .review-options label {
+                display: grid;
+                gap: 6px;
+                font-weight: 600;
+            }
+            .review-options label:not(:first-child) {
+                margin-top: 8px;
+            }
+            .review-options textarea {
+                box-sizing: border-box;
+                width: 100%;
+                min-height: 104px;
+                padding: 12px 14px;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                background: var(--menu-background-color);
+                color: var(--text-color);
+                font: inherit;
+                font-weight: 400;
+                resize: vertical;
+            }
+            .review-options textarea::placeholder {
+                color: var(--secondary-text-color);
+                opacity: 0.65;
+            }
+            .website-field .checkbox-row {
+                display: flex;
+                align-items: center;
+                gap: 9px;
+                font-weight: normal;
+                font-size: 0.92rem;
+                cursor: pointer;
+            }
+            .website-field .checkbox-row input {
+                margin: 0;
+            }
+            .retry-note {
+                color: var(--secondary-text-color);
+                font-size: 0.9rem;
+                margin: -4px 0 0;
+            }
+            .technical-details {
+                border-top: 1px solid var(--border-color);
+                margin-top: 24px;
+                padding-top: 16px;
+            }
+            .technical-details summary,
+            .original-text summary {
+                cursor: pointer;
+            }
+            .technical-details h3 {
+                font-size: 0.95rem;
+                margin: 24px 0 10px;
+            }
+            .technical-fields {
+                margin-top: 20px;
+            }
+            .stack-frames {
+                list-style: none;
+                counter-reset: frame -1;
+                margin: 0;
+                padding: 0;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .stack-frames li {
+                counter-increment: frame;
+                display: grid;
+                gap: 3px;
+                padding: 9px 12px 9px 48px;
+                position: relative;
+                border-bottom: 1px solid var(--border-color);
+                overflow-wrap: anywhere;
+            }
+            .stack-frames li:last-child {
+                border-bottom: 0;
+            }
+            .stack-frames li::before {
+                content: "#" counter(frame);
+                position: absolute;
+                left: 12px;
+                top: 9px;
+                color: var(--secondary-text-color);
+                font-family: monospace;
+            }
+            .frame-symbol {
+                font-family: monospace;
+                font-size: 0.88rem;
+            }
+            .stack-frames small {
+                color: var(--secondary-text-color);
+                font-family: monospace;
+                overflow-wrap: anywhere;
+            }
+            .original-text {
+                margin-top: 20px;
+            }
+            .raw-report {
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+                max-height: 350px;
+                overflow: auto;
+                padding: 16px;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                font-size: 0.8rem;
+            }
+            .actions {
+                display: flex;
+                align-items: flex-start;
+                gap: 14px;
+                flex-wrap: wrap;
+                margin-top: 18px;
+            }
+            .status {
+                margin: 0;
+            }
+            .feedback {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                min-height: 36px;
+                font-size: 0.92rem;
+            }
+            .feedback.error {
+                color: #d65151;
+            }
+            .feedback.success {
+                color: #21825c;
+            }
+            .feedback-icon {
+                width: 22px;
+                height: 22px;
+                display: inline-grid;
+                place-items: center;
+                flex: none;
+            }
+            .feedback.error .feedback-icon,
+            .feedback.success .feedback-icon {
+                border: 1.5px solid currentColor;
+                border-radius: 50%;
+            }
+            .feedback.error .feedback-icon::before {
+                content: "×";
+                font-size: 18px;
+                line-height: 1;
+            }
+            .feedback.success .feedback-icon::before {
+                content: "✓";
+                font-size: 15px;
+                line-height: 1;
+            }
+            .status-body {
+                display: flex;
+                flex-direction: column;
+                padding: 28px 22px;
+            }
+            .status-panel .feedback {
+                display: flex;
+                max-width: 100%;
+                overflow-wrap: anywhere;
+            }
+            .status-body > button {
+                align-self: flex-start;
+                margin-top: 18px;
+            }
+            .status-body .actions {
+                margin-top: 18px;
+            }
+            .progress-track {
+                height: 10px;
+                border-radius: 999px;
+                background: var(--border-color);
+                overflow: hidden;
+                margin-bottom: 16px;
+            }
+            .progress-fill {
+                width: 0;
+                height: 100%;
+                border-radius: inherit;
+                background-color: var(--violet-100);
+                background-image: linear-gradient(
+                    45deg,
+                    rgba(255, 255, 255, 0.28) 25%,
+                    transparent 25%,
+                    transparent 50%,
+                    rgba(255, 255, 255, 0.28) 50%,
+                    rgba(255, 255, 255, 0.28) 75%,
+                    transparent 75%
+                );
+                background-size: 24px 24px;
+                animation: progress-stripes 0.7s linear infinite;
+                transition: width 250ms ease;
+            }
+            .status-panel.complete .progress-fill {
+                background-color: #21825c;
+                background-image: none;
+                animation: none;
+            }
+            .status-panel.failed .progress-fill {
+                background-color: #d65151;
+                background-image: none;
+                animation: none;
+            }
+            @keyframes progress-stripes {
+                to {
+                    background-position: 24px 0;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .progress-fill {
+                    animation: none;
+                    transition: none;
+                }
+            }
+            @media (max-width: 600px) {
+                .field-row {
+                    grid-template-columns: 1fr;
+                    gap: 0;
+                }
+                .report-heading,
+                .report-body,
+                .status-body {
+                    padding: 16px;
+                }
+            }
+        </style>
+        <script src="resource://ladybird/about-pages/crash-report.js" defer></script>
+    </head>
+    <body>
+        <main id="report">
+            <article class="status-panel">
+                <div class="report-heading">
+                    <img src="resource://icons/128x128/app-browser.png" alt="" />
+                    <h2>Crash report</h2>
+                </div>
+                <div class="status-body"><p role="status">Loading the crash report…</p></div>
+            </article>
+        </main>
+    </body>
+</html>
