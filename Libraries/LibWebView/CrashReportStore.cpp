@@ -5,6 +5,7 @@
  */
 
 #include <AK/CharacterTypes.h>
+#include <AK/JsonValue.h>
 #include <AK/LexicalPath.h>
 #include <AK/NeverDestroyed.h>
 #include <AK/QuickSort.h>
@@ -33,8 +34,11 @@ namespace WebView {
 
 using namespace Core::CrashReportData;
 
+static constexpr auto prepared_suffix = ".prepared"sv;
+static constexpr auto ignored_suffix = ".ignored"sv;
 static constexpr auto pending_prefix = "Browser-"sv;
 static constexpr auto pending_suffix = ".pending"sv;
+static constexpr off_t maximum_report_size = 1048576;
 static constexpr size_t retained_report_count = 20;
 
 ByteString CrashReportStore::default_directory()
@@ -113,6 +117,153 @@ static ErrorOr<NonnullOwnPtr<Core::File>> create_temporary_file(ByteString const
     return Core::File::adopt_fd(fd, Core::File::OpenMode::ReadWrite);
 }
 
+static ErrorOr<ByteString> read_owned_file(Core::Directory const& directory, ByteString const& name)
+{
+    auto fd = openat(directory.fd(), name.characters(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (fd < 0)
+        return Error::from_errno(errno);
+    auto file = TRY(Core::File::adopt_fd(fd, Core::File::OpenMode::Read));
+    struct stat status {};
+    if (fstat(fd, &status) != 0 || !is_owned_regular_file(status) || status.st_size > maximum_report_size)
+        return Error::from_string_literal("Invalid crash report file");
+    return ByteString::copy(TRY(file->read_until_eof()));
+}
+
+static bool marker_exists(Core::Directory const& directory, ByteString const& name, StringView suffix)
+{
+    auto marker = ByteString::formatted("{}{}", name, suffix);
+    struct stat status {};
+    return fstatat(directory.fd(), marker.characters(), &status, AT_SYMLINK_NOFOLLOW) == 0;
+}
+
+static ErrorOr<void> create_marker(Core::Directory const& directory, ByteString const& name, StringView suffix)
+{
+    auto marker = ByteString::formatted("{}{}", name, suffix);
+    auto fd = openat(directory.fd(), marker.characters(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+    if (fd < 0 && errno != EEXIST)
+        return Error::from_errno(errno);
+    if (fd >= 0)
+        close(fd);
+    return {};
+}
+
+static ErrorOr<void> remove_report_and_markers(Core::Directory const& directory, ByteString const& name)
+{
+    for (auto suffix : { ""sv, prepared_suffix, ignored_suffix }) {
+        auto path = ByteString::formatted("{}{}", name, suffix);
+        if (unlinkat(directory.fd(), path.characters(), 0) < 0 && errno != ENOENT)
+            return Error::from_errno(errno);
+    }
+    return {};
+}
+
+// An empty result means no manifest was prepared. An error means one exists but cannot be trusted.
+static ErrorOr<ByteString> read_prepared_manifest(Core::Directory const& directory, ByteString const& name)
+{
+    if (!marker_exists(directory, name, prepared_suffix))
+        return ByteString {};
+    auto text = TRY(read_owned_file(directory, ByteString::formatted("{}{}", name, prepared_suffix)));
+    auto parsed = JsonValue::from_string(text);
+    if (parsed.is_error() || !parsed.value().is_object())
+        return Error::from_string_literal("Invalid prepared crash report");
+    return text;
+}
+
+static ErrorOr<CrashReportStore::SavedReport> read_saved_report(Core::Directory const& directory, ByteString name)
+{
+    auto text = TRY(read_owned_file(directory, name));
+    auto prepared = read_prepared_manifest(directory, name);
+    return CrashReportStore::SavedReport {
+        move(name),
+        move(text),
+        prepared.is_error() ? ByteString {} : prepared.release_value(),
+    };
+}
+
+ErrorOr<CrashReportStore::SavedReport> CrashReportStore::saved_report(ByteString const& name) const
+{
+    if (!is_saved_report_name(name))
+        return Error::from_string_literal("Invalid crash report name");
+    auto directory = TRY(open_report_directory(m_directory));
+    return read_saved_report(directory, name);
+}
+
+ErrorOr<Vector<ByteString>> CrashReportStore::pending_report_names() const
+{
+    // Runs on every launch, so this only stats the markers instead of reading every report.
+    auto directory = TRY(open_report_directory(m_directory));
+
+    Vector<ByteString> names;
+    Core::DirIterator iterator(m_directory, Core::DirIterator::SkipDots);
+    while (iterator.has_next()) {
+        auto name = iterator.next_path();
+        if (!is_saved_report_name(name) || marker_exists(directory, name, ignored_suffix))
+            continue;
+        names.append(move(name));
+    }
+    // Names begin with the crash time, so this orders the most recent crash first.
+    quick_sort(names, [](auto const& a, auto const& b) { return a > b; });
+    return names;
+}
+
+bool CrashReportStore::has_pending_reports() const
+{
+    auto names = pending_report_names();
+    return !names.is_error() && !names.value().is_empty();
+}
+
+ErrorOr<void> CrashReportStore::mark_ignored(ByteString const& name) const
+{
+    if (!is_saved_report_name(name))
+        return Error::from_string_literal("Invalid crash report name");
+    auto directory = TRY(open_report_directory(m_directory));
+    return create_marker(directory, name, ignored_suffix);
+}
+
+ErrorOr<void> CrashReportStore::remove_sent_report(ByteString const& name) const
+{
+    if (!is_saved_report_name(name))
+        return Error::from_string_literal("Invalid crash report name");
+    auto directory = TRY(open_report_directory(m_directory));
+    return remove_report_and_markers(directory, name);
+}
+
+ErrorOr<ByteString> CrashReportStore::prepare_submission(ByteString const& name, ByteString const& manifest) const
+{
+    if (!is_saved_report_name(name) || manifest.is_empty() || manifest.length() > static_cast<size_t>(maximum_report_size))
+        return Error::from_string_literal("Invalid crash report submission");
+    auto parsed = JsonValue::from_string(manifest);
+    if (parsed.is_error() || !parsed.value().is_object())
+        return Error::from_string_literal("Invalid crash report manifest");
+
+    auto directory = TRY(open_report_directory(m_directory));
+    struct stat report_status {};
+    if (!is_owned_regular_file_at(directory, name, report_status))
+        return Error::from_string_literal("Crash report no longer exists");
+
+    auto existing = read_prepared_manifest(directory, name);
+    if (!existing.is_error() && !existing.value().is_empty())
+        return existing.release_value();
+
+    auto path = ByteString::formatted("{}{}", name, prepared_suffix);
+    if (existing.is_error()) {
+        // An interrupted write cannot have been submitted: the browser only requests a challenge
+        // after this file has been fully synchronized.
+        (void)unlinkat(directory.fd(), path.characters(), 0);
+    }
+
+    auto fd = openat(directory.fd(), path.characters(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+    if (fd < 0)
+        return Error::from_errno(errno);
+    auto file = TRY(Core::File::adopt_fd(fd, Core::File::OpenMode::Write));
+    ArmedScopeGuard remove_incomplete = [&] { (void)unlinkat(directory.fd(), path.characters(), 0); };
+    TRY(file->write_until_depleted(manifest.bytes()));
+    if (fsync(fd) < 0)
+        return Error::from_errno(errno);
+    remove_incomplete.disarm();
+    return manifest;
+}
+
 static timespec modified_time(struct stat const& status)
 {
 #    if defined(AK_OS_MACOS)
@@ -148,7 +299,7 @@ static void apply_retention(Core::Directory const& directory, ByteString const& 
         return a.modified.tv_nsec < b.modified.tv_nsec;
     });
     for (size_t i = 0; i + retained_report_count < reports.size(); ++i)
-        (void)unlinkat(directory.fd(), reports[i].name.characters(), 0);
+        (void)remove_report_and_markers(directory, reports[i].name);
 }
 
 ErrorOr<ByteString> CrashReportStore::store_report(ProcessType process_type, StringView text, UnixDateTime crashed_at) const
@@ -273,6 +424,21 @@ ErrorOr<void> CrashReportStore::show_directory() const
 }
 
 #else
+
+ErrorOr<CrashReportStore::SavedReport> CrashReportStore::saved_report(ByteString const&) const
+{
+    return Error::from_string_literal("Crash reports are not supported on this platform yet");
+}
+
+ErrorOr<Vector<ByteString>> CrashReportStore::pending_report_names() const { return Vector<ByteString> {}; }
+bool CrashReportStore::has_pending_reports() const { return false; }
+ErrorOr<void> CrashReportStore::mark_ignored(ByteString const&) const { return {}; }
+ErrorOr<void> CrashReportStore::remove_sent_report(ByteString const&) const { return {}; }
+
+ErrorOr<ByteString> CrashReportStore::prepare_submission(ByteString const&, ByteString const& manifest) const
+{
+    return manifest;
+}
 
 ErrorOr<ByteString> CrashReportStore::store_report(ProcessType, StringView, UnixDateTime) const
 {

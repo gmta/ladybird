@@ -9,18 +9,25 @@
 #include <AK/ByteString.h>
 #include <AK/Error.h>
 #include <AK/Time.h>
+#include <AK/Vector.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/ProcessType.h>
 
 namespace WebView {
 
-// The directory of saved crash reports and the browser's own pending capture file. CrashReport
-// captures a crashing process; this owns everything that lives on disk.
+// The directory of saved crash reports, their ignore and submission markers, and the browser's own
+// pending capture file. CrashReport captures a crashing process; this owns everything on disk.
 //
 // Every entry point opens the directory through one helper that refuses a directory owned by another
 // user, and reads only regular, bounded files that the current user owns.
 class WEBVIEW_API CrashReportStore {
 public:
+    struct SavedReport {
+        ByteString name;
+        ByteString text;
+        ByteString prepared_manifest;
+    };
+
     // The browser's own store, under the user data directory.
     static CrashReportStore& the();
     static ByteString default_directory();
@@ -31,6 +38,16 @@ public:
     }
 
     ByteString const& directory() const { return m_directory; }
+
+    ErrorOr<SavedReport> saved_report(ByteString const& name) const;
+
+    // The reports the user has not answered yet, newest first.
+    ErrorOr<Vector<ByteString>> pending_report_names() const;
+    bool has_pending_reports() const;
+
+    ErrorOr<void> mark_ignored(ByteString const& name) const;
+    ErrorOr<void> remove_sent_report(ByteString const& name) const;
+    ErrorOr<ByteString> prepare_submission(ByteString const& name, ByteString const& manifest) const;
 
     // Writes report text under a name derived from the time of the crash and returns that name,
     // then drops the oldest reports beyond the retention limit.
