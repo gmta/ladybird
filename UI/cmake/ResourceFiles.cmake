@@ -40,6 +40,8 @@ set(ABOUT_PAGES
     about.html
     blocking.html
     bookmarks.html
+    crash-report.html
+    crash-report.js
     downloads.html
     history.html
     newtab.html

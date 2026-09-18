@@ -5,6 +5,7 @@ set(TEST_SOURCES
     TestAutocompleteRanker.cpp
     TestCanonicalBrowsingContextGroup.cpp
     TestCookieJar.cpp
+    TestCrashReportDiagnostics.cpp
     TestDownloadSegmentation.cpp
     TestDownloadStore.cpp
     TestExternalURLHandler.cpp
@@ -126,6 +127,13 @@ if (BUILD_TESTING AND NOT WIN32)
             COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test-webdriver-crash-report.py $<TARGET_FILE:WebDriver>
         )
         set_tests_properties(TestWebDriverCrashReport PROPERTIES TIMEOUT 120)
+        add_test(
+            NAME TestWebDriverCrashSubmission
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test-webdriver-crash-submission.py
+                $<TARGET_FILE:WebDriver>
+        )
+        set_tests_properties(TestWebDriverCrashSubmission PROPERTIES TIMEOUT 120)
         set(crash_report_helpers WebWorker RequestServer ImageDecoder Compositor)
         if (ENABLE_CRANELIFT_JIT)
             list(APPEND crash_report_helpers WasmCompiler)
