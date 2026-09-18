@@ -48,9 +48,13 @@ public:
     String const& host() const { return m_host; }
 
 protected:
-    WebUI(WebContentClient&, NonnullOwnPtr<IPC::Transport>, String host);
+    WebUI(WebContentClient&, NonnullOwnPtr<IPC::Transport>, String host, Web::PageId);
 
     WebContentClient& client() const { return m_client; }
+    Web::PageId page_id() const { return m_page_id; }
+
+    // The tab this page is displayed in, if it is still around.
+    Optional<ViewImplementation&> view() const;
 
     using Interface = Function<void(JsonValue)>;
 
@@ -63,20 +67,21 @@ private:
 
     WebContentClient& m_client;
     String m_host;
+    Web::PageId m_page_id { 0 };
 
     HashMap<StringView, Interface> m_interfaces;
 };
 
 #define WEB_UI(WebUIType)                                                                                                  \
 public:                                                                                                                    \
-    static NonnullRefPtr<WebUIType> create(WebContentClient& client, NonnullOwnPtr<IPC::Transport> transport, String host) \
+    static NonnullRefPtr<WebUIType> create(WebContentClient& client, NonnullOwnPtr<IPC::Transport> transport, String host, Web::PageId page_id) \
     {                                                                                                                      \
-        return adopt_ref(*new WebUIType(client, move(transport), move(host)));                                             \
+        return adopt_ref(*new WebUIType(client, move(transport), move(host), page_id));                                    \
     }                                                                                                                      \
                                                                                                                            \
 private:                                                                                                                   \
-    WebUIType(WebContentClient& client, NonnullOwnPtr<IPC::Transport> transport, String host)                              \
-        : WebView::WebUI(client, move(transport), move(host))                                                              \
+    WebUIType(WebContentClient& client, NonnullOwnPtr<IPC::Transport> transport, String host, Web::PageId page_id)         \
+        : WebView::WebUI(client, move(transport), move(host), page_id)                                                     \
     {                                                                                                                      \
     }
 
