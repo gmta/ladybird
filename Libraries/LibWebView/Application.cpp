@@ -49,6 +49,7 @@
 #include <LibWebView/CompositorClient.h>
 #include <LibWebView/CompositorFontServiceConnection.h>
 #include <LibWebView/CookieJar.h>
+#include <LibWebView/CrashReportStore.h>
 #include <LibWebView/FaviconStore.h>
 #include <LibWebView/FontService.h>
 #include <LibWebView/HSTSStore.h>
@@ -597,7 +598,7 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
         site_isolation_mode = SiteIsolationMode::Disabled;
 
     m_browser_options = {
-        .urls = sanitize_urls(raw_urls),
+        .urls = sanitize_urls(raw_urls, FallbackToNewTabPage::Yes),
         .raw_urls = move(raw_urls),
         .headless_mode = headless_mode,
         .new_window = new_window ? NewWindow::Yes : NewWindow::No,
@@ -2112,6 +2113,21 @@ Optional<Process&> Application::find_process(pid_t pid)
     return m_process_manager->find_process(pid);
 }
 
+// A crash still waiting for an answer is reviewed first, followed by whatever the browser was asked
+// to open. The new tab page stands in only when that would leave the window with nothing to show.
+Vector<URL::URL> Application::initial_window_urls() const
+{
+    Vector<URL::URL> urls;
+    if (CrashReportStore::the().has_pending_reports())
+        urls.append(URL::about_crash_report());
+
+    urls.extend(sanitize_urls(m_browser_options.raw_urls, FallbackToNewTabPage::No));
+
+    if (urls.is_empty())
+        urls.append(settings().new_tab_page_url());
+    return urls;
+}
+
 void Application::process_did_exit(Process&& process, Optional<int> exit_status)
 {
 #if defined(AK_OS_WINDOWS)
@@ -2160,8 +2176,18 @@ void Application::process_did_exit(Process&& process, Optional<int> exit_status)
 #if !defined(AK_OS_WINDOWS)
             exited_on_request = exit_status.has_value() && WIFEXITED(*exit_status) && WEXITSTATUS(*exit_status) == 0 && !client->has_views();
 #endif
-            if (!exited_on_request)
-                client->notify_all_views_of_crash();
+            if (!exited_on_request) {
+                // The tab's native crash overlay is this report's one automatic prompt, so the next launch does
+                // not ask about it again. Other helpers have no overlay and stay unanswered until then.
+                if (client->has_views() && !browser_options().headless_mode.has_value()
+                    && !process.saved_crash_report_name().is_empty()) {
+                    if (auto result = CrashReportStore::the().mark_ignored(process.saved_crash_report_name());
+                        result.is_error()) {
+                        warnln("Could not mark crash report as ignored: {}", result.error());
+                    }
+                }
+                client->notify_all_views_of_crash(process.saved_crash_report_name());
+            }
             m_web_content_clients.remove(client.release_nonnull());
         }
         break;

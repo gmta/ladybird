@@ -9,12 +9,12 @@
 #include <AK/Optional.h>
 #include <AK/RefCounted.h>
 #include <Interface/LadybirdWebViewBridge.h>
+#include <LibURL/Parser.h>
 #include <LibURL/URL.h>
 #include <LibWakeLock/DisplaySleepInhibitor.h>
 #include <LibWeb/HTML/SelectedFile.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/CrashReport.h>
-#include <LibWebView/CrashReportStore.h>
 #include <LibWebView/URL.h>
 #include <LibWebView/Utilities.h>
 
@@ -1252,19 +1252,26 @@ static NSImage* crash_overlay_icon()
                                                  action:@selector(reloadFromCrashOverlay:)];
         [reload_button setKeyEquivalent:@"\r"];
 
-        auto* stack = [NSStackView stackViewWithViews:@[ icon_view, title, self.crash_overlay_url, message, reload_button ]];
+        auto* buttons = [NSStackView stackViewWithViews:@[ reload_button ]];
+        [buttons setOrientation:NSUserInterfaceLayoutOrientationHorizontal];
+        [buttons setAlignment:NSLayoutAttributeCenterY];
+        [buttons setSpacing:8];
+        if (WebView::CrashReport::is_supported()) {
+            auto button_text = Ladybird::string_to_ns_string(
+                WebView::ViewImplementation::crash_overlay_report_button_text());
+            auto* reports_button = [NSButton buttonWithTitle:button_text
+                                                      target:self
+                                                      action:@selector(showCrashReports:)];
+            [buttons addArrangedSubview:reports_button];
+        }
+
+        auto* stack = [NSStackView stackViewWithViews:@[ icon_view, title, self.crash_overlay_url, message, buttons ]];
         [stack setOrientation:NSUserInterfaceLayoutOrientationVertical];
         [stack setAlignment:NSLayoutAttributeCenterX];
         [stack setSpacing:12];
         [stack setCustomSpacing:32 afterView:icon_view];
         [stack setCustomSpacing:16 afterView:title];
         [stack setCustomSpacing:24 afterView:message];
-        if (WebView::CrashReport::is_supported()) {
-            auto* reports_button = [NSButton buttonWithTitle:@"View crash reports"
-                                                      target:self
-                                                      action:@selector(showCrashReports:)];
-            [stack addArrangedSubview:reports_button];
-        }
         [stack setTranslatesAutoresizingMaskIntoConstraints:NO];
 
         _crash_overlay = [[NSBox alloc] init];
@@ -1294,11 +1301,7 @@ static NSImage* crash_overlay_icon()
 
 - (void)showCrashReports:(id)sender
 {
-    if (WebView::CrashReportStore::the().show_directory().is_error()) {
-        auto* alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"Could not open the crash reports folder."];
-        [alert beginSheetModalForWindow:[self window] completionHandler:nil];
-    }
+    [self loadURL:m_web_view_bridge->crash_report_review_url()];
 }
 
 #pragma mark - NSView

@@ -24,9 +24,9 @@
 #include <LibGfx/Palette.h>
 #include <LibGfx/Rect.h>
 #include <LibGfx/SystemTheme.h>
+#include <LibURL/Parser.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/CrashReport.h>
-#include <LibWebView/CrashReportStore.h>
 #include <LibWebView/PlatformColors.h>
 #include <LibWebView/Utilities.h>
 #include <LibWebView/WebContentClient.h>
@@ -43,6 +43,7 @@
 #include <QCursor>
 #include <QEvent>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QInputDevice>
 #include <QKeySequence>
 #include <QLabel>
@@ -1077,15 +1078,20 @@ void WebContentView::set_crash_overlay_visible(bool visible)
         layout->addWidget(m_crash_overlay_url);
         layout->addWidget(message);
         layout->addSpacing(12);
-        layout->addWidget(m_crash_overlay_reload_button, 0, Qt::AlignHCenter);
+        auto* buttons = new QHBoxLayout;
+        buttons->setSpacing(8);
+        buttons->addStretch();
+        buttons->addWidget(m_crash_overlay_reload_button);
         if (WebView::CrashReport::is_supported()) {
-            auto* reports_button = new QPushButton(tr("View crash reports"), m_crash_overlay);
+            auto* reports_button = new QPushButton(
+                qstring_from_ak_string(crash_overlay_report_button_text()), m_crash_overlay);
             QObject::connect(reports_button, &QPushButton::clicked, this, [this] {
-                if (WebView::CrashReportStore::the().show_directory().is_error())
-                    QMessageBox::warning(this, tr("Crash reports"), tr("Could not open the crash reports folder."));
+                load(crash_report_review_url());
             });
-            layout->addWidget(reports_button, 0, Qt::AlignHCenter);
+            buttons->addWidget(reports_button);
         }
+        buttons->addStretch();
+        layout->addLayout(buttons);
         layout->addStretch();
     }
 

@@ -14,12 +14,16 @@ Hyphens in the time keep filenames compatible with Windows; the random suffix
 avoids collisions. Retention includes reports saved with the older filenames.
 Nothing is uploaded automatically.
 
-The crash screen provides **Reload Page** and **View crash reports** actions.
-**Settings > Advanced > Crash reports > Open folder** is available even when no
-tab has crashed or no reports have been saved yet. Reload restores the failed
-page without adding a crash-screen history entry; Back and Forward continue to
-use the original session history. The crash overlay is native browser UI, so
-displaying it does not require the replacement renderer to load a crash document.
+The crash screen provides **Reload Page** and **Send Crash Report...** actions.
+Sending opens `about:crash-report` for that report. A browser-process report is
+recovered and offered on the next launch. Ladybird automatically offers each
+report at most once; closing the review page without answering keeps the report
+on the device without reopening it on a later launch. **Settings > Advanced >
+Crash reports > Open folder** remains available even when nothing has crashed.
+Reload restores the failed page without adding a crash-screen history entry;
+Back and Forward continue to use the original session history. The crash overlay
+is native browser UI, so displaying it does not depend on the replacement
+renderer.
 
 `about:crash-report` lets the user inspect a saved report and choose whether to
 send it. Submissions omit the website URL by default; the user can edit and
@@ -67,7 +71,7 @@ formatting and backtrace generation, and remains available if those fail.
 After a WebContent crash, the browser displays a native AppKit or Qt overlay and
 retains the failed URL, title and committed history entry. The replacement
 WebContent process remains dormant until the user chooses a recovery action.
-The overlay provides reload and report-folder actions directly in the browser
+The overlay provides reload and report review actions directly in the browser
 process.
 
 The browser creates an unlinked temporary file before spawning each helper and

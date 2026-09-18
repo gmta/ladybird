@@ -298,9 +298,9 @@ static void apply_retention(Core::Directory const& directory)
         (void)remove_report_and_markers(directory, reports[i].name);
 }
 
-// Writes report text under a name derived from the time of the crash, then drops the oldest reports
-// beyond the retention limit.
-ErrorOr<void> CrashReportStore::store_report(ProcessType process_type, StringView text, UnixDateTime crashed_at) const
+// Writes report text under a name derived from the time of the crash and returns that name,
+// then drops the oldest reports beyond the retention limit.
+ErrorOr<ByteString> CrashReportStore::store_report(ProcessType process_type, StringView text, UnixDateTime crashed_at) const
 {
     auto directory = TRY(open_report_directory(m_directory));
 
@@ -325,7 +325,7 @@ ErrorOr<void> CrashReportStore::store_report(ProcessType process_type, StringVie
     remove_incomplete_report.disarm();
 
     apply_retention(directory);
-    return {};
+    return LexicalPath::basename(report_path);
 }
 
 // Format the signal-safe records left by browsers that are no longer running. A report keeps the
@@ -443,7 +443,7 @@ ErrorOr<ByteString> CrashReportStore::prepare_submission(ByteString const&, Byte
     return manifest;
 }
 
-ErrorOr<void> CrashReportStore::store_report(ProcessType, StringView, UnixDateTime) const
+ErrorOr<ByteString> CrashReportStore::store_report(ProcessType, StringView, UnixDateTime) const
 {
     return Error::from_string_literal("Crash reports are not supported on this platform yet");
 }

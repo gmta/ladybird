@@ -206,13 +206,13 @@ void UIProcessConnectionFromClient::die()
 void UIProcessConnectionFromClient::create_new_tab(Vector<ByteString> urls)
 {
     if (on_new_tab)
-        on_new_tab(sanitize_urls(urls));
+        on_new_tab(sanitize_urls(urls, FallbackToNewTabPage::Yes));
 }
 
 void UIProcessConnectionFromClient::create_new_window(Vector<ByteString> urls)
 {
     if (on_new_window)
-        on_new_window(sanitize_urls(urls));
+        on_new_window(sanitize_urls(urls, FallbackToNewTabPage::Yes));
 }
 
 }

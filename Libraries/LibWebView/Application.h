@@ -89,6 +89,8 @@ public:
 
     static Application& the() { return *s_the; }
 
+    Vector<URL::URL> initial_window_urls() const;
+
     static Settings& settings() { return *the().m_settings; }
     static Profile const& profile() { return *the().m_profile; }
     BrowserProcess& browser_process() { return *m_browser_process; }

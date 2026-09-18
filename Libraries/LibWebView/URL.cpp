@@ -279,7 +279,7 @@ bool autocomplete_url_can_complete(StringView query, StringView suggestion)
     return false;
 }
 
-Vector<URL::URL> sanitize_urls(ReadonlySpan<ByteString> raw_urls)
+Vector<URL::URL> sanitize_urls(ReadonlySpan<ByteString> raw_urls, FallbackToNewTabPage fallback)
 {
     Vector<URL::URL> sanitized_urls;
     sanitized_urls.ensure_capacity(raw_urls.size());
@@ -289,7 +289,7 @@ Vector<URL::URL> sanitize_urls(ReadonlySpan<ByteString> raw_urls)
             sanitized_urls.unchecked_append(url.release_value());
     }
 
-    if (sanitized_urls.is_empty())
+    if (sanitized_urls.is_empty() && fallback == FallbackToNewTabPage::Yes)
         sanitized_urls.append(Application::settings().new_tab_page_url());
 
     return sanitized_urls;

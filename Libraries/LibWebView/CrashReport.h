@@ -33,6 +33,7 @@ public:
     static bool is_supported();
 
     int fd() const { return m_file->fd(); }
+    ByteString const& saved_name() const { return m_saved_name; }
 
     ErrorOr<void> save(int wait_status, ByteString const& directory = CrashReportStore::default_directory(),
         Optional<UnixDateTime> crashed_at = {});
@@ -49,6 +50,7 @@ private:
     NonnullOwnPtr<Core::File> m_file;
     [[maybe_unused]] ProcessType m_process_type;
     MonotonicTime m_started_at { MonotonicTime::now() };
+    ByteString m_saved_name;
 };
 
 }
