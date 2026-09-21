@@ -76,7 +76,7 @@ CORE_API ErrorOr<sig_t> signal(int signal, sig_t handler);
 CORE_API ErrorOr<sighandler_t> signal(int signal, sighandler_t handler);
 #    endif
 CORE_API ErrorOr<struct stat> fstat(int fd);
-ErrorOr<struct stat> fstatat(int fd, StringView path, int flags);
+CORE_API ErrorOr<struct stat> fstatat(int fd, StringView path, int flags);
 ErrorOr<int> openat(int fd, StringView path, int options, mode_t mode = 0);
 CORE_API ErrorOr<int> fcntl(int fd, int command, ...);
 ErrorOr<void*> mmap(void* address, size_t, int protection, int flags, int fd, off_t, size_t alignment = 0, StringView name = {});
