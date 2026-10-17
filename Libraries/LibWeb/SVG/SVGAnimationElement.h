@@ -7,6 +7,8 @@
 #pragma once
 
 #include <LibJS/Forward.h>
+#include <LibWeb/Animations/KeyframeEffect.h>
+#include <LibWeb/CSS/PropertyID.h>
 #include <LibWeb/Export.h>
 #include <LibWeb/SVG/SVGElement.h>
 
@@ -27,6 +29,22 @@ public:
 
 protected:
     SVGAnimationElement(DOM::Document&, DOM::QualifiedName);
+
+    virtual void visit_edges(Cell::Visitor&) override;
+    virtual void inserted() override;
+    virtual void removed_from(IsSubtreeRoot, Node* old_ancestor, Node& old_root) override;
+    virtual void moved_from(IsSubtreeRoot, GC::Ptr<Node> old_ancestor) override;
+    virtual void attribute_changed(Utf16FlyString const& name, Optional<Utf16String> const& old_value, Optional<Utf16String> const& value, Optional<Utf16FlyString> const& namespace_) override;
+
+    virtual Vector<Animations::BaseKeyframe> keyframes(SVGElement const& target, CSS::PropertyID) const = 0;
+
+    void update_animation();
+
+private:
+    GC::Ptr<SVGElement> target_element();
+    Optional<CSS::PropertyID> target_property() const;
+
+    GC::Ptr<SMILAnimation> m_animation;
 };
 
 }
