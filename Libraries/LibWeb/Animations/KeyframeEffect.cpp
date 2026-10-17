@@ -1187,16 +1187,24 @@ void KeyframeEffect::request_observation_sample()
         m_target_element->document().set_needs_animated_style_update(*this);
 }
 
+bool KeyframeEffect::output_is_constant_while_playing() const
+{
+    auto animation = associated_animation();
+    if (!animation || animation->pending()
+        || animation->play_state() != Bindings::AnimationPlayState::Running
+        || animation->playback_rate() <= 0
+        || !animation->timeline() || !animation->timeline()->is_monotonically_increasing())
+        return false;
+
+    return phase() == Phase::Before;
+}
+
 bool KeyframeEffect::can_skip_per_frame_animation_tick() const
 {
-    auto phase = this->phase();
-
-    if (auto animation = associated_animation(); animation && !animation->pending()
-        && animation->play_state() == Bindings::AnimationPlayState::Running
-        && animation->playback_rate() > 0
-        && animation->timeline() && animation->timeline()->is_monotonically_increasing()
-        && phase == Phase::Before)
+    if (output_is_constant_while_playing())
         return true;
+
+    auto phase = this->phase();
 
     if (!m_is_compositor_driven && !m_is_compositor_replaced && !can_skip_per_frame_style_update())
         return false;

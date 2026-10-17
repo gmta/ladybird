@@ -1225,15 +1225,10 @@ void Animation::update()
         update_finished_state(DidSeek::No, SynchronouslyNotify::Yes, ShouldInvalidate::No);
         if (play_state() == AnimationPlayState::Running && m_effect && is<KeyframeEffect>(*m_effect)) {
             auto& effect = static_cast<KeyframeEffect&>(*m_effect);
-            bool output_is_constant_before_active_start = !pending()
-                && effect.phase() == AnimationEffect::Phase::Before
-                && m_timeline
-                && m_timeline->is_monotonically_increasing()
-                && playback_rate() > 0;
             if (effect.can_skip_per_frame_style_update()) {
                 if (auto target = effect.target())
                     target->document().note_throttled_animation_style_update();
-            } else if (!pending() && !output_is_constant_before_active_start) {
+            } else if (!pending() && !effect.output_is_constant_while_playing()) {
                 invalidate_effect(ChangesPlan::No);
             }
         } else if (m_is_finished != was_finished) {

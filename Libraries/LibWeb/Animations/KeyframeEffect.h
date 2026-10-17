@@ -151,6 +151,7 @@ public:
     bool can_skip_per_frame_style_update() const;
     void clear_per_frame_style_update_cache() { m_can_skip_per_frame_style_update_cache.clear(); }
     bool can_skip_per_frame_animation_tick() const;
+    bool output_is_constant_while_playing() const;
     // Whether a compositor animation may run every property the effect targets.
     bool may_run_on_the_compositor() const;
     bool is_compositor_driven() const { return m_is_compositor_driven; }
