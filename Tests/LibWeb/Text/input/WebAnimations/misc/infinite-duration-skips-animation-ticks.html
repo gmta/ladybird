@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<script src="../../include.js"></script>
+<div id="target"></div>
+<script>
+    asyncTest(async done => {
+        const nextFrame = () => new Promise(requestAnimationFrame);
+        const animation = target.animate([{ marginLeft: "10px" }, { marginLeft: "20px" }], { duration: Infinity });
+        await animation.ready;
+        await nextFrame();
+        internals.resetStyleInvalidationCounters();
+        for (let i = 0; i < 4; ++i)
+            await nextFrame();
+        const counters = internals.getStyleInvalidationCounters();
+        println(`margin-left: ${getComputedStyle(target).marginLeft}`);
+        println(`frame pump requests: ${counters.animationFramePumpRequests}`);
+        println(`animated style overlay builds: ${counters.animatedStyleOverlayBuilds}`);
+        done();
+    });
+</script>

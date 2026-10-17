@@ -1196,7 +1196,13 @@ bool KeyframeEffect::output_is_constant_while_playing() const
         || !animation->timeline() || !animation->timeline()->is_monotonically_increasing())
         return false;
 
-    return phase() == Phase::Before;
+    auto phase = this->phase();
+    if (phase == Phase::Before)
+        return true;
+
+    // An infinite iteration duration keeps the overall progress at the iteration start for the entire active interval,
+    // which then never ends.
+    return phase == Phase::Active && isinf(iteration_duration().value);
 }
 
 bool KeyframeEffect::can_skip_per_frame_animation_tick() const
