@@ -998,6 +998,7 @@ void Document::visit_edges(Cell::Visitor& visitor)
 
     visitor.visit(m_associated_animation_timelines);
     visitor.visit(m_smil_time_containers_to_begin);
+    visitor.visit(m_smil_time_containers_with_animations);
     visitor.visit(m_animate_motion_elements_to_update);
     visitor.visit(m_svg_animation_elements_with_id_references);
     visitor.visit(m_list_of_available_images);
@@ -5175,6 +5176,16 @@ void Document::schedule_svg_referenced_motion_path_update(SVG::SVGAnimateMotionE
         m_animate_motion_elements_to_update.append(element);
 }
 
+void Document::register_smil_time_container(Badge<SVG::SMILTimeContainer>, SVG::SMILTimeContainer& time_container)
+{
+    m_smil_time_containers_with_animations.set(time_container);
+}
+
+void Document::unregister_smil_time_container(Badge<SVG::SMILTimeContainer>, SVG::SMILTimeContainer& time_container)
+{
+    m_smil_time_containers_with_animations.remove(time_container);
+}
+
 void Document::register_svg_animation_element_with_id_references(Badge<SVG::SVGAnimationElement>, SVG::SVGAnimationElement& element)
 {
     m_svg_animation_elements_with_id_references.set(element);
@@ -9101,6 +9112,11 @@ void Document::update_animations_and_send_events(double timestamp)
         // 1. Update the current time of all timelines associated with doc passing now as the timestamp.
         for (auto const& timeline : timelines_to_update)
             timeline->update_current_time(timestamp);
+
+        // AD-HOC: The animations of SVG animation elements play the intervals that their elements resolve at the time
+        //         of their timeline, which follows the document timeline.
+        for (auto& time_container : GC::RootVector { m_smil_time_containers_with_animations.values() })
+            time_container->update_intervals();
 
         // NB: We dispatch events for all animations regardless of whether they have a timeline
         GC::RootVector<GC::Ref<Animations::Animation>> animations;

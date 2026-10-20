@@ -7,7 +7,9 @@
 #pragma once
 
 #include <AK/Optional.h>
+#include <AK/RefPtr.h>
 #include <AK/Vector.h>
+#include <LibCore/Forward.h>
 #include <LibGC/Cell.h>
 #include <LibGC/CellAllocator.h>
 #include <LibGC/Ptr.h>
@@ -37,6 +39,8 @@ public:
     void add_animation(SMILAnimation&);
     void remove_animation(SMILAnimation&);
 
+    void update_intervals();
+
 private:
     explicit SMILTimeContainer(DOM::Document&);
 
@@ -45,6 +49,9 @@ private:
     double document_timeline_time() const;
     void synchronize_animations();
     void synchronize_animation(SMILAnimation&);
+    double interval_time() const;
+    void reset_intervals();
+    void schedule_interval_update(double time);
 
     GC::Ref<DOM::Document> m_document;
     Vector<GC::Ref<SMILAnimation>> m_animations;
@@ -54,6 +61,8 @@ private:
     Optional<double> m_time_to_seek_to_once_begun;
     double m_paused_time { 0 };
     double m_zero_time { 0 };
+
+    RefPtr<Core::Timer> m_interval_update_timer;
 };
 
 }

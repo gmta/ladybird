@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<script src="../include.js"></script>
+<svg id="svg">
+    <rect id="offset" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="1s" dur="1s"/>
+    </rect>
+    <rect id="negativeOffset" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="-1s" dur="2s"/>
+    </rect>
+    <rect id="beginList" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="2s; 0s" dur="1s"/>
+    </rect>
+    <rect id="frozenUntilNextBegin" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="0s; 2s" dur="1s" fill="freeze"/>
+    </rect>
+    <rect id="endConstrainsDur" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" dur="10s" end="1s"/>
+    </rect>
+    <rect id="endWithoutDur" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" end="1s"/>
+    </rect>
+    <rect id="endList" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="0s; 2s" end="1s; 3s"/>
+    </rect>
+    <rect id="endBeforeBegin" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="2s" end="1s"/>
+    </rect>
+    <rect id="indefiniteEnd" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="2s" end="1s; indefinite"/>
+    </rect>
+    <rect id="indefiniteBegin" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="indefinite"/>
+    </rect>
+    <rect id="invalidBegin" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="1 s"/>
+    </rect>
+    <rect id="restartAlways" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="0s; 1s; 4s" dur="2s"/>
+    </rect>
+    <rect id="restartWhenNotActive" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="0s; 1s; 4s" dur="2s" restart="whenNotActive"/>
+    </rect>
+    <rect id="restartNever" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="0s; 1s; 4s" dur="2s" restart="never"/>
+    </rect>
+</svg>
+<script>
+    asyncTest(async done => {
+        await new Promise(resolve => window.addEventListener("load", resolve));
+        await new Promise(requestAnimationFrame);
+        svg.pauseAnimations();
+        const ids = [...svg.querySelectorAll("rect")].map(rect => rect.id);
+        const startTime = id => {
+            try {
+                return document.getElementById(id).firstElementChild.getStartTime();
+            } catch (error) {
+                return error.name;
+            }
+        };
+        for (const time of [0.5, 1.5, 2.5, 3.5, 4.5, 6.5, 0.5]) {
+            svg.setCurrentTime(time);
+            println(`At ${time}s:`);
+            for (const id of ids)
+                println(`    ${id}: ${getComputedStyle(document.getElementById(id)).fill}, start time ${startTime(id)}`);
+        }
+        done();
+    });
+</script>

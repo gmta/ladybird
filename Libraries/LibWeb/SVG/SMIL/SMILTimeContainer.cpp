@@ -4,11 +4,17 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/Math.h>
+#include <LibCore/Timer.h>
+#include <LibGC/RootVector.h>
+#include <LibGC/Weak.h>
 #include <LibWeb/Animations/DocumentTimeline.h>
 #include <LibWeb/DOM/Document.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
+#include <LibWeb/Page/Page.h>
 #include <LibWeb/SVG/SMIL/SMILAnimation.h>
 #include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
+#include <LibWeb/SVG/SMIL/SVGAnimationElement.h>
 
 namespace Web::SVG {
 
@@ -62,6 +68,7 @@ void SMILTimeContainer::begin()
     else
         m_zero_time = document_timeline_time() - time;
     synchronize_animations();
+    update_intervals();
 }
 
 // https://svgwg.org/specs/animations/#__svg__SVGSVGElement__pauseAnimations
@@ -75,6 +82,7 @@ void SMILTimeContainer::pause()
         m_paused_time = current_time_in_milliseconds();
     m_is_paused = true;
     synchronize_animations();
+    update_intervals();
 }
 
 // https://svgwg.org/specs/animations/#__svg__SVGSVGElement__unpauseAnimations
@@ -88,6 +96,7 @@ void SMILTimeContainer::unpause()
     if (m_has_begun)
         m_zero_time = document_timeline_time() - m_paused_time;
     synchronize_animations();
+    update_intervals();
 }
 
 // https://svgwg.org/specs/animations/#__svg__SVGSVGElement__getCurrentTime
@@ -110,11 +119,14 @@ void SMILTimeContainer::seek_to_time_in_milliseconds(double time)
 
     // NB: Like other engines, clamp a negative time to the start of the timeline, as SVG Tiny 1.2 does.
     time = max(time, 0.);
+    if (time < interval_time())
+        reset_intervals();
     if (m_is_paused)
         m_paused_time = time;
     else
         m_zero_time = document_timeline_time() - time;
     synchronize_animations();
+    update_intervals();
 }
 
 // https://svgwg.org/specs/animations/#__svg__SVGSVGElement__setCurrentTime
@@ -123,18 +135,82 @@ void SMILTimeContainer::record_time_to_seek_to_once_begun_in_milliseconds(double
     // Otherwise, the timeline has not begun. seconds is recorded on the current SVG document fragment as the time to be
     // seeked to once the timeline has begun.
     VERIFY(!m_has_begun);
-    m_time_to_seek_to_once_begun = max(time, 0.);
+    time = max(time, 0.);
+    if (time < interval_time())
+        reset_intervals();
+    m_time_to_seek_to_once_begun = time;
+    update_intervals();
 }
 
 void SMILTimeContainer::add_animation(SMILAnimation& animation)
 {
+    if (m_animations.is_empty())
+        m_document->register_smil_time_container({}, *this);
     m_animations.append(animation);
     synchronize_animation(animation);
+
+    auto time = interval_time();
+    animation.animation_element().update_interval({}, time);
+    schedule_interval_update(time);
 }
 
 void SMILTimeContainer::remove_animation(SMILAnimation& animation)
 {
     m_animations.remove_first_matching([&](auto const& entry) { return entry.ptr() == &animation; });
+    if (m_animations.is_empty())
+        m_document->unregister_smil_time_container({}, *this);
+}
+
+// The time on the timeline at which the intervals of the animation elements are resolved. Until the timeline begins,
+// that is the time it begins at.
+double SMILTimeContainer::interval_time() const
+{
+    if (!m_has_begun)
+        return m_time_to_seek_to_once_begun.value_or(0.);
+    return current_time_in_milliseconds();
+}
+
+// Brings the intervals that the animations play up to the current time of the timeline.
+void SMILTimeContainer::update_intervals()
+{
+    auto time = interval_time();
+    for (auto& animation : GC::RootVector { m_animations })
+        animation->animation_element().update_interval({}, time);
+    schedule_interval_update(time);
+}
+
+// The intervals are resolved again from the start of the timeline when its time moves back.
+void SMILTimeContainer::reset_intervals()
+{
+    for (auto& animation : m_animations)
+        animation->animation_element().reset_intervals({});
+}
+
+// A running timeline brings the intervals up to date on every rendering update, but there may be none when the
+// animations it runs are inactive or frozen until another interval begins. Request one at the next time the interval of
+// an animation may change.
+void SMILTimeContainer::schedule_interval_update(double time)
+{
+    Optional<double> next_time;
+    if (m_has_begun && !m_is_paused) {
+        for (auto& animation : m_animations) {
+            if (auto next_interval_time = animation->animation_element().next_interval_time(time); next_interval_time.has_value())
+                next_time = min(next_time.value_or(*next_interval_time), *next_interval_time);
+        }
+    }
+    if (!next_time.has_value()) {
+        if (m_interval_update_timer)
+            m_interval_update_timer->stop();
+        return;
+    }
+
+    auto delay = AK::Duration::from_milliseconds(static_cast<i64>(ceil(clamp(*next_time - time, 1., static_cast<double>(NumericLimits<int>::max())))));
+    if (!m_interval_update_timer) {
+        m_interval_update_timer = Core::Timer::create_single_shot(delay, GC::weak_callback(*this, [](auto& time_container) {
+            time_container.m_document->page().client().request_frame();
+        }));
+    }
+    m_interval_update_timer->restart(delay);
 }
 
 void SMILTimeContainer::synchronize_animations()

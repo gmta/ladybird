@@ -1212,6 +1212,8 @@ public:
     WebIDL::ExceptionOr<Vector<GC::Ref<Animations::Animation>>> get_animations();
     HashTable<GC::Ref<Animations::AnimationTimeline>> const& associated_animation_timelines() const { return m_associated_animation_timelines; }
     void begin_smil_time_container_once_loaded(SVG::SMILTimeContainer&);
+    void register_smil_time_container(Badge<SVG::SMILTimeContainer>, SVG::SMILTimeContainer&);
+    void unregister_smil_time_container(Badge<SVG::SMILTimeContainer>, SVG::SMILTimeContainer&);
     void schedule_svg_referenced_motion_path_update(SVG::SVGAnimateMotionElement&);
     void register_svg_animation_element_with_id_references(Badge<SVG::SVGAnimationElement>, SVG::SVGAnimationElement&);
     void unregister_svg_animation_element_with_id_references(Badge<SVG::SVGAnimationElement>, SVG::SVGAnimationElement&);
@@ -2178,6 +2180,7 @@ private:
     // https://www.w3.org/TR/web-animations-1/#timeline-associated-with-a-document
     HashTable<GC::Ref<Animations::AnimationTimeline>> m_associated_animation_timelines;
     Vector<GC::Ref<SVG::SMILTimeContainer>> m_smil_time_containers_to_begin;
+    HashTable<GC::Ref<SVG::SMILTimeContainer>> m_smil_time_containers_with_animations;
     Vector<GC::Ref<SVG::SVGAnimateMotionElement>> m_animate_motion_elements_to_update;
     HashTable<GC::Ref<SVG::SVGAnimationElement>> m_svg_animation_elements_with_id_references;
 

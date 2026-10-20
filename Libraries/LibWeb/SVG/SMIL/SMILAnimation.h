@@ -19,6 +19,7 @@ public:
     static GC::Ref<SMILAnimation> create(SVGAnimationElement&, SMILTimeContainer&);
 
     SVGAnimationElement& animation_element() const { return m_animation_element; }
+    SMILTimeContainer& time_container() const { return m_time_container; }
 
     virtual void cancel(ShouldInvalidate = ShouldInvalidate::Yes) override;
 

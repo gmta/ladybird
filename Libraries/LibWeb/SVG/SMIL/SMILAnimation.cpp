@@ -41,8 +41,15 @@ int SMILAnimation::class_specific_composite_order(GC::Ref<Animations::Animation>
     // ...
     // If two animations share no time dependency relationship (e.g., neither is defined relative to the other, even
     // indirectly) the element that appears first in the document has lower priority.
-    // NB: Every animation begins at the same moment for now, so only their document order sets them apart.
-    auto const& other_element = as<SMILAnimation>(*other).animation_element();
+    // NB: The effect of an animation plays the interval of its element that is active, so its start delay is when that
+    //     interval begins.
+    auto const& other_animation = as<SMILAnimation>(*other);
+    auto begin = effect()->start_delay();
+    auto other_begin = other_animation.effect()->start_delay();
+    if (begin != other_begin)
+        return begin < other_begin ? -1 : 1;
+
+    auto const& other_element = other_animation.animation_element();
     if (m_animation_element.ptr() == &other_element)
         return 0;
     return m_animation_element->is_before(other_element) ? -1 : 1;

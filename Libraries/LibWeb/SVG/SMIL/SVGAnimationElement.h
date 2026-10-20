@@ -36,6 +36,10 @@ public:
 
     void element_with_id_changed(Badge<DOM::Document>, Utf16FlyString const& id);
 
+    void update_interval(Badge<SMILTimeContainer>, double time);
+    void reset_intervals(Badge<SMILTimeContainer>);
+    Optional<double> next_interval_time(double time) const;
+
 protected:
     SVGAnimationElement(DOM::Document&, DOM::QualifiedName);
 
@@ -53,14 +57,50 @@ protected:
     void update_animation();
 
 private:
+    struct Interval {
+        double begin { 0 };
+        double end { 0 };
+
+        bool contains(double time) const { return begin <= time && time < end; }
+        bool operator==(Interval const&) const = default;
+    };
+
+    enum class Restart : u8 {
+        Always,
+        WhenNotActive,
+        Never,
+    };
+
     GC::Ptr<SMILTimeContainer> time_container();
     Optional<Utf16String> href() const;
     Optional<Utf16String> referenced_element_id() const;
     double simple_duration() const;
     double repeat_count() const;
     Bindings::FillMode fill_mode() const;
+    Restart restart() const;
+
+    void parse_begin_and_end_attributes();
+    void instance_times_changed();
+    Optional<double> resolve_active_end(double begin) const;
+    Optional<Interval> resolve_interval(double begin_after, double end_after);
+    void discard_or_revalidate_current_interval(double time);
+    bool handle_interval_restart(double time);
+    double last_interval_end_time() const;
+    Optional<Interval> active_interval(double time) const;
+    void update_effect_timing(double time);
+    void reset_intervals();
 
     GC::Ptr<SMILAnimation> m_animation;
+
+    Vector<double> m_begin_instance_times;
+    Vector<double> m_end_instance_times;
+    bool m_end_allows_open_ended_intervals { true };
+
+    Optional<Interval> m_interval;
+    Optional<Interval> m_previous_interval;
+    Optional<Interval> m_effect_interval;
+    bool m_is_waiting_for_first_interval { true };
+    bool m_interval_needs_revalidation { false };
 };
 
 }

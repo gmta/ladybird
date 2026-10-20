@@ -17,6 +17,7 @@ namespace Web::SVG::AttributeNames {
     __ENUMERATE_SVG_ATTRIBUTE(attributeType, "attributeType")                           \
     __ENUMERATE_SVG_ATTRIBUTE(baseFrequency, "baseFrequency")                           \
     __ENUMERATE_SVG_ATTRIBUTE(baseProfile, "baseProfile")                               \
+    __ENUMERATE_SVG_ATTRIBUTE(begin, "begin")                                           \
     __ENUMERATE_SVG_ATTRIBUTE(calcMode, "calcMode")                                     \
     __ENUMERATE_SVG_ATTRIBUTE(class_, "class")                                          \
     __ENUMERATE_SVG_ATTRIBUTE(clipPathUnits, "clipPathUnits")                           \
@@ -31,6 +32,7 @@ namespace Web::SVG::AttributeNames {
     __ENUMERATE_SVG_ATTRIBUTE(dx, "dx")                                                 \
     __ENUMERATE_SVG_ATTRIBUTE(dy, "dy")                                                 \
     __ENUMERATE_SVG_ATTRIBUTE(edgeMode, "edgeMode")                                     \
+    __ENUMERATE_SVG_ATTRIBUTE(end, "end")                                               \
     __ENUMERATE_SVG_ATTRIBUTE(fill, "fill")                                             \
     __ENUMERATE_SVG_ATTRIBUTE(exponent, "exponent")                                     \
     __ENUMERATE_SVG_ATTRIBUTE(filterUnits, "filterUnits")                               \
@@ -87,6 +89,7 @@ namespace Web::SVG::AttributeNames {
     __ENUMERATE_SVG_ATTRIBUTE(repeatDur, "repeatDur")                                   \
     __ENUMERATE_SVG_ATTRIBUTE(requiredExtensions, "requiredExtensions")                 \
     __ENUMERATE_SVG_ATTRIBUTE(requiredFeatures, "requiredFeatures")                     \
+    __ENUMERATE_SVG_ATTRIBUTE(restart, "restart")                                       \
     __ENUMERATE_SVG_ATTRIBUTE(result, "result")                                         \
     __ENUMERATE_SVG_ATTRIBUTE(rotate, "rotate")                                         \
     __ENUMERATE_SVG_ATTRIBUTE(rx, "rx")                                                 \
