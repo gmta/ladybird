@@ -238,6 +238,7 @@
 #include <LibWeb/ResizeObserver/ResizeObserverEntry.h>
 #include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
 #include <LibWeb/SVG/SMIL/SVGAnimateMotionElement.h>
+#include <LibWeb/SVG/SMIL/SVGAnimationElement.h>
 #include <LibWeb/SVG/SVGDecodedImageData.h>
 #include <LibWeb/SVG/SVGElement.h>
 #include <LibWeb/SVG/SVGPatternElement.h>
@@ -998,6 +999,7 @@ void Document::visit_edges(Cell::Visitor& visitor)
     visitor.visit(m_associated_animation_timelines);
     visitor.visit(m_smil_time_containers_to_begin);
     visitor.visit(m_animate_motion_elements_to_update);
+    visitor.visit(m_svg_animation_elements_with_id_references);
     visitor.visit(m_list_of_available_images);
     for (auto& it : m_map_of_preloaded_resources)
         visitor.visit(it.value);
@@ -5173,6 +5175,25 @@ void Document::schedule_svg_referenced_motion_path_update(SVG::SVGAnimateMotionE
         m_animate_motion_elements_to_update.append(element);
 }
 
+void Document::register_svg_animation_element_with_id_references(Badge<SVG::SVGAnimationElement>, SVG::SVGAnimationElement& element)
+{
+    m_svg_animation_elements_with_id_references.set(element);
+}
+
+void Document::unregister_svg_animation_element_with_id_references(Badge<SVG::SVGAnimationElement>, SVG::SVGAnimationElement& element)
+{
+    m_svg_animation_elements_with_id_references.remove(element);
+}
+
+void Document::notify_svg_animation_elements_of_element_with_id_change(Utf16FlyString const& id)
+{
+    if (m_svg_animation_elements_with_id_references.is_empty())
+        return;
+    auto elements = GC::RootVector { m_svg_animation_elements_with_id_references.values() };
+    for (auto& element : elements)
+        element->element_with_id_changed({}, id);
+}
+
 // https://html.spec.whatwg.org/multipage/browsing-the-web.html#completely-finish-loading
 void Document::completely_finish_loading()
 {
@@ -9336,10 +9357,14 @@ void Document::element_id_changed(Badge<DOM::Element>, GC::Ref<DOM::Element> ele
         element->document_or_shadow_root_element_by_id_map().add(new_id.value(), element);
     }
     note_svg_paint_resources_changed();
-    if (old_id.has_value())
+    if (old_id.has_value()) {
         republish_svg_patterns_inheriting_from(*old_id);
-    if (new_id.has_value())
+        notify_svg_animation_elements_of_element_with_id_change(*old_id);
+    }
+    if (new_id.has_value()) {
         republish_svg_patterns_inheriting_from(*new_id);
+        notify_svg_animation_elements_of_element_with_id_change(*new_id);
+    }
 }
 
 void Document::element_with_id_was_added(Badge<DOM::Element>, GC::Ref<DOM::Element> element)
@@ -9357,6 +9382,7 @@ void Document::element_with_id_was_added(Badge<DOM::Element>, GC::Ref<DOM::Eleme
         element->document_or_shadow_root_element_by_id_map().add(id.value(), element);
         note_svg_paint_resources_changed();
         republish_svg_patterns_inheriting_from(*id);
+        notify_svg_animation_elements_of_element_with_id_change(*id);
     }
 }
 
@@ -9371,6 +9397,7 @@ void Document::element_with_id_was_removed(Badge<DOM::Element>, GC::Ref<DOM::Ele
         element->document_or_shadow_root_element_by_id_map().remove(id.value(), element);
         note_svg_paint_resources_changed();
         republish_svg_patterns_inheriting_from(*id);
+        notify_svg_animation_elements_of_element_with_id_change(*id);
     }
 }
 

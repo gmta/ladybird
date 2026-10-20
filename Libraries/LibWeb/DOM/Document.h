@@ -1213,6 +1213,8 @@ public:
     HashTable<GC::Ref<Animations::AnimationTimeline>> const& associated_animation_timelines() const { return m_associated_animation_timelines; }
     void begin_smil_time_container_once_loaded(SVG::SMILTimeContainer&);
     void schedule_svg_referenced_motion_path_update(SVG::SVGAnimateMotionElement&);
+    void register_svg_animation_element_with_id_references(Badge<SVG::SVGAnimationElement>, SVG::SVGAnimationElement&);
+    void unregister_svg_animation_element_with_id_references(Badge<SVG::SVGAnimationElement>, SVG::SVGAnimationElement&);
 
     bool ready_to_run_scripts() const { return m_ready_to_run_scripts; }
     void set_ready_to_run_scripts();
@@ -1717,6 +1719,7 @@ private:
     friend struct AdoptedStyleSheetsAccess;
 
     void republish_svg_patterns_inheriting_from(Utf16FlyString const& id, HashTable<SVG::SVGPatternElement const*>& republished);
+    void notify_svg_animation_elements_of_element_with_id_change(Utf16FlyString const& id);
 
     void finish_animated_style_update();
     void service_compositor_animation_wakeup(double timestamp);
@@ -2176,6 +2179,7 @@ private:
     HashTable<GC::Ref<Animations::AnimationTimeline>> m_associated_animation_timelines;
     Vector<GC::Ref<SVG::SMILTimeContainer>> m_smil_time_containers_to_begin;
     Vector<GC::Ref<SVG::SVGAnimateMotionElement>> m_animate_motion_elements_to_update;
+    HashTable<GC::Ref<SVG::SVGAnimationElement>> m_svg_animation_elements_with_id_references;
 
     // NB: Weak so the document does not unnecessarily keep animations alive. Note that this also includes animations
     //     associated with elements in shadow trees so differs from getAnimations()

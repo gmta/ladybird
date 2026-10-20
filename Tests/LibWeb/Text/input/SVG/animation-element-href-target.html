@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<script src="../include.js"></script>
+<svg>
+    <set id="early" href="#late" attributeName="fill" to="green"/>
+    <rect id="late" width="10" height="10" fill="red"/>
+    <rect id="first" width="10" height="10" fill="red"/>
+    <rect id="second" width="10" height="10" fill="red"/>
+    <set id="both" href="#first" xlink:href="#second" attributeName="fill" to="green"/>
+    <g id="group" fill="red">
+        <set id="missing" href="#nonexistent" attributeName="fill" to="green"/>
+    </g>
+    <set id="otherDocument" href="other.svg#first" attributeName="fill" to="blue"/>
+    <set id="html" href="#div" attributeName="color" to="green"/>
+</svg>
+<div id="div"></div>
+<script>
+    asyncTest(async done => {
+        const nextFrame = () => new Promise(requestAnimationFrame);
+        await new Promise(resolve => window.addEventListener("load", resolve));
+        await nextFrame();
+        const lateRect = late;
+
+        const describe = (name, element) => {
+            const target = element.targetElement;
+            const fills = ["late", "first", "second", "group"].map(id => `${id}=${getComputedStyle(document.getElementById(id)).fill}`);
+            println(`${name}: target=${target ? target.id || target.localName : target} ${fills.join(" ")}`);
+        };
+
+        describe("target after the animation element", early);
+        describe("href over xlink:href", both);
+        describe("href to a missing element", missing);
+        describe("href to another document", otherDocument);
+        println(`href to an HTML element: target=${html.targetElement} color=${getComputedStyle(div).color}`);
+
+        both.removeAttribute("href");
+        await nextFrame();
+        describe("xlink:href after removing href", both);
+
+        both.removeAttributeNS("http://www.w3.org/1999/xlink", "href");
+        await nextFrame();
+        describe("no href", both);
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.id = "nonexistent";
+        group.append(rect);
+        await nextFrame();
+        println(`inserted target: target=${missing.targetElement.id} fill=${getComputedStyle(rect).fill}`);
+
+        rect.id = "renamed";
+        await nextFrame();
+        println(`renamed target: target=${missing.targetElement} fill=${getComputedStyle(rect).fill}`);
+
+        lateRect.id = "nonexistent";
+        await nextFrame();
+        println(`retargeted by id: target=${missing.targetElement.id} late fill=${getComputedStyle(lateRect).fill} early target=${early.targetElement}`);
+
+        lateRect.remove();
+        await nextFrame();
+        println(`removed target: target=${missing.targetElement}`);
+        done();
+    });
+</script>

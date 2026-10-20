@@ -1,0 +1,11 @@
+target after the animation element: target=late late=rgb(0, 128, 0) first=rgb(0, 128, 0) second=rgb(255, 0, 0) group=rgb(255, 0, 0)
+href over xlink:href: target=first late=rgb(0, 128, 0) first=rgb(0, 128, 0) second=rgb(255, 0, 0) group=rgb(255, 0, 0)
+href to a missing element: target=null late=rgb(0, 128, 0) first=rgb(0, 128, 0) second=rgb(255, 0, 0) group=rgb(255, 0, 0)
+href to another document: target=null late=rgb(0, 128, 0) first=rgb(0, 128, 0) second=rgb(255, 0, 0) group=rgb(255, 0, 0)
+href to an HTML element: target=null color=rgb(0, 0, 0)
+xlink:href after removing href: target=second late=rgb(0, 128, 0) first=rgb(255, 0, 0) second=rgb(0, 128, 0) group=rgb(255, 0, 0)
+no href: target=svg late=rgb(0, 128, 0) first=rgb(255, 0, 0) second=rgb(255, 0, 0) group=rgb(255, 0, 0)
+inserted target: target=nonexistent fill=rgb(0, 128, 0)
+renamed target: target=null fill=rgb(255, 0, 0)
+retargeted by id: target=nonexistent late fill=rgb(0, 128, 0) early target=null
+removed target: target=null

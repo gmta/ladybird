@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/Badge.h>
 #include <LibJS/Forward.h>
 #include <LibWeb/Animations/KeyframeEffect.h>
 #include <LibWeb/CSS/PropertyID.h>
@@ -33,6 +34,8 @@ public:
     float get_current_time();
     WebIDL::ExceptionOr<float> get_simple_duration();
 
+    void element_with_id_changed(Badge<DOM::Document>, Utf16FlyString const& id);
+
 protected:
     SVGAnimationElement(DOM::Document&, DOM::QualifiedName);
 
@@ -51,6 +54,8 @@ protected:
 
 private:
     GC::Ptr<SMILTimeContainer> time_container();
+    Optional<Utf16String> href() const;
+    Optional<Utf16String> referenced_element_id() const;
     double simple_duration() const;
     double repeat_count() const;
     Bindings::FillMode fill_mode() const;

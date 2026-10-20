@@ -7,15 +7,19 @@
 #include <LibWeb/SVG/SMIL/SVGAnimationElement.h>
 
 #include <AK/Math.h>
+#include <LibURL/URL.h>
 #include <LibWeb/Animations/DocumentTimeline.h>
 #include <LibWeb/CSS/PropertyNameAndID.h>
 #include <LibWeb/CSS/StyleValues/StyleValue.h>
 #include <LibWeb/DOM/Document.h>
+#include <LibWeb/DOM/ParentNode.h>
 #include <LibWeb/HTML/EventNames.h>
 #include <LibWeb/HTML/Scripting/Environments.h>
 #include <LibWeb/Layout/Node.h>
+#include <LibWeb/Namespace.h>
 #include <LibWeb/SVG/AttributeNames.h>
 #include <LibWeb/SVG/AttributeParsing.h>
+#include <LibWeb/SVG/FragmentIdentifier.h>
 #include <LibWeb/SVG/SMIL/SMILAnimation.h>
 #include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
 #include <LibWeb/SVG/SVGSVGElement.h>
@@ -57,6 +61,15 @@ void SVGAnimationElement::attribute_changed(Utf16FlyString const& name, Optional
     Base::attribute_changed(name, old_value, value, namespace_);
     if (first_is_one_of(name, AttributeNames::attributeName, AttributeNames::dur, AttributeNames::fill, AttributeNames::repeatCount) && !namespace_.has_value())
         update_animation();
+    else if (name == AttributeNames::href && (!namespace_.has_value() || namespace_ == Namespace::XLink))
+        update_animation();
+}
+
+void SVGAnimationElement::element_with_id_changed(Badge<DOM::Document>, Utf16FlyString const& id)
+{
+    // Which element has the ID that the href refers to may have changed, and with it the target element.
+    if (auto referenced_element_id = this->referenced_element_id(); referenced_element_id.has_value() && *referenced_element_id == id)
+        update_animation();
 }
 
 GC::Ptr<SMILTimeContainer> SVGAnimationElement::time_container()
@@ -65,11 +78,50 @@ GC::Ptr<SMILTimeContainer> SVGAnimationElement::time_container()
     return outermost_svg_element ? outermost_svg_element->time_container() : nullptr;
 }
 
+// https://svgwg.org/svg2-draft/linking.html#XLinkRefAttrs
+Optional<Utf16String> SVGAnimationElement::href() const
+{
+    // For backwards compatibility, elements with an ‘href’ attribute also recognize an ‘href’ attribute in the XLink
+    // namespace [xlink]. When the ‘href’ attribute is present in both the XLink namespace and without a namespace, the
+    // value of the attribute without a namespace shall be used. The attribute in the XLink namespace shall be ignored.
+    if (auto href = get_attribute_ns(OptionalNone {}, AttributeNames::href); href.has_value())
+        return href;
+    return get_attribute_ns(Namespace::XLink, AttributeNames::href);
+}
+
+Optional<Utf16String> SVGAnimationElement::referenced_element_id() const
+{
+    auto href = this->href();
+    if (!href.has_value())
+        return {};
+
+    // Only an element in this document can be the target element, so a URL that refers to another document refers to
+    // no element.
+    auto url = document().encoding_parse_url(*href);
+    if (!url.has_value() || !url->fragment().has_value() || !url->equals(document().base_url(), URL::ExcludeFragment::Yes))
+        return {};
+    return decode_fragment_identifier(*url->fragment());
+}
+
 // https://svgwg.org/specs/animations/#HrefAttribute
 GC::Ptr<SVGElement> SVGAnimationElement::target_element()
 {
-    // FIXME: A URL reference to the element which is the target of this animation element and which therefore will be
-    //        modified over time.
+    // A URL reference to the element which is the target of this animation element and which therefore will be
+    // modified over time. The URL must point to exactly one target element which is capable of being the target of the
+    // given animation element. If the URL points to multiple target elements, if the given target element is not
+    // capable of being a target of the given animation element, or if the given target element is not part of the
+    // current document, then the animation element will not affect any target element.
+    // NB: Only an SVG element in the same tree as this element can be a target.
+    if (href().has_value()) {
+        auto referenced_element_id = this->referenced_element_id();
+        if (!referenced_element_id.has_value())
+            return {};
+        auto* root = as_if<DOM::ParentNode>(this->root());
+        if (!root)
+            return {};
+        return as_if<SVGElement>(root->get_element_by_id(*referenced_element_id).ptr());
+    }
+
     // If the ‘href’ attribute or the deprecated ‘xlink:href’ attribute is not provided, then the target element will
     // be the immediate parent element of the current animation element.
     return as_if<SVGElement>(parent_element().ptr());
@@ -167,6 +219,13 @@ void SVGAnimationElement::set_keyframe_property(Animations::BaseKeyframe& keyfra
 
 void SVGAnimationElement::update_animation()
 {
+    // The target element of an animation element with an href changes along with the element that has the ID it refers
+    // to, so the document lets us know when elements with that ID come and go.
+    if (is_connected() && href().has_value())
+        document().register_svg_animation_element_with_id_references({}, *this);
+    else
+        document().unregister_svg_animation_element_with_id_references({}, *this);
+
     if (m_animation) {
         m_animation->cancel();
         m_animation = nullptr;
