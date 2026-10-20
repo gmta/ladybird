@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <LibWeb/SVG/SVGAnimationElement.h>
+#include <LibWeb/SVG/SMIL/SVGAnimationElement.h>
 
 namespace Web::SVG {
 

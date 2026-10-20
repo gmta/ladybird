@@ -7,8 +7,8 @@
 #include <LibWeb/Animations/DocumentTimeline.h>
 #include <LibWeb/DOM/Document.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
-#include <LibWeb/SVG/SMILAnimation.h>
-#include <LibWeb/SVG/SMILTimeContainer.h>
+#include <LibWeb/SVG/SMIL/SMILAnimation.h>
+#include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
 
 namespace Web::SVG {
 

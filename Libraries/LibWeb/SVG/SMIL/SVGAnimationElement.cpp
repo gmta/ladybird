@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-#include <LibWeb/SVG/SVGAnimationElement.h>
+#include <LibWeb/SVG/SMIL/SVGAnimationElement.h>
 
 #include <AK/Math.h>
 #include <LibWeb/Animations/DocumentTimeline.h>
@@ -16,8 +16,8 @@
 #include <LibWeb/Layout/Node.h>
 #include <LibWeb/SVG/AttributeNames.h>
 #include <LibWeb/SVG/AttributeParsing.h>
-#include <LibWeb/SVG/SMILAnimation.h>
-#include <LibWeb/SVG/SMILTimeContainer.h>
+#include <LibWeb/SVG/SMIL/SMILAnimation.h>
+#include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
 #include <LibWeb/SVG/SVGSVGElement.h>
 #include <LibWeb/WebIDL/DOMException.h>
 

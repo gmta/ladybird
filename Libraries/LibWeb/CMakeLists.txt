@@ -881,8 +881,12 @@ set(SOURCES
     SVG/AttributeNames.cpp
     SVG/AttributeParsing.cpp
     SVG/Path.cpp
-    SVG/SMILAnimation.cpp
-    SVG/SMILTimeContainer.cpp
+    SVG/SMIL/SMILAnimation.cpp
+    SVG/SMIL/SMILTimeContainer.cpp
+    SVG/SMIL/SVGAnimateMotionElement.cpp
+    SVG/SMIL/SVGAnimationElement.cpp
+    SVG/SMIL/SVGMPathElement.cpp
+    SVG/SMIL/SVGSetElement.cpp
     SVG/SVGAElement.cpp
     SVG/SVGAnimatedEnumeration.cpp
     SVG/SVGAnimatedInteger.cpp
@@ -893,8 +897,6 @@ set(SOURCES
     SVG/SVGAnimatedRect.cpp
     SVG/SVGAnimatedString.cpp
     SVG/SVGAnimatedTransformList.cpp
-    SVG/SVGAnimateMotionElement.cpp
-    SVG/SVGAnimationElement.cpp
     SVG/SVGCircleElement.cpp
     SVG/SVGClipPathElement.cpp
     SVG/SVGComponentTransferFunctionElement.cpp
@@ -938,7 +940,6 @@ set(SOURCES
     SVG/SVGList.cpp
     SVG/SVGMaskElement.cpp
     SVG/SVGMetadataElement.cpp
-    SVG/SVGMPathElement.cpp
     SVG/SVGNumber.cpp
     SVG/SVGNumberList.cpp
     SVG/SVGPathElement.cpp
@@ -948,7 +949,6 @@ set(SOURCES
     SVG/SVGRadialGradientElement.cpp
     SVG/SVGRectElement.cpp
     SVG/SVGScriptElement.cpp
-    SVG/SVGSetElement.cpp
     SVG/SVGStopElement.cpp
     SVG/SVGStyleElement.cpp
     SVG/SVGSVGElement.cpp

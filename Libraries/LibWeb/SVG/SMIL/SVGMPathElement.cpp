@@ -10,8 +10,8 @@
 #include <LibWeb/Namespace.h>
 #include <LibWeb/SVG/AttributeNames.h>
 #include <LibWeb/SVG/FragmentIdentifier.h>
-#include <LibWeb/SVG/SVGAnimateMotionElement.h>
-#include <LibWeb/SVG/SVGMPathElement.h>
+#include <LibWeb/SVG/SMIL/SVGAnimateMotionElement.h>
+#include <LibWeb/SVG/SMIL/SVGMPathElement.h>
 
 namespace Web::SVG {
 

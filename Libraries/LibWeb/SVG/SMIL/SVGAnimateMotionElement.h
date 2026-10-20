@@ -7,7 +7,7 @@
 #pragma once
 
 #include <LibGfx/Path.h>
-#include <LibWeb/SVG/SVGAnimationElement.h>
+#include <LibWeb/SVG/SMIL/SVGAnimationElement.h>
 
 namespace Web::SVG {
 

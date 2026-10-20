@@ -94,8 +94,10 @@
 #include <LibWeb/MathML/MathMLMspaceElement.h>
 #include <LibWeb/MathML/TagNames.h>
 #include <LibWeb/Namespace.h>
+#include <LibWeb/SVG/SMIL/SVGAnimateMotionElement.h>
+#include <LibWeb/SVG/SMIL/SVGMPathElement.h>
+#include <LibWeb/SVG/SMIL/SVGSetElement.h>
 #include <LibWeb/SVG/SVGAElement.h>
-#include <LibWeb/SVG/SVGAnimateMotionElement.h>
 #include <LibWeb/SVG/SVGCircleElement.h>
 #include <LibWeb/SVG/SVGClipPathElement.h>
 #include <LibWeb/SVG/SVGDefsElement.h>
@@ -125,7 +127,6 @@
 #include <LibWeb/SVG/SVGImageElement.h>
 #include <LibWeb/SVG/SVGLineElement.h>
 #include <LibWeb/SVG/SVGLinearGradientElement.h>
-#include <LibWeb/SVG/SVGMPathElement.h>
 #include <LibWeb/SVG/SVGMaskElement.h>
 #include <LibWeb/SVG/SVGMetadataElement.h>
 #include <LibWeb/SVG/SVGPathElement.h>
@@ -136,7 +137,6 @@
 #include <LibWeb/SVG/SVGRectElement.h>
 #include <LibWeb/SVG/SVGSVGElement.h>
 #include <LibWeb/SVG/SVGScriptElement.h>
-#include <LibWeb/SVG/SVGSetElement.h>
 #include <LibWeb/SVG/SVGStopElement.h>
 #include <LibWeb/SVG/SVGStyleElement.h>
 #include <LibWeb/SVG/SVGSwitchElement.h>

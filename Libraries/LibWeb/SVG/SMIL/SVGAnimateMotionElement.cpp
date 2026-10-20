@@ -14,9 +14,9 @@
 #include <LibWeb/SVG/AttributeNames.h>
 #include <LibWeb/SVG/AttributeParsing.h>
 #include <LibWeb/SVG/Path.h>
-#include <LibWeb/SVG/SVGAnimateMotionElement.h>
+#include <LibWeb/SVG/SMIL/SVGAnimateMotionElement.h>
+#include <LibWeb/SVG/SMIL/SVGMPathElement.h>
 #include <LibWeb/SVG/SVGGeometryElement.h>
-#include <LibWeb/SVG/SVGMPathElement.h>
 
 namespace Web::SVG {
 

@@ -6,7 +6,7 @@
 
 #include <LibWeb/CSS/StyleValues/StyleValue.h>
 #include <LibWeb/SVG/AttributeNames.h>
-#include <LibWeb/SVG/SVGSetElement.h>
+#include <LibWeb/SVG/SMIL/SVGSetElement.h>
 
 namespace Web::SVG {
 

@@ -18,7 +18,7 @@
 #include <LibWeb/HTML/Parser/HTMLParser.h>
 #include <LibWeb/SVG/AttributeNames.h>
 #include <LibWeb/SVG/FragmentIdentifier.h>
-#include <LibWeb/SVG/SMILTimeContainer.h>
+#include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
 #include <LibWeb/SVG/SVGAnimatedRect.h>
 #include <LibWeb/SVG/SVGNumber.h>
 #include <LibWeb/SVG/SVGSVGElement.h>

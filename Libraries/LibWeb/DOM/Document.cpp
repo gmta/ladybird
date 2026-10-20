@@ -236,8 +236,8 @@
 #include <LibWeb/Platform/EventLoopPlugin.h>
 #include <LibWeb/ResizeObserver/ResizeObserver.h>
 #include <LibWeb/ResizeObserver/ResizeObserverEntry.h>
-#include <LibWeb/SVG/SMILTimeContainer.h>
-#include <LibWeb/SVG/SVGAnimateMotionElement.h>
+#include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
+#include <LibWeb/SVG/SMIL/SVGAnimateMotionElement.h>
 #include <LibWeb/SVG/SVGDecodedImageData.h>
 #include <LibWeb/SVG/SVGElement.h>
 #include <LibWeb/SVG/SVGPatternElement.h>

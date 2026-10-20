@@ -5,9 +5,9 @@
  */
 
 #include <LibWeb/DOM/Document.h>
-#include <LibWeb/SVG/SMILAnimation.h>
-#include <LibWeb/SVG/SMILTimeContainer.h>
-#include <LibWeb/SVG/SVGAnimationElement.h>
+#include <LibWeb/SVG/SMIL/SMILAnimation.h>
+#include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
+#include <LibWeb/SVG/SMIL/SVGAnimationElement.h>
 
 namespace Web::SVG {
 
