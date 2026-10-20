@@ -34,6 +34,11 @@ public:
     float get_current_time();
     WebIDL::ExceptionOr<float> get_simple_duration();
 
+    void begin_element();
+    void begin_element_at(float offset);
+    void end_element();
+    void end_element_at(float offset);
+
     void element_with_id_changed(Badge<DOM::Document>, Utf16FlyString const& id);
 
     void update_interval(Badge<SMILTimeContainer>, double time);
@@ -71,6 +76,36 @@ private:
         Never,
     };
 
+    enum class BeginOrEnd : u8 {
+        Begin,
+        End,
+    };
+
+    enum class InstanceTimeOrigin : u8 {
+        Attribute,
+        Event,
+        Script,
+    };
+
+    struct InstanceTime {
+        double time { 0 };
+        InstanceTimeOrigin origin { InstanceTimeOrigin::Attribute };
+    };
+
+    struct EventCondition {
+        BeginOrEnd begin_or_end { BeginOrEnd::Begin };
+        Optional<Utf16FlyString> event_base_id;
+        Utf16FlyString event_type;
+        double offset { 0 };
+        GC::Ptr<DOM::Element> event_base;
+    };
+
+    struct EventBaseListener {
+        GC::Ref<DOM::Element> event_base;
+        Utf16FlyString event_type;
+        GC::Ref<DOM::IDLEventListener> listener;
+    };
+
     GC::Ptr<SMILTimeContainer> time_container();
     Optional<Utf16String> href() const;
     Optional<Utf16String> referenced_element_id() const;
@@ -80,6 +115,12 @@ private:
     Restart restart() const;
 
     void parse_begin_and_end_attributes();
+    void update_event_base_listeners();
+    GC::Ptr<DOM::Element> resolve_event_base(EventCondition const&);
+    void handle_event_condition(DOM::Element& event_base, Utf16FlyString const& event_type);
+    bool is_active_at(double time) const;
+    bool add_instance_time(BeginOrEnd, double time, InstanceTimeOrigin);
+    void add_instance_time_for_script(BeginOrEnd, float offset);
     void instance_times_changed();
     Optional<double> resolve_active_end(double begin) const;
     Optional<Interval> resolve_interval(double begin_after, double end_after);
@@ -92,9 +133,11 @@ private:
 
     GC::Ptr<SMILAnimation> m_animation;
 
-    Vector<double> m_begin_instance_times;
-    Vector<double> m_end_instance_times;
+    Vector<InstanceTime> m_begin_instance_times;
+    Vector<InstanceTime> m_end_instance_times;
     bool m_end_allows_open_ended_intervals { true };
+    Vector<EventCondition> m_event_conditions;
+    Vector<EventBaseListener> m_event_base_listeners;
 
     Optional<Interval> m_interval;
     Optional<Interval> m_previous_interval;

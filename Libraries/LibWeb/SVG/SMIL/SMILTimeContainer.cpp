@@ -11,6 +11,7 @@
 #include <LibWeb/Animations/DocumentTimeline.h>
 #include <LibWeb/DOM/Document.h>
 #include <LibWeb/HTML/Scripting/TemporaryExecutionContext.h>
+#include <LibWeb/HighResolutionTime/TimeOrigin.h>
 #include <LibWeb/Page/Page.h>
 #include <LibWeb/SVG/SMIL/SMILAnimation.h>
 #include <LibWeb/SVG/SMIL/SMILTimeContainer.h>
@@ -108,6 +109,20 @@ double SMILTimeContainer::current_time_in_milliseconds() const
     if (m_is_paused)
         return m_paused_time;
     return document_timeline_time() - m_zero_time;
+}
+
+// The time on the timeline at which an event or DOM method call happens now. The document timeline only moves on at
+// rendering updates, and there may not have been one for a while when nothing animates, so add the time since then.
+double SMILTimeContainer::time_of_event_in_milliseconds() const
+{
+    if (!m_has_begun || m_is_paused)
+        return interval_time();
+    auto timeline = m_document->timeline();
+    auto last_update_time = timeline->convert_a_timeline_time_to_an_origin_relative_time(timeline->current_time());
+    if (!last_update_time.has_value())
+        return current_time_in_milliseconds();
+    auto now = HighResolutionTime::relative_high_resolution_time(HighResolutionTime::unsafe_shared_current_time(), m_document->relevant_settings_object().global_object());
+    return current_time_in_milliseconds() + max(now - *last_update_time, 0.);
 }
 
 // https://svgwg.org/specs/animations/#__svg__SVGSVGElement__setCurrentTime

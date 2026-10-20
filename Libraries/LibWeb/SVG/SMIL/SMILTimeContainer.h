@@ -33,6 +33,7 @@ public:
     bool is_paused() const { return m_is_paused; }
 
     double current_time_in_milliseconds() const;
+    double time_of_event_in_milliseconds() const;
     void seek_to_time_in_milliseconds(double);
     void record_time_to_seek_to_once_begun_in_milliseconds(double);
 

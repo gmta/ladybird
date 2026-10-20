@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<script src="../include.js"></script>
+<svg id="svg">
+    <rect id="go" width="10" height="10"/>
+    <rect id="stop" width="10" height="10"/>
+    <rect id="a.b" width="10" height="10"/>
+    <rect id="my-button" width="10" height="10"/>
+    <rect id="eventBegin" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="go.click"/>
+    </rect>
+    <rect id="eventBeginWithOffset" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="go.click + 1s"/>
+    </rect>
+    <rect id="targetAsEventBase" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="custom"/>
+    </rect>
+    <rect id="eventEnd" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" end="stop.click"/>
+    </rect>
+    <rect id="endWhileInactive" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="go.custom" end="stop.custom"/>
+    </rect>
+    <rect id="toggleAlways" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="go.toggle" end="go.toggle"/>
+    </rect>
+    <rect id="toggleWhenNotActive" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="go.toggle" end="go.toggle" restart="whenNotActive"/>
+    </rect>
+    <rect id="escapedId" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="a\.b.click"/>
+    </rect>
+    <rect id="unescapedSignInId" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="my-button.click"/>
+    </rect>
+    <rect id="laterEventBase" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="later.click"/>
+    </rect>
+    <rect id="htmlEventBase" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="div.click"/>
+    </rect>
+    <rect id="beginElement" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="indefinite"/>
+    </rect>
+    <rect id="beginElementAt" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" begin="indefinite"/>
+    </rect>
+    <rect id="endElement" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green"/>
+    </rect>
+    <rect id="restartNever" width="10" height="10" fill="red">
+        <set attributeName="fill" to="green" dur="1s" restart="never"/>
+    </rect>
+</svg>
+<div id="div"></div>
+<script>
+    asyncTest(async done => {
+        await new Promise(resolve => window.addEventListener("load", resolve));
+        await new Promise(requestAnimationFrame);
+        svg.pauseAnimations();
+        const ids = [...svg.querySelectorAll("rect:has(set)")].map(rect => rect.id);
+        const animation = id => document.getElementById(id).firstElementChild;
+        const startTime = id => {
+            try {
+                return animation(id).getStartTime();
+            } catch (error) {
+                return error.name;
+            }
+        };
+        const dispatch = (id, type) => document.getElementById(id).dispatchEvent(new Event(type));
+        const report = label => {
+            println(`${label}:`);
+            for (const id of ids)
+                println(`    ${id}: ${getComputedStyle(document.getElementById(id)).fill}, start time ${startTime(id)}`);
+        };
+
+        svg.setCurrentTime(1);
+        report("Before any event at 1s");
+
+        dispatch("stop", "custom");
+        dispatch("go", "click");
+        dispatch("targetAsEventBase", "custom");
+        dispatch("a.b", "click");
+        dispatch("my-button", "click");
+        dispatch("div", "click");
+        dispatch("go", "toggle");
+        animation("beginElement").beginElement();
+        animation("beginElementAt").beginElementAt(1);
+        const later = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        later.id = "later";
+        svg.appendChild(later);
+        dispatch("later", "click");
+        report("After beginning events at 1s");
+
+        svg.setCurrentTime(2.5);
+        dispatch("stop", "click");
+        dispatch("go", "custom");
+        dispatch("go", "toggle");
+        animation("endElement").endElement();
+        animation("beginElementAt").endElementAt(0.25);
+        animation("restartNever").beginElement();
+        report("After ending events at 2.5s");
+
+        svg.setCurrentTime(3);
+        dispatch("go", "toggle");
+        dispatch("stop", "custom");
+        report("After more events at 3s");
+        done();
+    });
+</script>
