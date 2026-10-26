@@ -1146,8 +1146,37 @@ void Application::open_bookmark_in_new_window(String const& bookmark_id, IsPriva
 
 ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(IsPrivate is_private, Web::PageId initial_page_id, Optional<Web::HTML::CrossProcessId> navigable_to_adopt, Optional<Web::HTML::CrossProcessId> initial_document_state_id, Vector<Web::HTML::RemoteNavigableDescriptor> remote_navigables, Optional<Web::HTML::SessionHistoryEntryDescriptor> canonical_initial_history_entry, Web::HTML::VisibilityState system_visibility_state)
 {
-    // The client's WebContentClient picks up this same session when it is created.
+    auto client = TRY(boot_web_content_client(is_private));
+    TRY(assign_initial_page(*client, initial_page_id, navigable_to_adopt, initial_document_state_id, move(remote_navigables), move(canonical_initial_history_entry), system_visibility_state));
+    return client;
+}
+
+// Starts a WebContent process with everything it needs whatever page it comes to host.
+ErrorOr<NonnullRefPtr<WebContentClient>> Application::boot_web_content_client(IsPrivate is_private)
+{
+    // The client takes this same session when it is created.
     auto session = session_for_new_view(is_private);
+
+    auto client = TRY(WebView::launch_web_content_process(is_private));
+    TRY(connect_web_content_to_compositor(*client));
+
+    // NB: The process sets up its resource loader once it has a RequestServer, so this comes first.
+    TRY(client->request_server_site_bindings().connect(session));
+    client->async_set_site_compatibility_data(m_site_compatibility_data);
+
+    // NB: A WebDriver BiDi session gives its state to every process hosting web content when it changes.
+    if (auto* webdriver_bidi = WebDriverBiDi::the(); webdriver_bidi && webdriver_bidi->session_state().is_active)
+        client->async_set_webdriver_bidi_session_state(webdriver_bidi->session_state());
+
+    if (m_content_blocker_list_buffer.has_value())
+        client->async_set_content_blockers(*m_content_blocker_list_buffer);
+
+    return client;
+}
+
+// Gives a booted WebContent process the first page it hosts, along with the image decoder that serves it.
+ErrorOr<void> Application::assign_initial_page(WebContentClient& client, Web::PageId initial_page_id, Optional<Web::HTML::CrossProcessId> navigable_to_adopt, Optional<Web::HTML::CrossProcessId> initial_document_state_id, Vector<Web::HTML::RemoteNavigableDescriptor> remote_navigables, Optional<Web::HTML::SessionHistoryEntryDescriptor> canonical_initial_history_entry, Web::HTML::VisibilityState system_visibility_state)
+{
     auto image_decoder = TRY(launch_image_decoder_process());
 
     auto cross_process_id_allocator = allocate_cross_process_id_allocator();
@@ -1155,9 +1184,7 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(
     if (!initial_document_state_id.has_value())
         initial_document_state_id = cross_process_id_allocator.allocate();
     auto initial_document_id = cross_process_id_allocator.allocate();
-
-    auto client = TRY(WebView::launch_web_content_process(is_private, initial_page_id, root_navigable_id));
-    TRY(Application::the().connect_web_content_to_compositor(*client));
+    client.set_initial_page(initial_page_id, root_navigable_id);
 
     // A tab's first process creates its traversable from this entry. A process hosting a navigable of an existing tab
     // stands in for the canonical current entry.
@@ -1170,24 +1197,15 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(
         entry.document_state.origin = URL::Origin::create_opaque();
         return entry;
     }();
-    client->async_initialize(initial_page_id, move(remote_navigables), root_navigable_id, cross_process_id_allocator, initial_history_entry, initial_document_id, system_visibility_state);
+    client.async_initialize(initial_page_id, move(remote_navigables), root_navigable_id, cross_process_id_allocator, initial_history_entry, initial_document_id, system_visibility_state);
 
     if (!navigable_to_adopt.has_value())
-        client->set_initial_top_level_history_entry({}, move(initial_history_entry), initial_document_id);
+        client.set_initial_top_level_history_entry({}, move(initial_history_entry), initial_document_id);
 
-    TRY(client->request_server_site_bindings().connect(session));
-    client->async_set_site_compatibility_data(m_site_compatibility_data);
-    connect_to_image_decoder(*client, move(image_decoder));
-
-    // NB: A WebDriver BiDi session gives its state to every process hosting web content when it changes.
-    if (auto* webdriver_bidi = WebDriverBiDi::the(); webdriver_bidi && webdriver_bidi->session_state().is_active)
-        client->async_set_webdriver_bidi_session_state(webdriver_bidi->session_state());
-
-    if (m_content_blocker_list_buffer.has_value())
-        client->async_set_content_blockers(*m_content_blocker_list_buffer);
+    connect_to_image_decoder(client, move(image_decoder));
 
     m_web_content_clients.set(client);
-    return client;
+    return {};
 }
 
 ErrorOr<void> Application::reload_site_compatibility_data()

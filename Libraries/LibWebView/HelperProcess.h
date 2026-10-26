@@ -13,8 +13,6 @@
 #include <LibMediaClient/Client.h>
 #include <LibRequests/RequestClient.h>
 #include <LibRequests/RequestControlClient.h>
-#include <LibWebCommon/HTML/CrossProcessId.h>
-#include <LibWebCommon/Page/PageId.h>
 #include <LibWebView/BrowsingSession.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/WebContentClient.h>
@@ -23,7 +21,7 @@
 
 namespace WebView {
 
-WEBVIEW_API ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsPrivate, Web::PageId initial_page_id, Web::HTML::CrossProcessId root_navigable_id);
+WEBVIEW_API ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsPrivate);
 
 WEBVIEW_API ErrorOr<NonnullRefPtr<MediaClient::Client>> launch_media_server_process();
 WEBVIEW_API ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_process();

@@ -87,7 +87,7 @@ public:
     virtual void did_retain_blob_url_token(Web::HTML::CrossProcessId navigable_id, URL::BlobURLEntry::Token token) override;
     virtual Messages::WebContentClient::DidRequestBlobUrlEntryResponse did_request_blob_url_entry(Utf16String url, Optional<URL::BlobURLEntry::Token> token) override;
 
-    WebContentClient(NonnullOwnPtr<IPC::Transport>, IsPrivate, Web::PageId initial_page_id, Web::HTML::CrossProcessId root_navigable_id);
+    WebContentClient(NonnullOwnPtr<IPC::Transport>, IsPrivate);
     ~WebContentClient();
 
     IsPrivate is_private() const { return m_is_private; }
@@ -100,6 +100,12 @@ public:
     // Null outside test mode: the test endpoint is only connected when the UI process runs tests.
     WebContentTestClient* test_connection() { return m_test_connection; }
 
+    void set_initial_page(Web::PageId initial_page_id, Web::HTML::CrossProcessId root_navigable_id)
+    {
+        VERIFY(initial_page_id > 0);
+        m_unassigned_initial_page_id = initial_page_id;
+        m_root_navigable_id = root_navigable_id;
+    }
     void set_initial_top_level_history_entry(Badge<Application>, Web::HTML::SessionHistoryEntryDescriptor entry, Web::HTML::CrossProcessId document_id)
     {
         m_initial_top_level_history_entry = move(entry);
