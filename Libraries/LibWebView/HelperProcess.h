@@ -9,7 +9,6 @@
 #include <AK/Error.h>
 #include <AK/Optional.h>
 #include <LibIPC/TransportHandle.h>
-#include <LibMediaClient/Client.h>
 #include <LibRequests/RequestClient.h>
 #include <LibRequests/RequestControlClient.h>
 #include <LibWebView/BrowsingSession.h>
@@ -45,17 +44,17 @@ WEBVIEW_API ErrorOr<RequestServerClientConnection> connect_new_request_server_cl
 // Names a tab's mix in the AudioServer. Every renderer and worker process gets one of its own, and every process
 // that plays on its behalf plays into the same mix.
 WEBVIEW_API u64 allocate_audio_tab_id();
-// Launches the AudioServer for a renderer if it has none, keeping its controller connection in the given slot.
-WEBVIEW_API ErrorOr<void> ensure_audio_server_is_running(RefPtr<AudioServerControlClient>& controller, u64 owner_child_id);
+// The AudioServer of a renderer, launched if it has none.
+WEBVIEW_API ErrorOr<NonnullRefPtr<AudioServerControlClient>> audio_server_of(u64 owner_child_id);
 // Likewise, and connects a new client to it as a member of the given tab's mix.
-WEBVIEW_API ErrorOr<IPC::TransportHandle> connect_new_audio_server_client(RefPtr<AudioServerControlClient>& controller, u64 audio_tab_id, u64 owner_child_id);
-// Launches the MediaServer for a renderer if it has none, keeping its controller connection in the given slot, and
-// connects a new client to it. The server gets its AudioServer connection through connect_audio_server, and its
-// VideoDecoderServer from the Browser, which launches one for it on request.
+WEBVIEW_API ErrorOr<IPC::TransportHandle> connect_new_audio_server_client(u64 audio_tab_id, u64 owner_child_id);
+// Launches the MediaServer for a renderer if it has none, and connects a new client to it. The server gets its
+// AudioServer connection through connect_audio_server, and its VideoDecoderServer from the Browser, which launches one
+// for it on request.
 struct MediaServerClientConnection {
     IPC::TransportHandle handle;
     int client_id { -1 };
 };
-WEBVIEW_API ErrorOr<MediaServerClientConnection> connect_new_media_server_client(RefPtr<MediaClient::Client>& controller, u64 owner_child_id, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server);
+WEBVIEW_API ErrorOr<MediaServerClientConnection> connect_new_media_server_client(u64 owner_child_id, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server);
 
 }

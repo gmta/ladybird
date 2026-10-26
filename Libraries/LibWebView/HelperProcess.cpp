@@ -5,7 +5,6 @@
  */
 
 #include <AK/Enumerate.h>
-#include <AK/NeverDestroyed.h>
 #include <AK/ScopeGuard.h>
 #include <LibCore/ElapsedTimer.h>
 #include <LibCore/File.h>
@@ -472,13 +471,6 @@ static ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_proc
     return TRY(launch_server_process_for_owner<AudioServerControlClient>("AudioServer"sv, move(arguments), owner_child_id)).client;
 }
 
-static ErrorOr<SpawnedClient<MediaClient::Client>> launch_media_server_process(u64 owner_child_id)
-{
-    return launch_server_process_for_owner<MediaClient::Client>("MediaServer"sv, {}, owner_child_id);
-}
-
-static NeverDestroyed<Vector<WeakPtr<VideoDecoderServerControlClient>>> s_video_decoder_servers;
-
 static ErrorOr<NonnullRefPtr<VideoDecoderServerControlClient>> launch_video_decoder_server_process(Optional<Gfx::GpuDeviceIdentity> const& gpu_device_identity, u64 owner_child_id)
 {
     auto const& browser_options = WebView::Application::browser_options();
@@ -491,19 +483,21 @@ static ErrorOr<NonnullRefPtr<VideoDecoderServerControlClient>> launch_video_deco
         arguments.append(gpu_device_identity->to_byte_string());
     }
 
-    auto server = TRY(launch_server_process_for_owner<VideoDecoderServerControlClient>("VideoDecoderServer"sv, move(arguments), owner_child_id)).client;
-    s_video_decoder_servers->remove_all_matching([](auto const& weak_server) { return !weak_server; });
-    s_video_decoder_servers->append(server->make_weak_ptr<VideoDecoderServerControlClient>());
-    return server;
+    return TRY(launch_server_process_for_owner<VideoDecoderServerControlClient>("VideoDecoderServer"sv, move(arguments), owner_child_id)).client;
 }
 
 void shut_down_video_decoder_servers()
 {
-    for (auto& weak_server : *s_video_decoder_servers) {
-        if (weak_server)
-            weak_server->shutdown();
-    }
-    s_video_decoder_servers->clear();
+    auto& process_manager = Application::process_manager();
+    Vector<NonnullRefPtr<VideoDecoderServerControlClient>> servers;
+    process_manager.for_each_process([&](Process& process) {
+        if (process.type() != ProcessType::VideoDecoderServer)
+            return;
+        if (auto server = process.client<VideoDecoderServerControlClient>())
+            servers.append(server.release_nonnull());
+    });
+    for (auto& server : servers)
+        process_manager.shut_down(*server);
 }
 
 ErrorOr<NonnullRefPtr<WebView::CompositorClient>> launch_compositor_process()
@@ -651,72 +645,64 @@ u64 allocate_audio_tab_id()
     return s_next_audio_tab_id++;
 }
 
-// A helper that its owner had before has been lost, so launching another counts against the owner's restart budget.
-static ErrorOr<void> count_relaunch(ProcessType type, bool had_helper, u64 owner_child_id)
+// The owner's helper of a type. One that the owner had before has been lost, so launching another counts against the
+// owner's restart budget.
+template<typename ClientType>
+static ErrorOr<NonnullRefPtr<ClientType>> helper_of(ProcessType type, u64 owner_child_id, Function<ErrorOr<NonnullRefPtr<ClientType>>()> const& launch)
 {
-    if (had_helper && !Application::process_manager().may_restart(type, owner_child_id))
+    auto& process_manager = Application::process_manager();
+    if (auto helper = process_manager.helper_client<ClientType>(type, owner_child_id))
+        return helper.release_nonnull();
+    if (!process_manager.may_launch(type, owner_child_id))
         return Error::from_string_literal("The helper process kept crashing, so it is not launched again");
-    return {};
+    return launch();
 }
 
-ErrorOr<void> ensure_audio_server_is_running(RefPtr<AudioServerControlClient>& controller, u64 owner_child_id)
+ErrorOr<NonnullRefPtr<AudioServerControlClient>> audio_server_of(u64 owner_child_id)
 {
-    if (!controller || !controller->is_open()) {
-        TRY(count_relaunch(ProcessType::AudioServer, !controller.is_null(), owner_child_id));
-        controller = TRY(launch_audio_server_process(owner_child_id));
-    }
-    return {};
+    return helper_of<AudioServerControlClient>(ProcessType::AudioServer, owner_child_id, [&] { return launch_audio_server_process(owner_child_id); });
 }
 
-ErrorOr<IPC::TransportHandle> connect_new_audio_server_client(RefPtr<AudioServerControlClient>& controller, u64 audio_tab_id, u64 owner_child_id)
+ErrorOr<IPC::TransportHandle> connect_new_audio_server_client(u64 audio_tab_id, u64 owner_child_id)
 {
-    TRY(ensure_audio_server_is_running(controller, owner_child_id));
-
-    auto response = controller->send_sync_but_allow_failure<Messages::AudioServerControl::ConnectNewClient>(audio_tab_id);
+    auto server = TRY(audio_server_of(owner_child_id));
+    auto response = server->send_sync_but_allow_failure<Messages::AudioServerControl::ConnectNewClient>(audio_tab_id);
     if (!response || !response->handle().has_value())
         return Error::from_string_literal("Failed to connect to AudioServer");
     return response->take_handle().release_value();
 }
 
-namespace {
-
-struct VideoDecoderServerHolder : public RefCounted<VideoDecoderServerHolder> {
-    RefPtr<VideoDecoderServerControlClient> controller;
-};
-
-}
-
-static ErrorOr<IPC::TransportHandle> connect_new_video_decoder_server_client(RefPtr<VideoDecoderServerControlClient>& controller, Optional<Gfx::GpuDeviceIdentity> const& gpu_device_identity, u64 owner_child_id)
+static ErrorOr<IPC::TransportHandle> connect_new_video_decoder_server_client(Optional<Gfx::GpuDeviceIdentity> const& gpu_device_identity, u64 media_server_child_id)
 {
-    if (!controller || !controller->is_open()) {
-        TRY(count_relaunch(ProcessType::VideoDecoderServer, !controller.is_null(), owner_child_id));
-        controller = TRY(launch_video_decoder_server_process(gpu_device_identity, owner_child_id));
-    }
-
-    auto response = controller->send_sync_but_allow_failure<Messages::VideoDecoderServerControl::ConnectNewClient>();
+    auto server = TRY(helper_of<VideoDecoderServerControlClient>(ProcessType::VideoDecoderServer, media_server_child_id, [&] {
+        return launch_video_decoder_server_process(gpu_device_identity, media_server_child_id);
+    }));
+    auto response = server->send_sync_but_allow_failure<Messages::VideoDecoderServerControl::ConnectNewClient>();
     if (!response || !response->handle().has_value())
         return Error::from_string_literal("Failed to connect to VideoDecoderServer");
     return response->take_handle().release_value();
 }
 
-ErrorOr<MediaServerClientConnection> connect_new_media_server_client(RefPtr<MediaClient::Client>& controller, u64 owner_child_id, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server)
+static ErrorOr<NonnullRefPtr<MediaClient::Client>> launch_media_server_process(u64 owner_child_id, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server)
 {
-    // The connection's holder launches a new MediaServer when it next connects a client.
-    if (!controller || !controller->is_open()) {
-        TRY(count_relaunch(ProcessType::MediaServer, !controller.is_null(), owner_child_id));
-        auto [identity, server] = TRY(launch_media_server_process(owner_child_id));
-        controller = move(server);
-        controller->on_request_audio_server_connection = move(connect_audio_server);
-        // Each MediaServer has a VideoDecoderServer of its own, which ends along with it. The server is launched once
-        // the Compositor has named the GPU that hardware decoders must output to.
-        controller->on_request_video_decoder_server_connection = [video_decoder_server = make_ref_counted<VideoDecoderServerHolder>(), media_server_child_id = identity.child_id](auto answer) {
-            Application::the().when_compositor_gpu_device_identity_is_known([video_decoder_server, media_server_child_id, answer = move(answer)](auto const& gpu_device_identity) {
-                answer(connect_new_video_decoder_server_client(video_decoder_server->controller, gpu_device_identity, media_server_child_id));
-            });
-        };
-    }
+    auto [identity, server] = TRY(launch_server_process_for_owner<MediaClient::Client>("MediaServer"sv, {}, owner_child_id));
+    server->on_request_audio_server_connection = move(connect_audio_server);
+    // Each MediaServer has a VideoDecoderServer of its own, which ends along with it. The server is launched once the
+    // Compositor has named the GPU that hardware decoders must output to.
+    server->on_request_video_decoder_server_connection = [media_server_child_id = identity.child_id](auto answer) {
+        Application::the().when_compositor_gpu_device_identity_is_known([media_server_child_id, answer = move(answer)](auto const& gpu_device_identity) {
+            answer(connect_new_video_decoder_server_client(gpu_device_identity, media_server_child_id));
+        });
+    };
+    return server;
+}
 
-    auto response = controller->send_sync_but_allow_failure<Messages::MediaServer::ConnectNewClient>();
+ErrorOr<MediaServerClientConnection> connect_new_media_server_client(u64 owner_child_id, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server)
+{
+    auto server = TRY(helper_of<MediaClient::Client>(ProcessType::MediaServer, owner_child_id, [&] {
+        return launch_media_server_process(owner_child_id, move(connect_audio_server));
+    }));
+    auto response = server->send_sync_but_allow_failure<Messages::MediaServer::ConnectNewClient>();
     if (!response || !response->handle().has_value())
         return Error::from_string_literal("Failed to connect to MediaServer");
     return MediaServerClientConnection { response->take_handle().release_value(), response->client_id() };

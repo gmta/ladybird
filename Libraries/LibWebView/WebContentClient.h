@@ -23,7 +23,6 @@
 #include <LibHTTP/Header.h>
 #include <LibIPC/ConnectionToServer.h>
 #include <LibIPC/Transport.h>
-#include <LibMediaClient/Client.h>
 #include <LibRequests/CacheState.h>
 #include <LibRequests/NetworkError.h>
 #include <LibRequests/RequestTimingInfo.h>
@@ -250,17 +249,13 @@ private:
     ChildIdentity m_child_identity;
 
     ErrorOr<IPC::TransportHandle> connect_audio_server_client();
-    ErrorOr<void> ensure_audio_server_controller();
-    ErrorOr<void> tell_audio_server_of_capture_permission();
+    ErrorOr<NonnullRefPtr<AudioServerControlClient>> audio_server();
+    ErrorOr<void> tell_audio_server_of_capture_permission(AudioServerControlClient&);
     static String audio_capture_permission_key(URL::URL const&);
     bool audio_capture_permitted() const;
     void decide_audio_capture_request(u64 request_id);
 
-    // The controller connections to the MediaServer and AudioServer spawned for this process, from its first media use
-    // until it exits. The AudioServer mixes for this process alone, so a compromised one hears only its own site.
-    RefPtr<MediaClient::Client> m_media_server_client;
     Optional<int> m_media_server_client_id;
-    RefPtr<AudioServerControlClient> m_audio_server_client;
     u64 m_audio_tab_id { 0 };
     // The pages the user let capture audio, and whether an open page is one of them; the AudioServer is told of the latter,
     // again whenever it relaunches, and rules on nothing itself.

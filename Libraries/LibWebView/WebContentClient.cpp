@@ -17,6 +17,7 @@
 #include <LibHTTP/Cookie/ParsedCookie.h>
 #include <LibIPC/Transport.h>
 #include <LibIPC/TransportHandle.h>
+#include <LibMediaClient/Client.h>
 #include <LibRequests/Request.h>
 #include <LibURL/Site.h>
 #include <LibWebCommon/HTML/BrowsingContext.h>
@@ -39,6 +40,7 @@
 #include <LibWebView/HistoryStore.h>
 #include <LibWebView/NavigationLoader.h>
 #include <LibWebView/PictureInPictureManager.h>
+#include <LibWebView/ProcessManager.h>
 #include <LibWebView/RequestServerManager.h>
 #include <LibWebView/ViewImplementation.h>
 #include <LibWebView/WebContentClient.h>
@@ -847,7 +849,7 @@ void WebContentClient::request_image_decoder_connection()
 
 Messages::WebContentClient::RequestMediaServerConnectionResponse WebContentClient::request_media_server_connection()
 {
-    auto connection = connect_new_media_server_client(m_media_server_client, child_id(), [this] { return connect_audio_server_client(); });
+    auto connection = connect_new_media_server_client(child_id(), [this] { return connect_audio_server_client(); });
     if (connection.is_error()) {
         warnln("Unable to connect a MediaServer client: {}", connection.error());
         return OptionalNone {};
@@ -858,7 +860,8 @@ Messages::WebContentClient::RequestMediaServerConnectionResponse WebContentClien
 
 void WebContentClient::request_video_presentation_channel()
 {
-    if (!m_media_server_client || !m_media_server_client->is_open() || !m_media_server_client_id.has_value()) {
+    auto media_server = Application::process_manager().helper_client<MediaClient::Client>(ProcessType::MediaServer, child_id());
+    if (!media_server || !m_media_server_client_id.has_value()) {
         dbgln("WebContentClient: Process {} asked for a video presentation channel before connecting a media server", pid());
         return;
     }
@@ -870,29 +873,30 @@ void WebContentClient::request_video_presentation_channel()
     }
     if (!Application::the().connect_video_presentation_to_compositor(*this, move(channel.value().first)))
         return;
-    m_media_server_client->async_connect_video_presentation_channel(*m_media_server_client_id, move(channel.value().second));
+    media_server->async_connect_video_presentation_channel(*m_media_server_client_id, move(channel.value().second));
 }
 
 ErrorOr<IPC::TransportHandle> WebContentClient::connect_audio_server_client()
 {
     // The server must know of the permission before any client gets its connection.
-    TRY(ensure_audio_server_controller());
-    return connect_new_audio_server_client(m_audio_server_client, m_audio_tab_id, child_id());
+    (void)TRY(audio_server());
+    return connect_new_audio_server_client(m_audio_tab_id, child_id());
 }
 
-ErrorOr<void> WebContentClient::ensure_audio_server_controller()
+// The AudioServer mixes for this process alone, so a compromised one hears only its own site.
+ErrorOr<NonnullRefPtr<AudioServerControlClient>> WebContentClient::audio_server()
 {
-    auto* previous_controller = m_audio_server_client.ptr();
-    TRY(ensure_audio_server_is_running(m_audio_server_client, child_id()));
-    if (m_audio_server_client.ptr() == previous_controller)
-        return {};
-    m_audio_server_client->on_capture_requested = [this](u64 tab_id, u64 request_id, ByteString const&) {
+    if (auto server = Application::process_manager().helper_client<AudioServerControlClient>(ProcessType::AudioServer, child_id()))
+        return server.release_nonnull();
+
+    auto server = TRY(audio_server_of(child_id()));
+    server->on_capture_requested = [this](u64 tab_id, u64 request_id, ByteString const&) {
         if (tab_id == m_audio_tab_id)
             decide_audio_capture_request(request_id);
     };
     if (m_audio_capture_permitted)
-        TRY(tell_audio_server_of_capture_permission());
-    return {};
+        TRY(tell_audio_server_of_capture_permission(*server));
+    return server;
 }
 
 String WebContentClient::audio_capture_permission_key(URL::URL const& url)
@@ -909,8 +913,8 @@ ErrorOr<void> WebContentClient::grant_audio_capture(URL::URL const& url)
     m_audio_capture_permitted = audio_capture_permitted();
     if (!m_audio_capture_permitted)
         return {};
-    TRY(ensure_audio_server_controller());
-    return tell_audio_server_of_capture_permission();
+    auto server = TRY(audio_server());
+    return tell_audio_server_of_capture_permission(*server);
 }
 
 void WebContentClient::update_audio_capture_permission()
@@ -919,9 +923,10 @@ void WebContentClient::update_audio_capture_permission()
     if (permitted == m_audio_capture_permitted)
         return;
     m_audio_capture_permitted = permitted;
-    if (!m_audio_server_client || !m_audio_server_client->is_open())
+    auto server = Application::process_manager().helper_client<AudioServerControlClient>(ProcessType::AudioServer, child_id());
+    if (!server)
         return;
-    if (auto result = tell_audio_server_of_capture_permission(); result.is_error())
+    if (auto result = tell_audio_server_of_capture_permission(*server); result.is_error())
         warnln("Unable to update the AudioServer's capture permission: {}", result.error());
 }
 
@@ -941,12 +946,13 @@ bool WebContentClient::audio_capture_permitted() const
 
 void WebContentClient::decide_audio_capture_request(u64 request_id)
 {
-    m_audio_server_client->async_capture_decided(request_id, audio_capture_permitted());
+    if (auto server = Application::process_manager().helper_client<AudioServerControlClient>(ProcessType::AudioServer, child_id()))
+        server->async_capture_decided(request_id, audio_capture_permitted());
 }
 
-ErrorOr<void> WebContentClient::tell_audio_server_of_capture_permission()
+ErrorOr<void> WebContentClient::tell_audio_server_of_capture_permission(AudioServerControlClient& server)
 {
-    auto response = m_audio_server_client->send_sync_but_allow_failure<Messages::AudioServerControl::SetCapturePermission>(m_audio_tab_id, m_audio_capture_permitted);
+    auto response = server.send_sync_but_allow_failure<Messages::AudioServerControl::SetCapturePermission>(m_audio_tab_id, m_audio_capture_permitted);
     if (!response)
         return Error::from_string_literal("Failed to tell the AudioServer of the capture permission");
     return {};

@@ -174,6 +174,24 @@ TEST_CASE(helpers_end_along_with_their_owner)
     EXPECT_EQ(counts.lost, 0u);
 }
 
+TEST_CASE(an_owner_finds_its_helper_until_it_is_shut_down)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+
+    auto owner = spawn_helper(*manager, WebView::ProcessType::WebContent);
+    auto helper = MUST(manager->spawn<Requests::RequestControlClient>(WebView::ProcessType::MediaServer, { .executable = "/usr/bin/true" }, false));
+    (void)Core::System::waitpid(helper.identity.pid);
+    manager->find_child(helper.identity.child_id)->set_owner_child_id(owner.identity.child_id);
+
+    EXPECT_EQ(manager->helper_client<Requests::RequestControlClient>(WebView::ProcessType::MediaServer, owner.identity.child_id), helper.client.ptr());
+    EXPECT(!manager->helper_client<Requests::RequestControlClient>(WebView::ProcessType::AudioServer, owner.identity.child_id));
+    EXPECT(!manager->helper_client<Requests::RequestControlClient>(WebView::ProcessType::MediaServer, helper.identity.child_id));
+
+    manager->shut_down(*helper.client);
+    EXPECT(!manager->helper_client<Requests::RequestControlClient>(WebView::ProcessType::MediaServer, owner.identity.child_id));
+}
+
 TEST_CASE(exits_while_shutting_down_are_not_handled)
 {
     Core::EventLoop event_loop;

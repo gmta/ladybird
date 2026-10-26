@@ -6,7 +6,6 @@
 
 #include <LibCore/Process.h>
 #include <LibWebView/Application.h>
-#include <LibWebView/AudioServerControlClient.h>
 #include <LibWebView/BlobURLStore.h>
 #include <LibWebView/CanonicalEnvironmentSettingsObject.h>
 #include <LibWebView/CookieJar.h>
@@ -173,8 +172,8 @@ void WebWorkerClient::request_image_decoder_connection()
 
 Messages::WebWorkerClient::RequestMediaServerConnectionResponse WebWorkerClient::request_media_server_connection()
 {
-    auto connection = connect_new_media_server_client(m_media_server_client, child_id(), [this] {
-        return connect_new_audio_server_client(m_audio_server_client, m_audio_tab_id, child_id());
+    auto connection = connect_new_media_server_client(child_id(), [this] {
+        return connect_new_audio_server_client(m_audio_tab_id, child_id());
     });
     if (connection.is_error()) {
         warnln("Unable to connect a MediaServer client: {}", connection.error());

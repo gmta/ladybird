@@ -17,8 +17,8 @@ AudioServerControlClient::~AudioServerControlClient() = default;
 
 void AudioServerControlClient::die()
 {
-    // The holder launches a new AudioServer when it next connects a client; the clients of this one hear about it from
-    // their own connections.
+    // The owner gets a new AudioServer when it next connects a client; the clients of this one hear about it from their
+    // own connections.
 }
 
 void AudioServerControlClient::capture_requested(u64 tab_id, u64 request_id, ByteString device_id)

@@ -17,8 +17,8 @@ VideoDecoderServerControlClient::~VideoDecoderServerControlClient() = default;
 
 void VideoDecoderServerControlClient::die()
 {
-    // The holder launches a new VideoDecoderServer when its MediaServer next asks for one; the MediaServer hears about
-    // the loss from its own connection.
+    // The MediaServer gets a new VideoDecoderServer when it next asks for one; it hears about the loss from its own
+    // connection.
 }
 
 }

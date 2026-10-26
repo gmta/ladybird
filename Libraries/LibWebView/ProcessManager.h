@@ -69,6 +69,8 @@ public:
     Optional<PooledProcess> take_from_pool(ProcessType);
     template<typename ClientType>
     RefPtr<ClientType> take_client_from_pool(ProcessType);
+    template<typename ClientType>
+    RefPtr<ClientType> helper_client(ProcessType, u64 owner_child_id);
     size_t pooled_count(ProcessType) const;
     void clear_pools();
 
@@ -144,6 +146,19 @@ RefPtr<ClientType> ProcessManager::take_client_from_pool(ProcessType type)
 {
     if (auto pooled = take_from_pool(type); pooled.has_value())
         return find_child(pooled->child_id)->template client<ClientType>();
+    return {};
+}
+
+template<typename ClientType>
+RefPtr<ClientType> ProcessManager::helper_client(ProcessType type, u64 owner_child_id)
+{
+    verify_event_loop();
+    for (auto& [child_id, process] : m_processes) {
+        if (process->type() != type || process->owner_child_id() != owner_child_id || process->was_shut_down())
+            continue;
+        if (auto client = process->template client<ClientType>(); client && client->is_open())
+            return client;
+    }
     return {};
 }
 

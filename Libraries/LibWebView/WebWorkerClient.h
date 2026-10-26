@@ -14,7 +14,6 @@
 #include <LibHTTP/HSTS/ParsedHSTSPolicy.h>
 #include <LibIPC/ConnectionToServer.h>
 #include <LibIPC/TransportHandle.h>
-#include <LibMediaClient/Client.h>
 #include <LibWebCommon/HTML/BroadcastChannelMessage.h>
 #include <LibWebCommon/HTML/WorkerAgentTypes.h>
 #include <LibWebView/BlobURLStore.h>
@@ -78,11 +77,6 @@ private:
 
     ChildIdentity m_child_identity;
     Web::HTML::WorkerAgentId m_agent_id { 0 };
-
-    // The controller connections to the MediaServer and AudioServer spawned for this process, from its first media use
-    // until it exits.
-    RefPtr<MediaClient::Client> m_media_server_client;
-    RefPtr<AudioServerControlClient> m_audio_server_client;
     u64 m_audio_tab_id { 0 };
 };
 
