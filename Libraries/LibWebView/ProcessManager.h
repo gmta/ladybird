@@ -11,11 +11,13 @@
 #include <AK/RefPtr.h>
 #include <AK/Time.h>
 #include <AK/Types.h>
+#include <AK/Weakable.h>
 #include <LibCore/EventLoop.h>
 #include <LibCore/Platform/ProcessResourceUsage.h>
 #include <LibCore/Platform/ProcessStatistics.h>
 #include <LibCore/Process.h>
 #include <LibCore/Timer.h>
+#include <LibIPC/TransportHandle.h>
 #include <LibWebView/ChildIdentity.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/Process.h>
@@ -26,6 +28,12 @@ namespace WebView {
 
 WEBVIEW_API ProcessType process_type_from_name(StringView);
 WEBVIEW_API StringView process_name_from_type(ProcessType type);
+
+struct PooledProcess {
+    u64 child_id { 0 };
+    RefPtr<IPC::ConnectionBase> connection;
+    Optional<IPC::TransportHandle> transport;
+};
 
 struct RestartBudget {
     size_t restarts { 0 };
@@ -43,7 +51,7 @@ struct SpawnedTransport {
     NonnullOwnPtr<IPC::Transport> transport;
 };
 
-class WEBVIEW_API ProcessManager {
+class WEBVIEW_API ProcessManager : public Weakable<ProcessManager> {
     AK_MAKE_NONCOPYABLE(ProcessManager);
 
 public:
@@ -56,6 +64,13 @@ public:
     void set_restart_budget(ProcessType, RestartBudget, Function<void(u64 owner_child_id)> on_exhausted);
 
     bool may_restart(ProcessType, u64 owner_child_id = 0);
+
+    void set_pool(ProcessType, size_t size, Function<ErrorOr<PooledProcess>()> boot);
+    Optional<PooledProcess> take_from_pool(ProcessType);
+    template<typename ClientType>
+    RefPtr<ClientType> take_client_from_pool(ProcessType);
+    size_t pooled_count(ProcessType) const;
+    void clear_pools();
 
     template<typename ClientType, typename... ClientArguments>
     ErrorOr<SpawnedClient<ClientType>> spawn(ProcessType, Core::ProcessSpawnOptions const&, bool capture_output, ClientArguments&&...);
@@ -88,6 +103,9 @@ private:
     ChildIdentity add_process(Process&&);
     void did_lose(Process&);
     void did_exit(pid_t, Optional<int> exit_status);
+    bool is_usable(PooledProcess const&);
+    void schedule_pool_refill(ProcessType);
+    void refill_pool(ProcessType);
     void verify_event_loop() const;
 
     NonnullOwnPtr<ProcessLauncher> m_launcher;
@@ -101,6 +119,14 @@ private:
     HashMap<ProcessType, RestartPolicy> m_restart_policies;
     HashMap<ProcessType, HashMap<u64, Vector<MonotonicTime>>> m_restart_times;
 
+    struct Pool {
+        size_t size { 0 };
+        Function<ErrorOr<PooledProcess>()> boot;
+        Vector<PooledProcess> processes;
+        bool refill_is_queued { false };
+    };
+    HashMap<ProcessType, Pool> m_pools;
+
     Core::Platform::ProcessStatistics m_statistics;
     HashMap<u64, NonnullOwnPtr<Process>> m_processes;
     // NB: Exit notifications and statistics name processes by PID.
@@ -109,6 +135,14 @@ private:
     u64 m_next_child_id { 1 };
     Core::EventLoop* m_creation_event_loop { &Core::EventLoop::current() };
 };
+
+template<typename ClientType>
+RefPtr<ClientType> ProcessManager::take_client_from_pool(ProcessType type)
+{
+    if (auto pooled = take_from_pool(type); pooled.has_value() && pooled->connection)
+        return as<ClientType>(*pooled->connection);
+    return {};
+}
 
 template<typename ClientType, typename... ClientArguments>
 ErrorOr<SpawnedClient<ClientType>> ProcessManager::spawn(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output, ClientArguments&&... client_arguments)

@@ -147,6 +147,94 @@ bool ProcessManager::may_restart(ProcessType type, u64 owner_child_id)
     return true;
 }
 
+// Keeps the given number of booted processes of a type ready, so that a process can be handed out without waiting for
+// one to start.
+void ProcessManager::set_pool(ProcessType type, size_t size, Function<ErrorOr<PooledProcess>()> boot)
+{
+    verify_event_loop();
+    m_pools.set(type, { .size = size, .boot = move(boot), .processes = {}, .refill_is_queued = false });
+    schedule_pool_refill(type);
+}
+
+Optional<PooledProcess> ProcessManager::take_from_pool(ProcessType type)
+{
+    verify_event_loop();
+    auto pool = m_pools.get(type);
+    if (!pool.has_value())
+        return {};
+
+    Optional<PooledProcess> pooled;
+    while (!pooled.has_value() && !pool->processes.is_empty()) {
+        if (auto candidate = pool->processes.take_first(); is_usable(candidate))
+            pooled = move(candidate);
+    }
+    schedule_pool_refill(type);
+
+    if (pooled.has_value())
+        find_child(pooled->child_id)->set_title({});
+    return pooled;
+}
+
+size_t ProcessManager::pooled_count(ProcessType type) const
+{
+    if (auto pool = m_pools.get(type); pool.has_value())
+        return pool->processes.size();
+    return 0;
+}
+
+void ProcessManager::clear_pools()
+{
+    verify_event_loop();
+    m_pools.clear();
+}
+
+bool ProcessManager::is_usable(PooledProcess const& pooled)
+{
+    return find_child(pooled.child_id).has_value() && (!pooled.connection || pooled.connection->is_open());
+}
+
+void ProcessManager::schedule_pool_refill(ProcessType type)
+{
+    auto pool = m_pools.get(type);
+    if (!pool.has_value() || pool->refill_is_queued)
+        return;
+    pool->refill_is_queued = true;
+    Core::deferred_invoke([weak_manager = make_weak_ptr(), type] {
+        if (weak_manager)
+            weak_manager->refill_pool(type);
+    });
+}
+
+// Boots one process at a time, so that refilling a pool does not hold up the work around it.
+void ProcessManager::refill_pool(ProcessType type)
+{
+    auto pool = m_pools.get(type);
+    if (!pool.has_value())
+        return;
+    pool->refill_is_queued = false;
+    if (Core::EventLoop::current().was_exit_requested())
+        return;
+
+    pool->processes.remove_all_matching([this](auto const& pooled) { return !is_usable(pooled); });
+    if (pool->processes.size() >= pool->size)
+        return;
+
+    auto pooled = pool->boot();
+    if (pooled.is_error()) {
+        dbgln("Unable to boot a {} process to keep ready: {}", process_name_from_type(type), pooled.error());
+        return;
+    }
+    if (auto process = find_child(pooled.value().child_id); process.has_value())
+        process->set_title("(spare)"_utf16);
+
+    // NB: Booting can register further pools and processes, so the pool is looked up again.
+    auto booted_pool = m_pools.get(type);
+    if (!booted_pool.has_value())
+        return;
+    booted_pool->processes.append(pooled.release_value());
+    schedule_pool_refill(type);
+}
+
 // A helper is lost once, when the first of its connection closing and its exit is noticed.
 void ProcessManager::did_lose(Process& process)
 {

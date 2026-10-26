@@ -434,7 +434,7 @@ protected:
 
     Main::Arguments& arguments() { return m_arguments; }
 
-    bool has_spare_web_content_process() const { return m_spare_web_content_process; }
+    bool has_spare_web_content_process() const { return m_process_manager && m_process_manager->pooled_count(ProcessType::WebContent) > 0; }
 
 private:
     ErrorOr<void> create_profile(Optional<StringView> profile_name, Optional<StringView> profile_path, bool force_new_process, bool temporary_profile);
@@ -444,7 +444,7 @@ private:
     ErrorOr<void> assign_initial_page(WebContentClient&, Web::PageId initial_page_id, Optional<Web::HTML::CrossProcessId> navigable_to_adopt, Optional<Web::HTML::CrossProcessId> initial_document_state_id, Vector<Web::HTML::RemoteNavigableDescriptor> remote_navigables, Optional<Web::HTML::SessionHistoryEntryDescriptor> canonical_initial_history_entry, Web::HTML::VisibilityState system_visibility_state);
 
     ErrorOr<void> launch_services();
-    void launch_spare_web_content_process();
+    void keep_web_content_processes_ready();
     ErrorOr<void> launch_compositor_process();
     void compositor_reported_gpu_device_identity(Optional<Gfx::GpuDeviceIdentity>);
     void handle_compositor_process_death();
@@ -635,10 +635,8 @@ private:
     };
     CompositorRecoveryState m_compositor_recovery_state { CompositorRecoveryState::Idle };
 
-    RefPtr<WebContentClient> m_spare_web_content_process;
     // Every WebContent client, from its launch until its process exits. A page keeps no hold on its client.
     HashTable<NonnullRefPtr<WebContentClient>> m_web_content_clients;
-    bool m_has_queued_task_to_launch_spare_web_content_process { false };
     u64 m_next_page_or_compositor_context_id { 1 };
     u64 m_next_cross_process_id_namespace { 1 };
     Web::HTML::CrossProcessIdAllocator m_ui_process_cross_process_id_allocator;

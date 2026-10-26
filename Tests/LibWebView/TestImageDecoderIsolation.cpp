@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/HashMap.h>
 #include <AK/HashTable.h>
 #include <AK/LexicalPath.h>
 #include <AK/Random.h>
@@ -42,14 +43,14 @@ public:
     virtual bool should_coordinate_browser_process() const override { return false; }
 };
 
-HashTable<pid_t> processes_of_type(WebView::ProcessType type)
+HashMap<pid_t, u64> renderers_by_image_decoder()
 {
-    HashTable<pid_t> pids;
+    HashMap<pid_t, u64> renderers;
     WebView::Application::process_manager().for_each_process([&](WebView::Process& process) {
-        if (process.type() == type)
-            pids.set(process.pid());
+        if (process.type() == WebView::ProcessType::ImageDecoder && process.owner_child_id().has_value())
+            renderers.set(process.pid(), *process.owner_child_id());
     });
-    return pids;
+    return renderers;
 }
 
 }
@@ -78,25 +79,29 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     auto first_view = WebView::HeadlessWebView::create(theme, { 800, 600 });
     auto second_view = WebView::HeadlessWebView::create(theme, { 800, 600 });
 
-    auto renderers = processes_of_type(WebView::ProcessType::WebContent);
-    auto decoders = processes_of_type(WebView::ProcessType::ImageDecoder);
-    VERIFY(renderers.size() >= 2);
-    VERIFY(decoders.size() == renderers.size());
+    auto renderers = renderers_by_image_decoder();
+    HashTable<u64> renderers_with_a_decoder;
+    for (auto const& [decoder, renderer] : renderers)
+        renderers_with_a_decoder.set(renderer);
+    VERIFY(renderers_with_a_decoder.size() >= 2);
+    VERIFY(renderers_with_a_decoder.size() == renderers.size());
 
-    auto crashed_decoder = *decoders.begin();
+    auto [crashed_decoder, crashed_renderer] = *renderers.begin();
     TRY(Core::System::kill(crashed_decoder, SIGKILL));
 
     // The replacement is launched as the Browser learns that the decoder died, so this cannot finish without it.
     Core::EventLoop::current().spin_until([&] {
-        return !processes_of_type(WebView::ProcessType::ImageDecoder).contains(crashed_decoder);
+        for (auto const& [decoder, renderer] : renderers_by_image_decoder()) {
+            if (renderer == crashed_renderer && decoder != crashed_decoder)
+                return true;
+        }
+        return false;
     });
 
-    // A spare renderer may have been launched meanwhile, with a decoder of its own.
-    auto decoders_after_crash = processes_of_type(WebView::ProcessType::ImageDecoder);
-    VERIFY(decoders_after_crash.size() == processes_of_type(WebView::ProcessType::WebContent).size());
-    for (auto decoder : decoders) {
+    auto renderers_after_crash = renderers_by_image_decoder();
+    for (auto const& [decoder, renderer] : renderers) {
         if (decoder != crashed_decoder)
-            VERIFY(decoders_after_crash.contains(decoder));
+            VERIFY(renderers_after_crash.get(decoder) == renderer);
     }
 
     outln("PASS: each renderer has an image decoder of its own, which is replaced alone when it crashes");

@@ -256,7 +256,8 @@ Application::~Application()
         m_cpu_profiler_control_socket.clear();
     }
 
-    m_spare_web_content_process = nullptr;
+    if (m_process_manager)
+        m_process_manager->clear_pools();
 
     // Lost handlers use the process manager, so destroy the processes while it is still reachable.
     if (m_process_manager)
@@ -1146,9 +1147,15 @@ void Application::open_bookmark_in_new_window(String const& bookmark_id, IsPriva
 
 ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(IsPrivate is_private, Web::PageId initial_page_id, Optional<Web::HTML::CrossProcessId> navigable_to_adopt, Optional<Web::HTML::CrossProcessId> initial_document_state_id, Vector<Web::HTML::RemoteNavigableDescriptor> remote_navigables, Optional<Web::HTML::SessionHistoryEntryDescriptor> canonical_initial_history_entry, Web::HTML::VisibilityState system_visibility_state)
 {
-    auto client = TRY(boot_web_content_client(is_private));
+    // NB: Only processes for the default session are kept ready, so a private page never shares a session by accident.
+    RefPtr<WebContentClient> client;
+    if (is_private == IsPrivate::No)
+        client = m_process_manager->take_client_from_pool<WebContentClient>(ProcessType::WebContent);
+    if (!client)
+        client = TRY(boot_web_content_client(is_private));
+
     TRY(assign_initial_page(*client, initial_page_id, navigable_to_adopt, initial_document_state_id, move(remote_navigables), move(canonical_initial_history_entry), system_visibility_state));
-    return client;
+    return client.release_nonnull();
 }
 
 // Starts a WebContent process with everything it needs whatever page it comes to host.
@@ -1593,16 +1600,7 @@ void Application::crash_compositor_process()
 
 ErrorOr<NonnullRefPtr<WebContentPage>> Application::open_page_for_new_tab(IsPrivate is_private)
 {
-    RefPtr<WebContentClient> web_content_client;
-    if (is_private == IsPrivate::Yes) {
-        web_content_client = TRY(create_web_content_client(IsPrivate::Yes, allocate_page_id()));
-    } else if (m_spare_web_content_process) {
-        web_content_client = m_spare_web_content_process.release_nonnull();
-        launch_spare_web_content_process();
-    } else {
-        launch_spare_web_content_process();
-        web_content_client = TRY(create_web_content_client(IsPrivate::No, allocate_page_id()));
-    }
+    auto web_content_client = TRY(create_web_content_client(is_private, allocate_page_id()));
     return web_content_client->open_initial_page_for_new_top_level_traversable();
 }
 
@@ -1617,36 +1615,24 @@ ErrorOr<Application::ChildFrameWebContentProcess> Application::launch_child_fram
     };
 }
 
-void Application::launch_spare_web_content_process()
+// A process kept ready serves the next new tab, process swap or crash recovery without waiting for one to start.
+void Application::keep_web_content_processes_ready()
 {
-    // Spare WebContent processes inherit the active WebDriver endpoint, but they are not part of the
-    // session and can race browser shutdown while bootstrapping.
+    // Processes kept ready inherit the active WebDriver endpoint, but they are not part of the session and can race
+    // browser shutdown while bootstrapping.
     if (browser_options().webdriver_browser_endpoint.has_value())
         return;
 
-    // Disable spare processes when debugging WebContent. Otherwise, it breaks running `gdb attach -p $(pidof WebContent)`.
+    // Disable processes kept ready when debugging WebContent. Otherwise, it breaks running `gdb attach -p $(pidof WebContent)`.
     if (browser_options().debug_helper_processes.contains_slow(ProcessType::WebContent))
         return;
-    // Disable spare processes when profiling WebContent. This reduces callgrind logging we are not interested in.
+    // Disable processes kept ready when profiling WebContent. This reduces callgrind logging we are not interested in.
     if (browser_options().profile_helper_process == ProcessType::WebContent)
         return;
 
-    if (m_spare_web_content_process || m_has_queued_task_to_launch_spare_web_content_process)
-        return;
-    m_has_queued_task_to_launch_spare_web_content_process = true;
-
-    Core::deferred_invoke([this]() {
-        m_has_queued_task_to_launch_spare_web_content_process = false;
-
-        auto web_content_client = create_web_content_client(IsPrivate::No, allocate_page_id());
-        if (web_content_client.is_error()) {
-            dbgln("Unable to create spare web content client: {}", web_content_client.error());
-            return;
-        }
-
-        m_spare_web_content_process = web_content_client.release_value();
-        if (auto process = m_process_manager->find_child(m_spare_web_content_process->child_id()); process.has_value())
-            process->set_title("(spare)"_utf16);
+    m_process_manager->set_pool(ProcessType::WebContent, 1, [this]() -> ErrorOr<PooledProcess> {
+        auto client = TRY(boot_web_content_client(IsPrivate::No));
+        return PooledProcess { .child_id = client->child_id(), .connection = move(client), .transport = {} };
     });
 }
 
@@ -1902,6 +1888,7 @@ ErrorOr<void> Application::launch_services()
 
     TRY(launch_request_server());
     TRY(launch_compositor_process());
+    keep_web_content_processes_ready();
 
     if (m_browser_options.devtools_port.has_value()) {
         // Defer launching devtools until the entire application is initialized.
