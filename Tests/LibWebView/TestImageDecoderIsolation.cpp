@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-#include <AK/HashMap.h>
-#include <AK/HashTable.h>
+#include <AK/AnyOf.h>
 #include <AK/LexicalPath.h>
 #include <AK/Random.h>
 #include <AK/ScopeGuard.h>
+#include <AK/Vector.h>
 #include <LibCore/Directory.h>
 #include <LibCore/Environment.h>
 #include <LibCore/EventLoop.h>
@@ -17,6 +17,7 @@
 #include <LibFileSystem/FileSystem.h>
 #include <LibGfx/SystemTheme.h>
 #include <LibMain/Main.h>
+#include <LibURL/Parser.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/HeadlessWebView.h>
 #include <LibWebView/ProcessManager.h>
@@ -43,20 +44,33 @@ public:
     virtual bool should_coordinate_browser_process() const override { return false; }
 };
 
-HashMap<pid_t, u64> renderers_by_image_decoder()
+Vector<pid_t> image_decoders_of(WebView::HeadlessWebView& view)
 {
-    HashMap<pid_t, u64> renderers;
-    WebView::Application::process_manager().for_each_process([&](WebView::Process& process) {
-        if (process.type() == WebView::ProcessType::ImageDecoder && process.owner_child_id().has_value())
-            renderers.set(process.pid(), *process.owner_child_id());
+    auto& process_manager = WebView::Application::process_manager();
+    auto renderer = process_manager.find_process(view.web_content_pid());
+    if (!renderer.has_value())
+        return {};
+
+    Vector<pid_t> decoders;
+    process_manager.for_each_process([&](WebView::Process& process) {
+        if (process.type() == WebView::ProcessType::ImageDecoder && process.owner_child_id() == renderer->child_id())
+            decoders.append(process.pid());
     });
-    return renderers;
+    return decoders;
 }
+
+void load_image(WebView::HeadlessWebView& view, StringView png_base64)
+{
+    view.load(URL::Parser::basic_parse(ByteString::formatted("data:text/html,<img src=\"data:image/png;base64,{}\">", png_base64)).release_value());
+}
+
+constexpr auto red_pixel_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"sv;
+constexpr auto blue_square_png = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAD0lEQVR4nGNgYPgPRmAKABf2A/1+6zfzAAAAAElFTkSuQmCC"sv;
 
 }
 
 // An ImageDecoder parses untrusted images, so each renderer has one of its own, and never sees another's images. A
-// decoder that crashes is replaced for its renderer alone.
+// decoder that crashes is replaced for its renderer alone, once that renderer has another image to decode.
 
 ErrorOr<int> ladybird_main(Main::Arguments arguments)
 {
@@ -79,30 +93,32 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     auto first_view = WebView::HeadlessWebView::create(theme, { 800, 600 });
     auto second_view = WebView::HeadlessWebView::create(theme, { 800, 600 });
 
-    auto renderers = renderers_by_image_decoder();
-    HashTable<u64> renderers_with_a_decoder;
-    for (auto const& [decoder, renderer] : renderers)
-        renderers_with_a_decoder.set(renderer);
-    VERIFY(renderers_with_a_decoder.size() >= 2);
-    VERIFY(renderers_with_a_decoder.size() == renderers.size());
+    // A view drops a URL it is asked to load before its initial about:blank has loaded.
+    size_t loads = 0;
+    first_view->on_load_finish = [&](auto const&) { ++loads; };
+    second_view->on_load_finish = [&](auto const&) { ++loads; };
+    Core::EventLoop::current().spin_until([&] { return loads == 2; });
 
-    auto [crashed_decoder, crashed_renderer] = *renderers.begin();
+    // A page only finishes loading once its image is decoded.
+    load_image(*first_view, red_pixel_png);
+    load_image(*second_view, red_pixel_png);
+    Core::EventLoop::current().spin_until([&] { return loads == 4; });
+
+    auto first_decoders = image_decoders_of(*first_view);
+    auto second_decoders = image_decoders_of(*second_view);
+    VERIFY(first_decoders.size() == 1);
+    VERIFY(second_decoders.size() == 1);
+    VERIFY(first_decoders.first() != second_decoders.first());
+
+    auto crashed_decoder = first_decoders.first();
     TRY(Core::System::kill(crashed_decoder, SIGKILL));
 
-    // The replacement is launched as the Browser learns that the decoder died, so this cannot finish without it.
+    // The renderer asks for a new decoder once it has another image to decode.
+    load_image(*first_view, blue_square_png);
     Core::EventLoop::current().spin_until([&] {
-        for (auto const& [decoder, renderer] : renderers_by_image_decoder()) {
-            if (renderer == crashed_renderer && decoder != crashed_decoder)
-                return true;
-        }
-        return false;
+        return any_of(image_decoders_of(*first_view), [&](pid_t decoder) { return decoder != crashed_decoder; });
     });
-
-    auto renderers_after_crash = renderers_by_image_decoder();
-    for (auto const& [decoder, renderer] : renderers) {
-        if (decoder != crashed_decoder)
-            VERIFY(renderers_after_crash.get(decoder) == renderer);
-    }
+    VERIFY(image_decoders_of(*second_view) == second_decoders);
 
     outln("PASS: each renderer has an image decoder of its own, which is replaced alone when it crashes");
     return 0;

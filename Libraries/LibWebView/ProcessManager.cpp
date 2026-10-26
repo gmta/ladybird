@@ -235,6 +235,15 @@ void ProcessManager::refill_pool(ProcessType type)
     schedule_pool_refill(type);
 }
 
+// An owner's first helper of a type is a launch. Every later one replaces a helper it lost, so it is a restart.
+bool ProcessManager::may_launch(ProcessType type, u64 owner_child_id)
+{
+    verify_event_loop();
+    if (m_owners_with_helpers.ensure(type).set(owner_child_id) == HashSetResult::InsertedNewEntry)
+        return true;
+    return may_restart(type, owner_child_id);
+}
+
 // A helper is lost once, when the first of its connection closing and its exit is noticed.
 void ProcessManager::did_lose(Process& process)
 {
@@ -259,6 +268,8 @@ void ProcessManager::did_exit(pid_t pid, Optional<int> exit_status)
     m_launcher->forget(pid);
     for (auto& [type, restart_times] : m_restart_times)
         restart_times.remove(child_id);
+    for (auto& [type, owners] : m_owners_with_helpers)
+        owners.remove(child_id);
 
     // NB: A helper that exits while we shut down is expected to, so only its crash report is kept.
     auto is_shutting_down = Core::EventLoop::current().was_exit_requested();

@@ -840,6 +840,11 @@ Messages::WebContentClient::DidLoseRequestServerConnectionResponse WebContentCli
     return move(connection.value().handle);
 }
 
+void WebContentClient::request_image_decoder_connection()
+{
+    connect_image_decoder(*this);
+}
+
 Messages::WebContentClient::RequestMediaServerConnectionResponse WebContentClient::request_media_server_connection()
 {
     auto connection = connect_new_media_server_client(m_media_server_client, child_id(), [this] { return connect_audio_server_client(); });

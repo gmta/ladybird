@@ -11,16 +11,29 @@
 
 namespace Web::Platform {
 
-RemoteImageCodecPlugin::RemoteImageCodecPlugin(NonnullRefPtr<ImageDecoderClient::Client> client)
-    : m_client(move(client))
+// The decoder is only asked for once there is an image to decode, so a process that shows no image never has one.
+RemoteImageCodecPlugin::RemoteImageCodecPlugin(Function<void()> request_client)
+    : m_request_client(move(request_client))
 {
-    setup_client_callbacks();
 }
 
-void RemoteImageCodecPlugin::set_client(NonnullRefPtr<ImageDecoderClient::Client> client)
+// Without a client, the decoder was refused, and the images waiting for it cannot be decoded.
+void RemoteImageCodecPlugin::set_client(RefPtr<ImageDecoderClient::Client> client)
 {
+    m_client_is_requested = false;
     m_client = move(client);
+    auto pending_decodes = move(m_pending_decodes);
+
+    if (!m_client) {
+        m_client_was_refused = true;
+        for (auto& pending_decode : pending_decodes)
+            pending_decode.promise->reject(Error::from_string_literal("No image decoder is available"));
+        return;
+    }
+
     setup_client_callbacks();
+    for (auto& pending_decode : pending_decodes)
+        decode_with_client(pending_decode.bytes, move(pending_decode.promise));
 }
 
 void RemoteImageCodecPlugin::setup_client_callbacks()
@@ -48,11 +61,30 @@ NonnullRefPtr<Core::Promise<DecodedImage>> RemoteImageCodecPlugin::decode_image(
     if (on_rejected)
         promise->on_rejection = move(on_rejected);
 
-    if (!m_client) {
-        promise->reject(Error::from_string_literal("ImageDecoderClient is disconnected"));
+    if (m_client) {
+        decode_with_client(bytes, promise);
+        return promise;
+    }
+    if (m_client_was_refused) {
+        promise->reject(Error::from_string_literal("No image decoder is available"));
         return promise;
     }
 
+    auto bytes_copy = ByteBuffer::copy(bytes);
+    if (bytes_copy.is_error()) {
+        promise->reject(bytes_copy.release_error());
+        return promise;
+    }
+    m_pending_decodes.append({ bytes_copy.release_value(), promise });
+    if (!m_client_is_requested) {
+        m_client_is_requested = true;
+        m_request_client();
+    }
+    return promise;
+}
+
+void RemoteImageCodecPlugin::decode_with_client(ReadonlyBytes bytes, NonnullRefPtr<Core::Promise<DecodedImage>> promise)
+{
     auto image_decoder_promise = m_client->decode_image(
         bytes,
         [promise](ImageDecoderClient::DecodedImage& result) -> ErrorOr<void> {
@@ -73,8 +105,6 @@ NonnullRefPtr<Core::Promise<DecodedImage>> RemoteImageCodecPlugin::decode_image(
         [promise](auto& error) {
             promise->reject(Error::copy(error));
         });
-
-    return promise;
 }
 
 void RemoteImageCodecPlugin::request_animation_frames(i64 session_id, u32 start_frame_index, u32 count)

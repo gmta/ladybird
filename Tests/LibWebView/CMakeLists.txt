@@ -252,7 +252,7 @@ if (NOT WIN32)
 
     add_executable(TestImageDecoderIsolation TestImageDecoderIsolation.cpp)
     add_dependencies(TestImageDecoderIsolation ladybird_build_resource_files ${ladybird_helper_processes})
-    target_link_libraries(TestImageDecoderIsolation PRIVATE AK LibCore LibFileSystem LibGfx LibIPC LibMain LibWebView)
+    target_link_libraries(TestImageDecoderIsolation PRIVATE AK LibCore LibFileSystem LibGfx LibIPC LibMain LibURL LibWebView)
     if (APPLE)
         target_compile_definitions(TestImageDecoderIsolation PRIVATE LADYBIRD_BINARY_PATH="$<TARGET_FILE_DIR:ladybird>")
     endif()

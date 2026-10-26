@@ -443,7 +443,7 @@ void ConnectionFromClient::connect_to_web_ui(Web::PageId page_id, IPC::Transport
     }
 }
 
-void ConnectionFromClient::connect_to_image_decoder(IPC::TransportHandle handle)
+void ConnectionFromClient::connect_to_image_decoder(Optional<IPC::TransportHandle> handle)
 {
     if (on_image_decoder_connection)
         on_image_decoder_connection(handle);

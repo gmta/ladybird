@@ -377,7 +377,13 @@ ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsP
     return client;
 }
 
-ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
+struct ImageDecoderConnection {
+    IPC::TransportHandle handle;
+    u64 child_id { 0 };
+};
+
+// Launches an ImageDecoder that serves a single renderer or worker, which talks to it over the returned handle.
+static ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
 {
     // The decoder parses untrusted images for one client, so it must not see the images of any other. The Browser
     // does not talk to it, and hands its end of the transport to the client.
@@ -391,56 +397,39 @@ ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
     return ImageDecoderConnection { TRY(transport->release_for_transfer()), identity.child_id };
 }
 
+// A process asks for its decoder once it first has an image to decode, and again once it has lost it. It has at most one
+// decoder: a request while it still has one ends that one, as the process only asks again once it no longer reaches it.
 template<typename ClientType>
-static void connect_client_to_image_decoder(ClientType& client, ImageDecoderConnection decoder)
+static void connect_image_decoder_to(ClientType& requester)
 {
-    auto process = Application::process_manager().find_child(decoder.child_id);
-    VERIFY(process.has_value());
-    process->set_owner_child_id(client.child_id());
-    client.async_connect_to_image_decoder(decoder.handle);
-}
+    auto& process_manager = Application::process_manager();
+    process_manager.for_each_process([&](Process& process) {
+        if (process.type() == ProcessType::ImageDecoder && process.owner_child_id() == requester.child_id())
+            (void)process_manager.terminate_child(process.child_id(), Core::Process::TerminationMode::Forceful);
+    });
 
-template<typename ClientType>
-static void replace_image_decoder_of(RefPtr<ClientType> client)
-{
-    if (!client || !client->is_open())
-        return;
-    if (!Application::process_manager().may_restart(ProcessType::ImageDecoder, client->child_id()))
-        return;
-
-    auto new_decoder = launch_image_decoder_process();
-    if (new_decoder.is_error()) {
-        dbgln("Failed to replace a crashed image decoder: {}", new_decoder.error());
+    if (!process_manager.may_launch(ProcessType::ImageDecoder, requester.child_id())) {
+        requester.async_connect_to_image_decoder({});
         return;
     }
-    connect_client_to_image_decoder(*client, new_decoder.release_value());
-}
-
-// A decoder exits by itself once its client is gone. One that dies before then is replaced, so a crash costs the client
-// the images it was decoding at the time rather than every image after it.
-void replace_lost_image_decoder(Process const& decoder)
-{
-    auto owner_child_id = decoder.owner_child_id();
-    if (!owner_child_id.has_value())
+    auto decoder = launch_image_decoder_process();
+    if (decoder.is_error()) {
+        dbgln("Unable to launch an image decoder: {}", decoder.error());
+        requester.async_connect_to_image_decoder({});
         return;
-    auto owner = Application::process_manager().find_child(*owner_child_id);
-    if (!owner.has_value())
-        return;
-
-    if (owner->type() == ProcessType::WebContent)
-        replace_image_decoder_of(owner->client<WebContentClient>());
-    else if (owner->type() == ProcessType::WebWorker)
-        replace_image_decoder_of(owner->client<WebWorkerClient>());
+    }
+    process_manager.find_child(decoder.value().child_id)->set_owner_child_id(requester.child_id());
+    requester.async_connect_to_image_decoder(move(decoder.value().handle));
 }
 
-void connect_to_image_decoder(WebContentClient& client, ImageDecoderConnection decoder)
+void connect_image_decoder(WebContentClient& requester)
 {
-    connect_client_to_image_decoder(client, move(decoder));
+    connect_image_decoder_to(requester);
 }
 
-void connect_to_image_decoder(WebWorkerClient& client, ImageDecoderConnection decoder)
+void connect_image_decoder(WebWorkerClient& requester)
 {
-    connect_client_to_image_decoder(client, move(decoder));
+    connect_image_decoder_to(requester);
 }
 
 ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_process()

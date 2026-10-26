@@ -1181,11 +1181,9 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::boot_web_content_client(Is
     return client;
 }
 
-// Gives a booted WebContent process the first page it hosts, along with the image decoder that serves it.
+// Gives a booted WebContent process the first page it hosts.
 ErrorOr<void> Application::assign_initial_page(WebContentClient& client, Web::PageId initial_page_id, Optional<Web::HTML::CrossProcessId> navigable_to_adopt, Optional<Web::HTML::CrossProcessId> initial_document_state_id, Vector<Web::HTML::RemoteNavigableDescriptor> remote_navigables, Optional<Web::HTML::SessionHistoryEntryDescriptor> canonical_initial_history_entry, Web::HTML::VisibilityState system_visibility_state)
 {
-    auto image_decoder = TRY(launch_image_decoder_process());
-
     auto cross_process_id_allocator = allocate_cross_process_id_allocator();
     auto root_navigable_id = navigable_to_adopt.has_value() ? *navigable_to_adopt : cross_process_id_allocator.allocate();
     if (!initial_document_state_id.has_value())
@@ -1208,8 +1206,6 @@ ErrorOr<void> Application::assign_initial_page(WebContentClient& client, Web::Pa
 
     if (!navigable_to_adopt.has_value())
         client.set_initial_top_level_history_entry({}, move(initial_history_entry), initial_document_id);
-
-    connect_to_image_decoder(client, move(image_decoder));
 
     m_web_content_clients.set(client);
     return {};
@@ -2151,10 +2147,6 @@ void Application::register_process_handlers()
     m_process_manager->set_lost_handler(ProcessType::WebWorker, [](Process& process) {
         if (auto client = process.client<WebWorkerClient>())
             client->did_lose_process();
-    });
-
-    m_process_manager->set_lost_handler(ProcessType::ImageDecoder, [](Process& process) {
-        replace_lost_image_decoder(process);
     });
 }
 

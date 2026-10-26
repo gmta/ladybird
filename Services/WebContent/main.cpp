@@ -158,7 +158,7 @@ static void install_crash_signal_handlers()
 #endif
 
 static ErrorOr<void> connect_to_resource_loader(GC::Heap& heap, IPC::TransportHandle const& handle, Optional<int> client_id, Optional<Utf16String> const& top_level_site);
-static ErrorOr<void> connect_to_image_decoder(IPC::TransportHandle const& handle);
+static void connect_to_image_decoder(Optional<IPC::TransportHandle> const& handle);
 
 ErrorOr<int> ladybird_main(Main::Arguments arguments)
 {
@@ -299,9 +299,11 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
         if (auto result = connect_to_resource_loader(heap, handle, client_id, top_level_site); result.is_error())
             dbgln("Failed to connect to resource loader: {}", result.error());
     };
+    Web::Platform::ImageCodecPlugin::install(*new Web::Platform::RemoteImageCodecPlugin([webcontent_client] {
+        webcontent_client->async_request_image_decoder_connection();
+    }));
     webcontent_client->on_image_decoder_connection = [](auto const& handle) {
-        if (auto result = connect_to_image_decoder(handle); result.is_error())
-            dbgln("Failed to connect to image decoder: {}", result.error());
+        connect_to_image_decoder(handle);
     };
 
     MediaClient::Client::set_transport_factory([webcontent_client] {
@@ -336,13 +338,20 @@ ErrorOr<void> connect_to_resource_loader(GC::Heap& heap, IPC::TransportHandle co
     return {};
 }
 
-ErrorOr<void> connect_to_image_decoder(IPC::TransportHandle const& handle)
+static void connect_to_image_decoder(Optional<IPC::TransportHandle> const& handle)
 {
-    auto transport = TRY(handle.create_transport());
-    auto new_client = TRY(try_make_ref_counted<ImageDecoderClient::Client>(move(transport)));
-    if (Web::Platform::ImageCodecPlugin::is_initialized())
-        static_cast<Web::Platform::RemoteImageCodecPlugin&>(Web::Platform::ImageCodecPlugin::the()).set_client(move(new_client));
-    else
-        Web::Platform::ImageCodecPlugin::install(*new Web::Platform::RemoteImageCodecPlugin(move(new_client)));
-    return {};
+    auto client = [&]() -> ErrorOr<RefPtr<ImageDecoderClient::Client>> {
+        if (!handle.has_value())
+            return nullptr;
+        auto transport = TRY(handle->create_transport());
+        return TRY(try_make_ref_counted<ImageDecoderClient::Client>(move(transport)));
+    }();
+
+    auto& plugin = static_cast<Web::Platform::RemoteImageCodecPlugin&>(Web::Platform::ImageCodecPlugin::the());
+    if (client.is_error()) {
+        dbgln("Failed to connect to image decoder: {}", client.error());
+        plugin.set_client(nullptr);
+        return;
+    }
+    plugin.set_client(client.release_value());
 }

@@ -72,7 +72,7 @@ public:
     void did_destroy_compositor_context(Web::CompositorContextId);
 
     Function<void(IPC::TransportHandle const&, Optional<int> client_id, Optional<Utf16String> const& top_level_site)> on_request_server_connection;
-    Function<void(IPC::TransportHandle const&)> on_image_decoder_connection;
+    Function<void(Optional<IPC::TransportHandle> const&)> on_image_decoder_connection;
 
     // Asks the Browser to spawn this process's MediaServer if it has none, and to connect a client to it.
     ErrorOr<NonnullOwnPtr<IPC::Transport>> request_media_server_transport();
@@ -115,7 +115,7 @@ private:
     virtual void connect_to_web_ui(Web::PageId page_id, IPC::TransportHandle handle) override;
     virtual void connect_to_request_server(IPC::TransportHandle handle, int client_id, Optional<Utf16String> top_level_site) override;
     virtual void connect_to_test_endpoint(IPC::TransportHandle handle) override;
-    virtual void connect_to_image_decoder(IPC::TransportHandle handle) override;
+    virtual void connect_to_image_decoder(Optional<IPC::TransportHandle> handle) override;
     virtual void connect_to_compositor_process(IPC::TransportHandle handle, IPC::TransportHandle render_clock_handle) override;
     virtual void set_site_compatibility_data(JsonValue data) override;
     virtual void compositor_process_reconnected() override;

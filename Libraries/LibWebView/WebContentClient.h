@@ -212,6 +212,7 @@ private:
     virtual void did_update_cookie(HTTP::Cookie::Cookie) override;
     virtual Messages::WebContentClient::DidIsKnownHstsHostResponse did_is_known_hsts_host(String) override;
     virtual Messages::WebContentClient::DidLoseRequestServerConnectionResponse did_lose_request_server_connection(Optional<Utf16String> top_level_site) override;
+    virtual void request_image_decoder_connection() override;
     virtual Messages::WebContentClient::RequestMediaServerConnectionResponse request_media_server_connection() override;
     virtual Messages::WebContentClient::RequestAudioServerConnectionResponse request_audio_server_connection() override;
     virtual void request_video_presentation_channel() override;

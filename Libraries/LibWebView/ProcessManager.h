@@ -64,6 +64,7 @@ public:
     void set_restart_budget(ProcessType, RestartBudget, Function<void(u64 owner_child_id)> on_exhausted);
 
     bool may_restart(ProcessType, u64 owner_child_id = 0);
+    bool may_launch(ProcessType, u64 owner_child_id);
 
     void set_pool(ProcessType, size_t size, Function<ErrorOr<PooledProcess>()> boot);
     Optional<PooledProcess> take_from_pool(ProcessType);
@@ -118,6 +119,7 @@ private:
     };
     HashMap<ProcessType, RestartPolicy> m_restart_policies;
     HashMap<ProcessType, HashMap<u64, Vector<MonotonicTime>>> m_restart_times;
+    HashMap<ProcessType, HashTable<u64>> m_owners_with_helpers;
 
     struct Pool {
         size_t size { 0 };
