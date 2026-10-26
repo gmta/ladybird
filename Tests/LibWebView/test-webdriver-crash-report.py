@@ -19,26 +19,35 @@ from pathlib import Path
 webdriver_helpers = importlib.import_module("test-webdriver-delete-session")
 
 
+def elapsed_seconds(etime):
+    days, _, clock = etime.rpartition("-")
+    seconds = 0
+    for part in clock.split(":"):
+        seconds = seconds * 60 + int(part)
+    return seconds + int(days or 0) * 24 * 60 * 60
+
+
 def crash_helper(webdriver_pid, process_name):
-    rows = subprocess.check_output(["ps", "-axo", "pid=,ppid=,command="], text=True).splitlines()
+    rows = subprocess.check_output(["ps", "-axo", "pid=,ppid=,etime=,command="], text=True).splitlines()
     children = {}
     for row in rows:
-        fields = row.strip().split(None, 2)
-        pid, parent = fields[:2]
-        command = fields[2] if len(fields) == 3 else ""
-        children.setdefault(int(parent), []).append((int(pid), command))
+        fields = row.strip().split(None, 3)
+        pid, parent, etime = fields[:3]
+        command = fields[3] if len(fields) == 4 else ""
+        children.setdefault(int(parent), []).append((int(pid), elapsed_seconds(etime), command))
     pending = [webdriver_pid]
     targets = []
     while pending:
-        for pid, command in children.get(pending.pop(), []):
+        for pid, elapsed, command in children.get(pending.pop(), []):
             pending.append(pid)
             arguments = shlex.split(command)
             if arguments and Path(arguments[0]).name == process_name:
                 assert "--crash-report-fd" in arguments, f"{process_name} has no capture descriptor"
                 assert "--disable-sandbox" not in arguments, f"{process_name} is not sandboxed"
-                targets.append(pid)
-    assert len(targets) == 1, f"Expected one {process_name} child, found {len(targets)}"
-    os.kill(targets[0], signal.SIGSEGV)
+                targets.append((elapsed, pid))
+    assert targets, f"Expected a {process_name} child"
+    # Any younger one is kept ready, while the oldest serves the page.
+    os.kill(max(targets)[1], signal.SIGSEGV)
 
 
 def run_test(webdriver_binary, process_name):

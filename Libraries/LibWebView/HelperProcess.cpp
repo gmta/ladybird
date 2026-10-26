@@ -397,6 +397,22 @@ static ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
     return ImageDecoderConnection { TRY(transport->release_for_transfer()), identity.child_id };
 }
 
+static ErrorOr<ImageDecoderConnection> take_or_launch_image_decoder()
+{
+    if (auto pooled = Application::process_manager().take_from_pool(ProcessType::ImageDecoder); pooled.has_value())
+        return ImageDecoderConnection { pooled->transport.release_value(), pooled->child_id };
+    return launch_image_decoder_process();
+}
+
+// A decoder kept ready spares a process the wait for one to start before its first image is decoded.
+void keep_image_decoders_ready()
+{
+    Application::process_manager().set_pool(ProcessType::ImageDecoder, 1, []() -> ErrorOr<PooledProcess> {
+        auto decoder = TRY(launch_image_decoder_process());
+        return PooledProcess { .child_id = decoder.child_id, .connection = nullptr, .transport = move(decoder.handle) };
+    });
+}
+
 // A process asks for its decoder once it first has an image to decode, and again once it has lost it. It has at most one
 // decoder: a request while it still has one ends that one, as the process only asks again once it no longer reaches it.
 template<typename ClientType>
@@ -412,7 +428,7 @@ static void connect_image_decoder_to(ClientType& requester)
         requester.async_connect_to_image_decoder({});
         return;
     }
-    auto decoder = launch_image_decoder_process();
+    auto decoder = take_or_launch_image_decoder();
     if (decoder.is_error()) {
         dbgln("Unable to launch an image decoder: {}", decoder.error());
         requester.async_connect_to_image_decoder({});

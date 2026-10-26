@@ -1885,6 +1885,7 @@ ErrorOr<void> Application::launch_services()
     TRY(launch_request_server());
     TRY(launch_compositor_process());
     keep_web_content_processes_ready();
+    keep_image_decoders_ready();
 
     if (m_browser_options.devtools_port.has_value()) {
         // Defer launching devtools until the entire application is initialized.

@@ -34,6 +34,7 @@ WEBVIEW_API ErrorOr<NonnullRefPtr<WebView::WebWorkerClient>> launch_web_worker_p
 WEBVIEW_API ErrorOr<NonnullRefPtr<Requests::RequestControlClient>> launch_request_server_process(ByteString const& cache_path, Optional<Utf16String> const& site, bool sites_have_their_own, HTTPDiskCacheMode);
 WEBVIEW_API void apply_dns_settings(Requests::RequestControlClient&);
 
+WEBVIEW_API void keep_image_decoders_ready();
 WEBVIEW_API void connect_image_decoder(WebContentClient&);
 WEBVIEW_API void connect_image_decoder(WebWorkerClient&);
 
