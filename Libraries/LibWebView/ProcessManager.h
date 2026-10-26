@@ -9,6 +9,7 @@
 #include <AK/Function.h>
 #include <AK/HashMap.h>
 #include <AK/RefPtr.h>
+#include <AK/Time.h>
 #include <AK/Types.h>
 #include <LibCore/EventLoop.h>
 #include <LibCore/Platform/ProcessResourceUsage.h>
@@ -25,6 +26,11 @@ namespace WebView {
 
 WEBVIEW_API ProcessType process_type_from_name(StringView);
 WEBVIEW_API StringView process_name_from_type(ProcessType type);
+
+struct RestartBudget {
+    size_t restarts { 0 };
+    Optional<AK::Duration> window;
+};
 
 template<typename ClientType>
 struct SpawnedClient {
@@ -47,6 +53,9 @@ public:
 
     void set_lost_handler(ProcessType, Function<void(Process&)>);
     void set_exit_handler(ProcessType, Function<void(Process&)>);
+    void set_restart_budget(ProcessType, RestartBudget, Function<void(u64 owner_child_id)> on_exhausted);
+
+    bool may_restart(ProcessType, u64 owner_child_id = 0);
 
     template<typename ClientType, typename... ClientArguments>
     ErrorOr<SpawnedClient<ClientType>> spawn(ProcessType, Core::ProcessSpawnOptions const&, bool capture_output, ClientArguments&&...);
@@ -84,6 +93,13 @@ private:
     NonnullOwnPtr<ProcessLauncher> m_launcher;
     HashMap<ProcessType, Function<void(Process&)>> m_lost_handlers;
     HashMap<ProcessType, Function<void(Process&)>> m_exit_handlers;
+
+    struct RestartPolicy {
+        RestartBudget budget;
+        Function<void(u64 owner_child_id)> on_exhausted;
+    };
+    HashMap<ProcessType, RestartPolicy> m_restart_policies;
+    HashMap<ProcessType, HashMap<u64, Vector<MonotonicTime>>> m_restart_times;
 
     Core::Platform::ProcessStatistics m_statistics;
     HashMap<u64, NonnullOwnPtr<Process>> m_processes;

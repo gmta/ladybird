@@ -405,6 +405,8 @@ static void replace_image_decoder_of(RefPtr<ClientType> client)
 {
     if (!client || !client->is_open())
         return;
+    if (!Application::process_manager().may_restart(ProcessType::ImageDecoder, client->child_id()))
+        return;
 
     auto new_decoder = launch_image_decoder_process();
     if (new_decoder.is_error()) {
@@ -631,16 +633,26 @@ u64 allocate_audio_tab_id()
     return s_next_audio_tab_id++;
 }
 
-ErrorOr<void> ensure_audio_server_is_running(RefPtr<AudioServerControlClient>& controller)
+// A helper that its owner had before has been lost, so launching another counts against the owner's restart budget.
+static ErrorOr<void> count_relaunch(ProcessType type, bool had_helper, u64 owner_child_id)
 {
-    if (!controller || !controller->is_open())
-        controller = TRY(launch_audio_server_process());
+    if (had_helper && !Application::process_manager().may_restart(type, owner_child_id))
+        return Error::from_string_literal("The helper process kept crashing, so it is not launched again");
     return {};
 }
 
-ErrorOr<IPC::TransportHandle> connect_new_audio_server_client(RefPtr<AudioServerControlClient>& controller, u64 audio_tab_id)
+ErrorOr<void> ensure_audio_server_is_running(RefPtr<AudioServerControlClient>& controller, u64 owner_child_id)
 {
-    TRY(ensure_audio_server_is_running(controller));
+    if (!controller || !controller->is_open()) {
+        TRY(count_relaunch(ProcessType::AudioServer, !controller.is_null(), owner_child_id));
+        controller = TRY(launch_audio_server_process());
+    }
+    return {};
+}
+
+ErrorOr<IPC::TransportHandle> connect_new_audio_server_client(RefPtr<AudioServerControlClient>& controller, u64 audio_tab_id, u64 owner_child_id)
+{
+    TRY(ensure_audio_server_is_running(controller, owner_child_id));
 
     auto response = controller->send_sync_but_allow_failure<Messages::AudioServerControl::ConnectNewClient>(audio_tab_id);
     if (!response || !response->handle().has_value())
@@ -656,10 +668,12 @@ struct VideoDecoderServerHolder : public RefCounted<VideoDecoderServerHolder> {
 
 }
 
-static ErrorOr<IPC::TransportHandle> connect_new_video_decoder_server_client(RefPtr<VideoDecoderServerControlClient>& controller, Optional<Gfx::GpuDeviceIdentity> const& gpu_device_identity)
+static ErrorOr<IPC::TransportHandle> connect_new_video_decoder_server_client(RefPtr<VideoDecoderServerControlClient>& controller, Optional<Gfx::GpuDeviceIdentity> const& gpu_device_identity, u64 owner_child_id)
 {
-    if (!controller || !controller->is_open())
+    if (!controller || !controller->is_open()) {
+        TRY(count_relaunch(ProcessType::VideoDecoderServer, !controller.is_null(), owner_child_id));
         controller = TRY(launch_video_decoder_server_process(gpu_device_identity));
+    }
 
     auto response = controller->send_sync_but_allow_failure<Messages::VideoDecoderServerControl::ConnectNewClient>();
     if (!response || !response->handle().has_value())
@@ -667,17 +681,18 @@ static ErrorOr<IPC::TransportHandle> connect_new_video_decoder_server_client(Ref
     return response->take_handle().release_value();
 }
 
-ErrorOr<MediaServerClientConnection> connect_new_media_server_client(RefPtr<MediaClient::Client>& controller, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server)
+ErrorOr<MediaServerClientConnection> connect_new_media_server_client(RefPtr<MediaClient::Client>& controller, u64 owner_child_id, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server)
 {
     // The connection's holder launches a new MediaServer when it next connects a client.
     if (!controller || !controller->is_open()) {
+        TRY(count_relaunch(ProcessType::MediaServer, !controller.is_null(), owner_child_id));
         controller = TRY(launch_media_server_process());
         controller->on_request_audio_server_connection = move(connect_audio_server);
         // Each MediaServer has a VideoDecoderServer of its own, which lives as long as the controller holding it. The
         // server is launched once the Compositor has named the GPU that hardware decoders must output to.
-        controller->on_request_video_decoder_server_connection = [video_decoder_server = make_ref_counted<VideoDecoderServerHolder>()](auto answer) {
-            Application::the().when_compositor_gpu_device_identity_is_known([video_decoder_server, answer = move(answer)](auto const& gpu_device_identity) {
-                answer(connect_new_video_decoder_server_client(video_decoder_server->controller, gpu_device_identity));
+        controller->on_request_video_decoder_server_connection = [video_decoder_server = make_ref_counted<VideoDecoderServerHolder>(), owner_child_id](auto answer) {
+            Application::the().when_compositor_gpu_device_identity_is_known([video_decoder_server, owner_child_id, answer = move(answer)](auto const& gpu_device_identity) {
+                answer(connect_new_video_decoder_server_client(video_decoder_server->controller, gpu_device_identity, owner_child_id));
             });
         };
     }

@@ -626,7 +626,6 @@ private:
     // The last identity a Compositor reported, which outlives that Compositor until its replacement reports.
     Optional<Optional<Gfx::GpuDeviceIdentity>> m_compositor_gpu_device_identity;
     Vector<CompositorGpuDeviceIdentityCallback> m_callbacks_awaiting_compositor_gpu_device_identity;
-    size_t m_compositor_restart_count { 0 };
     enum class CompositorRecoveryState {
         Idle,
         Queued,

@@ -49,6 +49,12 @@ RequestServerManager& RequestServerManager::the()
 RequestServerManager::RequestServerManager()
     : m_maximum_site_instances(Application::request_server_options().maximum_site_request_servers)
 {
+    // Nothing can be loaded without a RequestServer, so the browser cannot carry on once they keep crashing.
+    Application::process_manager().set_restart_budget(ProcessType::RequestServer, { .restarts = 5, .window = AK::Duration::from_seconds(60) }, [](u64) {
+        warnln("RequestServer process crashed repeatedly, crashing Browser");
+        VERIFY_NOT_REACHED();
+    });
+
     Application::process_manager().set_lost_handler(ProcessType::RequestServer, [this](Process& process) {
         auto control_client = process.client<Requests::RequestControlClient>();
         if (!control_client)
@@ -220,6 +226,8 @@ void RequestServerManager::did_lose_process(RequestServerInstance& instance)
         return;
     }
 
+    if (!Application::process_manager().may_restart(ProcessType::RequestServer))
+        return;
     if (auto result = launch_process(instance); result.is_error()) {
         warnln("\033[31;1mUnable to launch replacement RequestServer: {}\033[0m", result.error());
         VERIFY_NOT_REACHED();

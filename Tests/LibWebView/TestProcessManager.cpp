@@ -132,3 +132,61 @@ TEST_CASE(exits_while_shutting_down_are_not_handled)
     EXPECT(reported);
     EXPECT(!manager->find_child(spawned.identity.child_id).has_value());
 }
+
+TEST_CASE(a_used_up_budget_refuses_restarts_and_reports_it)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    Vector<u64> exhausted_owners;
+    manager->set_restart_budget(WebView::ProcessType::Compositor, { .restarts = 2, .window = {} }, [&](u64 owner_child_id) {
+        exhausted_owners.append(owner_child_id);
+    });
+
+    EXPECT(manager->may_restart(WebView::ProcessType::Compositor));
+    EXPECT(manager->may_restart(WebView::ProcessType::Compositor));
+    EXPECT(exhausted_owners.is_empty());
+
+    EXPECT(!manager->may_restart(WebView::ProcessType::Compositor));
+    EXPECT_EQ(exhausted_owners, Vector<u64> { 0 });
+}
+
+TEST_CASE(owners_have_budgets_of_their_own)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    manager->set_restart_budget(WebView::ProcessType::ImageDecoder, { .restarts = 1, .window = {} }, [](u64) { });
+
+    EXPECT(manager->may_restart(WebView::ProcessType::ImageDecoder, 1));
+    EXPECT(!manager->may_restart(WebView::ProcessType::ImageDecoder, 1));
+    EXPECT(manager->may_restart(WebView::ProcessType::ImageDecoder, 2));
+}
+
+TEST_CASE(restarts_outside_the_window_do_not_count)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    manager->set_restart_budget(WebView::ProcessType::MediaServer, { .restarts = 1, .window = AK::Duration::zero() }, [](u64) { });
+
+    EXPECT(manager->may_restart(WebView::ProcessType::MediaServer, 1));
+    EXPECT(manager->may_restart(WebView::ProcessType::MediaServer, 1));
+}
+
+TEST_CASE(an_owner_that_exits_leaves_the_restarts_of_others)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    manager->set_restart_budget(WebView::ProcessType::ImageDecoder, { .restarts = 1, .window = {} }, [](u64) { });
+
+    Vector<WebView::SpawnedTransport> owners;
+    for (size_t i = 0; i < 32; ++i) {
+        owners.append(spawn_helper(*manager, WebView::ProcessType::WebContent));
+        EXPECT(manager->may_restart(WebView::ProcessType::ImageDecoder, owners.last().identity.child_id));
+    }
+
+    while (!owners.is_empty()) {
+        auto owner = owners.take_first();
+        launcher.simulate_exit(owner.identity.pid, 0);
+        for (auto const& other : owners)
+            EXPECT(!manager->may_restart(WebView::ProcessType::ImageDecoder, other.identity.child_id));
+    }
+}

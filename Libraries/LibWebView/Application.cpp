@@ -2014,14 +2014,9 @@ void Application::recover_compositor_process()
     if (Core::EventLoop::current().was_exit_requested())
         return;
 
-    constexpr size_t max_compositor_restart_count = 3;
-    if (m_compositor_restart_count >= max_compositor_restart_count) {
-        warnln("Compositor process crashed repeatedly, crashing Browser");
-        VERIFY_NOT_REACHED();
-    }
-
-    ++m_compositor_restart_count;
-    dbgln("Compositor process died, restarting ({}/{})", m_compositor_restart_count, max_compositor_restart_count);
+    if (!m_process_manager->may_restart(ProcessType::Compositor))
+        return;
+    dbgln("Compositor process died, restarting");
 
     VERIFY(m_compositor_recovery_state == CompositorRecoveryState::Idle);
     m_compositor_recovery_state = CompositorRecoveryState::Recovering;
@@ -2110,6 +2105,19 @@ void Application::configure_request_server_control_client(Requests::RequestContr
 
 void Application::register_process_handlers()
 {
+    // Nothing can be shown without the Compositor, so the browser cannot carry on once it keeps crashing.
+    m_process_manager->set_restart_budget(ProcessType::Compositor, { .restarts = 3, .window = {} }, [](u64) {
+        warnln("Compositor process crashed repeatedly, crashing Browser");
+        VERIFY_NOT_REACHED();
+    });
+
+    // Pages and workers carry on without images or media once the helpers serving them keep crashing.
+    for (auto type : { ProcessType::ImageDecoder, ProcessType::MediaServer, ProcessType::AudioServer, ProcessType::VideoDecoderServer }) {
+        m_process_manager->set_restart_budget(type, { .restarts = 5, .window = AK::Duration::from_seconds(60) }, [type](u64 owner_child_id) {
+            warnln("{} process crashed repeatedly, so process {} goes without it", process_name_from_type(type), owner_child_id);
+        });
+    }
+
     m_process_manager->set_lost_handler(ProcessType::Compositor, [this](Process& process) {
         // The Compositor we stopped using, including at teardown, is not recovered.
         if (!m_compositor_client || process.client<CompositorClient>() != m_compositor_client)

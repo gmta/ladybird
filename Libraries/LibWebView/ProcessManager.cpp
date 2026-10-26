@@ -118,6 +118,35 @@ void ProcessManager::set_exit_handler(ProcessType type, Function<void(Process&)>
     m_exit_handlers.set(type, move(handler));
 }
 
+void ProcessManager::set_restart_budget(ProcessType type, RestartBudget budget, Function<void(u64 owner_child_id)> on_exhausted)
+{
+    verify_event_loop();
+    m_restart_policies.set(type, { budget, move(on_exhausted) });
+}
+
+// Counts a restart of a helper on behalf of its owner, the browser itself for a helper that serves everyone, unless the
+// owner has used up the type's budget. Then the type's exhaustion action runs instead.
+bool ProcessManager::may_restart(ProcessType type, u64 owner_child_id)
+{
+    verify_event_loop();
+    auto policy = m_restart_policies.get(type);
+    if (!policy.has_value())
+        return true;
+
+    auto now = MonotonicTime::now();
+    auto& restart_times = m_restart_times.ensure(type).ensure(owner_child_id);
+    if (auto window = policy->budget.window; window.has_value())
+        restart_times.remove_all_matching([&](auto time) { return now - time >= *window; });
+
+    if (restart_times.size() >= policy->budget.restarts) {
+        if (policy->on_exhausted)
+            policy->on_exhausted(owner_child_id);
+        return false;
+    }
+    restart_times.append(now);
+    return true;
+}
+
 // A helper is lost once, when the first of its connection closing and its exit is noticed.
 void ProcessManager::did_lose(Process& process)
 {
@@ -131,12 +160,16 @@ void ProcessManager::did_lose(Process& process)
 
 void ProcessManager::did_exit(pid_t pid, Optional<int> exit_status)
 {
-    auto child_id = m_child_ids_by_pid.get(pid);
-    if (!child_id.has_value())
+    // NB: The child ID is copied, as removing the process removes the entry that holds it.
+    auto maybe_child_id = m_child_ids_by_pid.get(pid);
+    if (!maybe_child_id.has_value())
         return;
-    auto process = remove_process(*child_id);
+    auto child_id = *maybe_child_id;
+    auto process = remove_process(child_id);
     if (!process.has_value())
         return;
+    for (auto& [type, restart_times] : m_restart_times)
+        restart_times.remove(child_id);
 
     // NB: A helper that exits while we shut down is expected to, so only its crash report is kept.
     auto is_shutting_down = Core::EventLoop::current().was_exit_requested();
