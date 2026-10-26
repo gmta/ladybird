@@ -256,6 +256,7 @@ void ProcessManager::did_exit(pid_t pid, Optional<int> exit_status)
     auto process = remove_process(child_id);
     if (!process.has_value())
         return;
+    m_launcher->forget(pid);
     for (auto& [type, restart_times] : m_restart_times)
         restart_times.remove(child_id);
 
