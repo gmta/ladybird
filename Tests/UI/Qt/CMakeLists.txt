@@ -129,10 +129,9 @@ deploy_qt_offscreen_platform_plugin(TestSelectDropdown)
 
 ladybird_test("TestProcessManagerWindow.cpp" UI/Qt
     CUSTOM_MAIN "$<TARGET_OBJECTS:QtTestMain>"
-    LIBS LibWebView LibURL Qt::Core Qt::Gui Qt::Widgets
+    LIBS LibWebView LibIPC LibURL Qt::Core Qt::Gui Qt::Widgets
 )
 target_sources(TestProcessManagerWindow PRIVATE
-    "${LADYBIRD_SOURCE_DIR}/Libraries/LibWebView/ProcessMonitor.cpp"
     "${LADYBIRD_SOURCE_DIR}/UI/Qt/Icon.cpp"
     "${LADYBIRD_SOURCE_DIR}/UI/Qt/ChromeStyle.cpp"
     "${LADYBIRD_SOURCE_DIR}/UI/Qt/ProcessManagerWindow.cpp"

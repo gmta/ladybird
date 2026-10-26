@@ -48,11 +48,11 @@ set(SOURCES
     PictureInPictureManager.cpp
     PictureInPictureWindow.cpp
     Process.cpp
+    ProcessLauncher.cpp
     ProcessManager.cpp
     ProcessSnapshot.cpp
     TabPerformanceStats.cpp
     TabPerformanceMonitor.cpp
-    ProcessMonitor.cpp
     Profile.cpp
     ReportSubmission.cpp
     RequestServerManager.cpp
@@ -94,10 +94,20 @@ if (APPLE)
         CrashReportPOSIX.cpp
         LaunchURLsMacOS.cpp
         PlatformColorsMacOS.cpp
+        ProcessLauncherMachPort.cpp
         ProcessReaper.cpp
     )
 elseif (LINUX)
     list(APPEND SOURCES AudioDaemonSocket.cpp CrashReportPOSIX.cpp)
+endif()
+
+if (WIN32)
+    list(APPEND SOURCES ProcessLauncherWindows.cpp)
+else()
+    list(APPEND SOURCES ProcessLauncherPOSIX.cpp)
+    if (NOT APPLE)
+        list(APPEND SOURCES ProcessLauncherSocket.cpp)
+    endif()
 endif()
 
 set(GENERATED_SOURCES ${CURRENT_LIB_GENERATED})

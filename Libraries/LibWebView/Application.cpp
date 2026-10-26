@@ -84,8 +84,12 @@
 #    include <LibIPC/TransportBootstrapMach.h>
 #endif
 
-#if defined(AK_OS_WINDOWS)
-#    include <LibIPC/HandleBrokerServer.h>
+#if defined(AK_OS_MACOS)
+#    include <LibWebView/ProcessLauncherMachPort.h>
+#elif defined(AK_OS_WINDOWS)
+#    include <LibWebView/ProcessLauncherWindows.h>
+#else
+#    include <LibWebView/ProcessLauncherSocket.h>
 #endif
 
 #ifdef USE_DIRECTX
@@ -1695,10 +1699,13 @@ ErrorOr<void> Application::launch_services()
     m_settings_observer = make<ApplicationSettingsObserver>();
     m_bookmark_store_observer = make<ApplicationBookmarkStoreObserver>();
 
-#if defined(AK_OS_WINDOWS)
-    m_handle_broker_server = IPC::HandleBrokerServer::create();
+#if defined(AK_OS_MACOS)
+    m_process_manager = make<ProcessManager>(make<ProcessLauncherMachPort>(m_transport_bootstrap_server));
+#elif defined(AK_OS_WINDOWS)
+    m_process_manager = make<ProcessManager>(make<ProcessLauncherWindows>());
+#else
+    m_process_manager = make<ProcessManager>(make<ProcessLauncherSocket>());
 #endif
-    m_process_manager = make<ProcessManager>();
     m_process_manager->on_process_exited = [this](Process&& process, Optional<int> exit_status) {
         process_did_exit(move(process), exit_status);
     };
@@ -2232,11 +2239,6 @@ ErrorOr<int> Application::execute()
 Core::EventLoop& Application::create_platform_event_loop()
 {
     return Core::EventLoop::initialize_for_current_thread();
-}
-
-ChildIdentity Application::add_child_process(WebView::Process&& process)
-{
-    return m_process_manager->add_process(move(process));
 }
 
 #if defined(AK_OS_MACH)

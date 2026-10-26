@@ -11,6 +11,7 @@
 #include <LibTest/TestCase.h>
 #include <LibURL/Parser.h>
 #include <LibWebView/ProcessManager.h>
+#include <Tests/LibWebView/TestProcessLauncher.h>
 #include <UI/Qt/ProcessManagerWindow.h>
 
 #include <QAction>
@@ -35,7 +36,7 @@ TEST_CASE(palette_changes_do_not_reenter_style_updates)
 {
     Core::EventLoop event_loop;
     Core::ResourceImplementation::install(make<Core::ResourceImplementationFile>(MUST(String::from_utf8(TEST_RESOURCE_ROOT ""sv))));
-    WebView::ProcessManager manager;
+    WebView::ProcessManager manager { make<WebView::TestProcessLauncher>() };
     Ladybird::ProcessManagerWindow window(manager);
     window.ensurePolished();
 
@@ -59,7 +60,7 @@ TEST_CASE(search_keeps_matching_child_processes_visible)
 {
     Core::EventLoop event_loop;
     Core::ResourceImplementation::install(make<Core::ResourceImplementationFile>(MUST(String::from_utf8(TEST_RESOURCE_ROOT ""sv))));
-    WebView::ProcessManager manager;
+    WebView::ProcessManager manager { make<WebView::TestProcessLauncher>() };
     Ladybird::ProcessManagerWindow window(manager);
     auto* processes = window.findChild<QTreeWidget*>();
     auto* search = window.findChild<QLineEdit*>();
@@ -98,7 +99,7 @@ TEST_CASE(browser_is_not_terminable_and_can_be_copied)
 {
     Core::EventLoop event_loop;
     Core::ResourceImplementation::install(make<Core::ResourceImplementationFile>(MUST(String::from_utf8(TEST_RESOURCE_ROOT ""sv))));
-    WebView::ProcessManager manager;
+    WebView::ProcessManager manager { make<WebView::TestProcessLauncher>() };
     Ladybird::ProcessManagerWindow window(manager);
     window.show();
     auto* processes = window.findChild<QTreeWidget*>();
@@ -137,13 +138,15 @@ TEST_CASE(end_process_terminates_a_child_and_handles_disappearing_selection)
 {
     Core::EventLoop event_loop;
     Core::ResourceImplementation::install(make<Core::ResourceImplementationFile>(MUST(String::from_utf8(TEST_RESOURCE_ROOT ""sv))));
-    WebView::ProcessManager manager;
+    WebView::ProcessManager manager { make<WebView::TestProcessLauncher>() };
     auto pipe = MUST(Core::System::pipe2(O_CLOEXEC));
-    auto child = MUST(Core::Process::spawn({
-        .executable = "/bin/cat",
-        .file_actions = { Core::FileAction::DupFd { pipe[0], STDIN_FILENO } },
-    }));
-    auto pid = child.pid();
+    auto spawned = MUST(manager.spawn_with_transport(WebView::ProcessType::WebContent, {
+                                                                                           .executable = "/bin/cat",
+                                                                                           .file_actions = { Core::FileAction::DupFd { pipe[0], STDIN_FILENO } },
+                                                                                       },
+        false));
+    auto identity = spawned.identity;
+    auto pid = identity.pid;
     bool reaped = false;
     ScopeGuard cleanup = [&] {
         if (!reaped) {
@@ -153,7 +156,6 @@ TEST_CASE(end_process_terminates_a_child_and_handles_disappearing_selection)
         (void)Core::System::close(pipe[0]);
         (void)Core::System::close(pipe[1]);
     };
-    auto identity = manager.add_process(WebView::Process(WebView::ProcessType::WebContent, nullptr, move(child)));
     Ladybird::ProcessManagerWindow window(manager);
     window.show();
     auto* processes = window.findChild<QTreeWidget*>();

@@ -11,8 +11,6 @@
 #include <LibCore/File.h>
 #include <LibCore/Process.h>
 #include <LibCore/Socket.h>
-#include <LibCore/StandardPaths.h>
-#include <LibCore/StatsLog.h>
 #include <LibCore/System.h>
 #include <LibFileSystem/FileSystem.h>
 #include <LibWebView/Process.h>
@@ -20,26 +18,18 @@
 
 #include <fcntl.h>
 
-#if defined(AK_OS_MACOS)
-#    include <LibIPC/TransportBootstrapMach.h>
-#    include <LibWebView/Application.h>
-#    include <LibWebView/ProcessReaper.h>
-#    include <LibWebView/Utilities.h>
-#endif
-
 #if defined(AK_OS_WINDOWS)
 #    include <AK/Windows.h>
-#    include <LibIPC/HandleBrokerServer.h>
-#    include <LibWebView/Application.h>
 #endif
 
 namespace WebView {
 
-Process::Process(ProcessType type, RefPtr<IPC::ConnectionBase> connection, Core::Process process)
+Process::Process(ProcessType type, Core::Process process, ProcessOutputCapture output_capture, IPC::ConnectionBase* connection)
     : m_pid(process.pid())
     , m_process(move(process))
     , m_type(type)
-    , m_connection(move(connection))
+    , m_connection(connection)
+    , m_output_capture(move(output_capture))
 {
 }
 
@@ -72,14 +62,6 @@ void Process::save_crash_report(Optional<int> exit_status)
 
 Process::~Process()
 {
-    // NB: A helper that never made it into the ProcessManager would run on untracked, so it is ended instead.
-    if (m_process.has_value() && m_child_id == 0) {
-        (void)Core::Process::terminate_process(m_pid, Core::Process::TerminationMode::Forceful);
-#if defined(AK_OS_MACOS)
-        Application::transport_bootstrap_server().unregister_child_transport(m_pid);
-#endif
-    }
-
     // shutdown() can release the connection's last owner while dispatching die().
     if (auto connection = m_connection.strong_ref())
         connection->shutdown();
@@ -156,169 +138,6 @@ Vector<ByteString> Process::helper_process_environment(ProcessType type)
             environment.append(entry.full_entry);
     }
     return environment;
-}
-
-#if defined(AK_OS_MACOS)
-// The kernel does not kill our helpers when we exit or die on macOS, so the ProcessReaper helper does it for us.
-static void watch_with_process_reaper(pid_t pid)
-{
-    // Never destroyed: the pipe to the reaper has to stay open until this process is gone.
-    static ProcessReaper* s_process_reaper = nullptr;
-    static bool s_tried_to_start_process_reaper = false;
-
-    if (!s_tried_to_start_process_reaper) {
-        s_tried_to_start_process_reaper = true;
-        auto candidate_paths = get_paths_for_helper_process("ProcessReaper"sv);
-        if (!candidate_paths.is_error()) {
-            for (auto const& path : candidate_paths.value()) {
-                if (!FileSystem::exists(path))
-                    continue;
-                if (auto process_reaper = ProcessReaper::start(path); !process_reaper.is_error()) {
-                    s_process_reaper = process_reaper.release_value().leak_ptr();
-                    break;
-                }
-            }
-        }
-        if (!s_process_reaper)
-            warnln("Could not start the ProcessReaper, so helper processes may outlive this process");
-    }
-
-    if (s_process_reaper) {
-        if (auto result = s_process_reaper->watch(pid); result.is_error())
-            warnln("Could not ask the ProcessReaper to watch process {}: {}", pid, result.error());
-    }
-}
-#endif
-
-ErrorOr<Process::ProcessAndTransport> Process::spawn_with_transport(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output)
-{
-    auto [core_process, transport, output_capture] = TRY(spawn_and_connect_to_process(type, options, capture_output));
-
-    Process process { type, nullptr, move(core_process) };
-    process.m_output_capture = move(output_capture);
-    return ProcessAndTransport { move(process), move(transport) };
-}
-
-ErrorOr<Process::ProcessAndIPCTransport> Process::spawn_and_connect_to_process([[maybe_unused]] ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output)
-{
-    // Set up pipes for stdout/stderr capture if requested
-    ProcessOutputCapture output_capture;
-    Array<int, 2> stdout_pipe {};
-    Array<int, 2> stderr_pipe {};
-
-    auto spawn_options = options;
-    spawn_options.die_with_parent = true;
-    Vector<ByteString> arguments_with_stats;
-    if (auto* stats_log = Core::StatsLog::the()) {
-        arguments_with_stats = Vector<ByteString> { options.arguments };
-        arguments_with_stats.append(ByteString::formatted("--stats-log-dir={}", stats_log->directory()));
-        spawn_options.arguments = arguments_with_stats;
-    }
-#if defined(AK_OS_MACOS) || defined(AK_OS_LINUX)
-    spawn_options.environment = helper_process_environment(type);
-#endif
-
-#if !defined(AK_OS_WINDOWS)
-    // Helpers must not read the terminal or pipe that the Browser was started from.
-    spawn_options.file_actions.append(Core::FileAction::OpenFile { .path = "/dev/null", .mode = Core::File::OpenMode::Read, .fd = STDIN_FILENO });
-#endif
-
-    if (capture_output) {
-        stdout_pipe = TRY(Core::System::pipe2(O_CLOEXEC));
-        stderr_pipe = TRY(Core::System::pipe2(O_CLOEXEC));
-
-        // The write ends stay close-on-exec, so no other process that is spawned meanwhile inherits them. The child
-        // gets its copies from these file actions.
-        spawn_options.file_actions.append(Core::FileAction::DupFd { .write_fd = stdout_pipe[1], .fd = STDOUT_FILENO });
-        spawn_options.file_actions.append(Core::FileAction::DupFd { .write_fd = stderr_pipe[1], .fd = STDERR_FILENO });
-    }
-
-    // NB: A helper that we fail to connect to is ended rather than left running untracked.
-    Optional<Core::Process> process;
-    ArmedScopeGuard terminate_process_on_failure { [&] {
-        if (!process.has_value())
-            return;
-        (void)Core::Process::terminate_process(process->pid(), Core::Process::TerminationMode::Forceful);
-#if defined(AK_OS_MACOS)
-        Application::transport_bootstrap_server().unregister_child_transport(process->pid());
-#endif
-    } };
-
-#if defined(AK_OS_MACOS)
-    auto port_a_recv = TRY(Core::MachPort::create_with_right(Core::MachPort::PortRight::Receive));
-    auto port_a_send = TRY(port_a_recv.insert_right(Core::MachPort::MessageRight::MakeSend));
-    auto port_b_recv = TRY(Core::MachPort::create_with_right(Core::MachPort::PortRight::Receive));
-    auto port_b_send = TRY(port_b_recv.insert_right(Core::MachPort::MessageRight::MakeSend));
-
-    // The child may receive startup messages before it has constructed its transport.
-    IPC::TransportMachPort::raise_receive_queue_limit(port_b_recv);
-
-    MutexLocker child_registration_locker(Application::transport_bootstrap_server().child_registration_lock());
-    process = TRY(Core::Process::spawn(spawn_options));
-    watch_with_process_reaper(process->pid());
-
-    Application::transport_bootstrap_server().register_child_transport(process->pid(), IPC::TransportBootstrapMachPorts { move(port_b_recv), move(port_a_send) });
-
-    auto transport = make<IPC::Transport>(move(port_a_recv), move(port_b_send));
-#elif defined(AK_OS_WINDOWS)
-    // A Windows pipe cannot carry a handle, so the helper also gets a line to the Browser's handle broker.
-    auto channel = TRY(Core::System::duplex_pipe());
-    ArmedScopeGuard guard_channel_0 { [&] { MUST(Core::System::close(channel[0])); } };
-    ArmedScopeGuard guard_channel_1 { [&] { MUST(Core::System::close(channel[1])); } };
-    auto broker_channel = TRY(Core::System::duplex_pipe());
-    ArmedScopeGuard guard_broker_channel_0 { [&] { MUST(Core::System::close(broker_channel[0])); } };
-    ArmedScopeGuard guard_broker_channel_1 { [&] { MUST(Core::System::close(broker_channel[1])); } };
-
-    // Only the helper's ends reach the helper, and only this helper.
-    spawn_options.file_actions.append(Core::FileAction::DupFd { .write_fd = channel[1], .fd = channel[1] });
-    spawn_options.file_actions.append(Core::FileAction::DupFd { .write_fd = broker_channel[1], .fd = broker_channel[1] });
-    TRY(Core::Environment::set("SOCKET_TAKEOVER"sv, ByteString::formatted("ipc:{};handle-broker:{}", channel[1], broker_channel[1]), Core::Environment::Overwrite::Yes));
-
-    process = TRY(Core::Process::spawn(spawn_options));
-
-    auto transport = TRY(IPC::Transport::adopt_fd(channel[0]));
-    guard_channel_0.disarm();
-
-    guard_broker_channel_0.disarm();
-    Application::handle_broker_server().add_child(process->pid(), broker_channel[0]);
-#else
-    int socket_fds[2] {};
-    TRY(Core::System::socketpair(AF_LOCAL, SOCK_STREAM | SOCK_CLOEXEC, 0, socket_fds));
-
-    ArmedScopeGuard guard_fd_0 { [&] { MUST(Core::System::close(socket_fds[0])); } };
-    ArmedScopeGuard guard_fd_1 { [&] { MUST(Core::System::close(socket_fds[1])); } };
-
-    // Only the helper's end reaches the helper, and only this helper.
-    spawn_options.file_actions.append(Core::FileAction::DupFd { .write_fd = socket_fds[1], .fd = socket_fds[1] });
-
-    // NB: Only the helper gets to see this, if it has an environment of its own.
-    auto takeover_string = ByteString::formatted("ipc:{}", socket_fds[1]);
-    if (spawn_options.environment.has_value())
-        spawn_options.environment->append(ByteString::formatted("SOCKET_TAKEOVER={}", takeover_string));
-    else
-        TRY(Core::Environment::set("SOCKET_TAKEOVER"sv, takeover_string, Core::Environment::Overwrite::Yes));
-
-    process = TRY(Core::Process::spawn(spawn_options));
-
-    auto ipc_socket = TRY(Core::LocalSocket::adopt_fd(socket_fds[0]));
-    guard_fd_0.disarm();
-    TRY(ipc_socket->set_blocking(true));
-
-    auto transport = make<IPC::Transport>(move(ipc_socket));
-#endif
-
-    if (capture_output) {
-        // Close write ends in parent
-        MUST(Core::System::close(stdout_pipe[1]));
-        MUST(Core::System::close(stderr_pipe[1]));
-
-        // Wrap read ends in File objects
-        output_capture.stdout_file = TRY(Core::File::adopt_fd(stdout_pipe[0], Core::File::OpenMode::Read));
-        output_capture.stderr_file = TRY(Core::File::adopt_fd(stderr_pipe[0], Core::File::OpenMode::Read));
-    }
-
-    terminate_process_on_failure.disarm();
-    return ProcessAndIPCTransport { process.release_value(), move(transport), move(output_capture) };
 }
 
 ErrorOr<Optional<pid_t>> Process::get_process_pid(StringView process_name, StringView pid_path)

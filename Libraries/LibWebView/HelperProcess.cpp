@@ -19,6 +19,7 @@
 #include <LibWebView/FontService.h>
 #include <LibWebView/FontServiceHost.h>
 #include <LibWebView/HelperProcess.h>
+#include <LibWebView/ProcessManager.h>
 #include <LibWebView/RequestServerManager.h>
 #include <LibWebView/Utilities.h>
 #include <LibWebView/VideoDecoderServerControlClient.h>
@@ -167,8 +168,7 @@ static ErrorOr<CPUProfiler> launch_cpu_profiler(StringView server_name, pid_t pi
 #endif
 }
 
-// Spawns the helper with the given function, which returns the Process to keep track of, and returns the helper's
-// identity.
+// Spawns the helper with the given function, which registers it and returns its identity.
 template<typename SpawnFunction>
 static ErrorOr<ChildIdentity> launch_helper_process(StringView server_name, Vector<ByteString> arguments, SpawnFunction&& spawn)
 {
@@ -249,20 +249,20 @@ static ErrorOr<ChildIdentity> launch_helper_process(StringView server_name, Vect
         auto result = spawn(options, capture_output);
 
         if (!result.is_error()) {
-            auto process = result.release_value();
+            auto identity = result.release_value();
+            auto process = WebView::Application::process_manager().find_child(identity.child_id);
+            VERIFY(process.has_value());
             if (crash_report)
-                process.set_crash_report(crash_report.release_nonnull());
+                process->set_crash_report(crash_report.release_nonnull());
 #if defined(AK_OS_LINUX)
             if (connect_broker)
-                process.set_connect_broker(connect_broker.release_nonnull());
+                process->set_connect_broker(connect_broker.release_nonnull());
 #endif
 
             if (WebView::Application::the().claim_cpu_profiler(process_type)) {
-                auto profiler = TRY(launch_cpu_profiler(server_name, process.pid(), browser_options.profile_output));
+                auto profiler = TRY(launch_cpu_profiler(server_name, identity.pid, browser_options.profile_output));
                 WebView::Application::the().set_cpu_profiler_process(move(profiler.process), move(profiler.control_socket));
             }
-
-            auto identity = WebView::Application::the().add_child_process(move(process));
 
             if (browser_options.profile_helper_process == process_type && browser_options.profile_tool == ProfileTool::Callgrind) {
                 dbgln();
@@ -290,10 +290,10 @@ static ErrorOr<NonnullRefPtr<ClientType>> launch_server_process(
     ClientArguments&&... client_arguments)
 {
     RefPtr<ClientType> client;
-    auto identity = TRY(launch_helper_process(server_name, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<WebView::Process> {
-        auto [process, new_client] = TRY(WebView::Process::spawn<ClientType>(WebView::process_type_from_name(server_name), options, capture_output, forward<ClientArguments>(client_arguments)...));
-        client = move(new_client);
-        return move(process);
+    auto identity = TRY(launch_helper_process(server_name, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<ChildIdentity> {
+        auto spawned = TRY(Application::process_manager().spawn<ClientType>(process_type_from_name(server_name), options, capture_output, forward<ClientArguments>(client_arguments)...));
+        client = move(spawned.client);
+        return spawned.identity;
     }));
 
     if constexpr (requires { client->set_child_identity(ChildIdentity {}); })
@@ -392,10 +392,10 @@ ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
     // The decoder parses untrusted images for one client, so it must not see the images of any other. The Browser
     // does not talk to it, and hands its end of the transport to the client.
     OwnPtr<IPC::Transport> transport;
-    auto identity = TRY(launch_helper_process("ImageDecoder"sv, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<WebView::Process> {
-        auto [process, new_transport] = TRY(WebView::Process::spawn_with_transport(ProcessType::ImageDecoder, options, capture_output));
-        transport = move(new_transport);
-        return move(process);
+    auto identity = TRY(launch_helper_process("ImageDecoder"sv, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<ChildIdentity> {
+        auto spawned = TRY(Application::process_manager().spawn_with_transport(ProcessType::ImageDecoder, options, capture_output));
+        transport = move(spawned.transport);
+        return spawned.identity;
     }));
 
     return ImageDecoderConnection { TRY(transport->release_for_transfer()), identity.child_id };
@@ -641,12 +641,12 @@ ErrorOr<NonnullRefPtr<Requests::RequestControlClient>> launch_request_server_pro
         arguments.append(ByteString::formatted("--resource-map={}", *request_server_options.resource_substitution_map_path));
 
     RefPtr<Requests::RequestControlClient> client;
-    TRY(launch_helper_process("RequestServer"sv, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<Process> {
-        auto [process, new_client] = TRY(Process::spawn<Requests::RequestControlClient>(ProcessType::RequestServer, options, capture_output));
+    TRY(launch_helper_process("RequestServer"sv, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<ChildIdentity> {
+        auto spawned = TRY(Application::process_manager().spawn<Requests::RequestControlClient>(ProcessType::RequestServer, options, capture_output));
         if (site.has_value())
-            process.set_site_url(URL::Parser::basic_parse(*site));
-        client = move(new_client);
-        return move(process);
+            Application::process_manager().find_child(spawned.identity.child_id)->set_site_url(URL::Parser::basic_parse(*site));
+        client = move(spawned.client);
+        return spawned.identity;
     }));
 
     auto const& browsing_data_settings = Application::settings().browsing_data_settings();

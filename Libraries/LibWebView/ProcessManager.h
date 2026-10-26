@@ -18,7 +18,7 @@
 #include <LibWebView/ChildIdentity.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/Process.h>
-#include <LibWebView/ProcessMonitor.h>
+#include <LibWebView/ProcessLauncher.h>
 #include <LibWebView/ProcessType.h>
 
 namespace WebView {
@@ -26,16 +26,31 @@ namespace WebView {
 WEBVIEW_API ProcessType process_type_from_name(StringView);
 WEBVIEW_API StringView process_name_from_type(ProcessType type);
 
+template<typename ClientType>
+struct SpawnedClient {
+    ChildIdentity identity;
+    NonnullRefPtr<ClientType> client;
+};
+
+struct SpawnedTransport {
+    ChildIdentity identity;
+    NonnullOwnPtr<IPC::Transport> transport;
+};
+
 class WEBVIEW_API ProcessManager {
     AK_MAKE_NONCOPYABLE(ProcessManager);
 
 public:
     AK_ALLOC_WITH_KMALLOC;
 
-    ProcessManager();
+    explicit ProcessManager(NonnullOwnPtr<ProcessLauncher>);
 
-    // Gives the process its child ID and starts watching for its exit.
-    ChildIdentity add_process(Process&&);
+    template<typename ClientType, typename... ClientArguments>
+    ErrorOr<SpawnedClient<ClientType>> spawn(ProcessType, Core::ProcessSpawnOptions const&, bool capture_output, ClientArguments&&...);
+
+    // For a helper that serves another process: The caller hands the transport over instead of connecting to it.
+    ErrorOr<SpawnedTransport> spawn_with_transport(ProcessType, Core::ProcessSpawnOptions const&, bool capture_output);
+
     void for_each_process(Function<void(Process&)>);
     void for_each_process_statistics(Function<void(Process&, Core::Platform::ProcessInfo const&)>);
     Optional<Process> remove_process(u64 child_id);
@@ -57,7 +72,11 @@ public:
     Function<void(Process&&, Optional<int> exit_status)> on_process_exited;
 
 private:
+    // Gives the process its child ID and starts watching for its exit.
+    ChildIdentity add_process(Process&&);
     void verify_event_loop() const;
+
+    NonnullOwnPtr<ProcessLauncher> m_launcher;
 
     Core::Platform::ProcessStatistics m_statistics;
     HashMap<u64, Process> m_processes;
@@ -65,8 +84,16 @@ private:
     HashMap<pid_t, u64> m_child_ids_by_pid;
     HashMap<u64, RefPtr<Core::Timer>> m_forced_exit_timers;
     u64 m_next_child_id { 1 };
-    ProcessMonitor m_process_monitor;
     Core::EventLoop* m_creation_event_loop { &Core::EventLoop::current() };
 };
+
+template<typename ClientType, typename... ClientArguments>
+ErrorOr<SpawnedClient<ClientType>> ProcessManager::spawn(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output, ClientArguments&&... client_arguments)
+{
+    auto launched = TRY(m_launcher->launch(type, options, capture_output));
+    auto client = adopt_ref(*new ClientType { move(launched.transport), forward<ClientArguments>(client_arguments)... });
+    auto identity = add_process(Process { type, move(launched.process), move(launched.output_capture), client.ptr() });
+    return SpawnedClient<ClientType> { identity, move(client) };
+}
 
 }

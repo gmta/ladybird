@@ -63,10 +63,12 @@ StringView process_name_from_type(ProcessType type)
     VERIFY_NOT_REACHED();
 }
 
-ProcessManager::ProcessManager()
+ProcessManager::ProcessManager(NonnullOwnPtr<ProcessLauncher> launcher)
     : on_process_added([](Process&) { })
     , on_process_exited([](Process&&, Optional<int>) { })
-    , m_process_monitor(ProcessMonitor([this](pid_t pid, Optional<int> exit_status) {
+    , m_launcher(move(launcher))
+{
+    m_launcher->on_exit = [this](pid_t pid, Optional<int> exit_status) {
         auto child_id = m_child_ids_by_pid.get(pid);
         if (!child_id.has_value())
             return;
@@ -74,8 +76,8 @@ ProcessManager::ProcessManager()
             process->save_crash_report(exit_status);
             on_process_exited(process.release_value(), exit_status);
         }
-    }))
-{
+    };
+
     add_process(Process::for_browser());
 
 #ifdef AK_OS_MACH
@@ -101,6 +103,13 @@ Optional<Process&> ProcessManager::find_child(u64 child_id)
     return m_processes.get(child_id);
 }
 
+ErrorOr<SpawnedTransport> ProcessManager::spawn_with_transport(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output)
+{
+    auto launched = TRY(m_launcher->launch(type, options, capture_output));
+    auto identity = add_process(Process { type, move(launched.process), move(launched.output_capture), nullptr });
+    return SpawnedTransport { identity, move(launched.transport) };
+}
+
 ChildIdentity ProcessManager::add_process(WebView::Process&& process)
 {
     verify_event_loop();
@@ -115,7 +124,7 @@ ChildIdentity ProcessManager::add_process(WebView::Process&& process)
     VERIFY(m_processes.set(child_id, move(process)) == AK::HashSetResult::InsertedNewEntry);
     VERIFY(m_child_ids_by_pid.set(pid, child_id) == AK::HashSetResult::InsertedNewEntry);
     m_statistics.processes.append(make<Core::Platform::ProcessInfo>(pid));
-    m_process_monitor.add_process(pid);
+    m_launcher->watch_for_exit(pid);
     return { child_id, pid };
 }
 

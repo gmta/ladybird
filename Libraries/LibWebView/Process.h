@@ -13,7 +13,6 @@
 #include <LibCore/File.h>
 #include <LibCore/Process.h>
 #include <LibIPC/Connection.h>
-#include <LibIPC/Transport.h>
 #include <LibSandbox/ConnectBroker.h>
 #include <LibURL/URL.h>
 #include <LibWebView/CrashReport.h>
@@ -32,20 +31,9 @@ class WEBVIEW_API Process {
     AK_MAKE_DEFAULT_MOVABLE(Process);
 
 public:
-    Process(ProcessType type, RefPtr<IPC::ConnectionBase> connection, Core::Process process);
+    Process(ProcessType, Core::Process, ProcessOutputCapture, IPC::ConnectionBase* connection);
     static Process for_browser();
     ~Process();
-
-    template<typename ClientType>
-    struct ProcessAndClient;
-
-    template<typename ClientType, typename... ClientArguments>
-    static ErrorOr<ProcessAndClient<ClientType>> spawn(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output, ClientArguments&&... client_arguments);
-
-    struct ProcessAndTransport;
-
-    // For a helper that serves another process: The caller hands the transport over instead of connecting to it.
-    static ErrorOr<ProcessAndTransport> spawn_with_transport(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output);
 
     ProcessType type() const { return m_type; }
 
@@ -95,13 +83,6 @@ public:
     static ErrorOr<int> create_ipc_socket(ByteString const& socket_path);
 
 private:
-    struct ProcessAndIPCTransport {
-        Core::Process process;
-        NonnullOwnPtr<IPC::Transport> transport;
-        ProcessOutputCapture output_capture;
-    };
-    static ErrorOr<ProcessAndIPCTransport> spawn_and_connect_to_process(ProcessType, Core::ProcessSpawnOptions const& options, bool capture_output);
-
     OwnPtr<CrashReport> m_crash_report;
     ByteString m_saved_crash_report_name;
 
@@ -123,29 +104,5 @@ private:
     WeakPtr<IPC::ConnectionBase> m_connection;
     ProcessOutputCapture m_output_capture;
 };
-
-template<typename ClientType>
-struct Process::ProcessAndClient {
-    Process process;
-    NonnullRefPtr<ClientType> client;
-};
-
-struct Process::ProcessAndTransport {
-    Process process;
-    NonnullOwnPtr<IPC::Transport> transport;
-};
-
-template<typename ClientType, typename... ClientArguments>
-ErrorOr<Process::ProcessAndClient<ClientType>> Process::spawn(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output, ClientArguments&&... client_arguments)
-{
-    auto [core_process, transport, output_capture] = TRY(spawn_and_connect_to_process(type, options, capture_output));
-
-    // NB: Create the record first, so that a failure below ends the helper rather than leaving it running untracked.
-    Process process { type, nullptr, move(core_process) };
-    process.m_output_capture = move(output_capture);
-    auto client = TRY(adopt_nonnull_ref_or_enomem(new (nothrow) ClientType { move(transport), forward<ClientArguments>(client_arguments)... }));
-    process.m_connection = *client;
-    return ProcessAndClient<ClientType> { move(process), client };
-}
 
 }

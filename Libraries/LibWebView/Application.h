@@ -213,14 +213,10 @@ public:
     static SessionStore* session_store(IsPrivate);
 
     static ProcessManager& process_manager() { return *the().m_process_manager; }
-#if defined(AK_OS_WINDOWS)
-    static IPC::HandleBrokerServer& handle_broker_server() { return *the().m_handle_broker_server; }
-#endif
 
     // Runs the handler when the ImageDecoder with the given child ID exits.
     void set_image_decoder_exit_handler(u64 child_id, Function<void()>);
 #if defined(AK_OS_MACOS)
-    static IPC::TransportBootstrapMachServer& transport_bootstrap_server() { return the().m_transport_bootstrap_server; }
     void set_browser_process_transport_handler(Function<void(NonnullOwnPtr<IPC::Transport>)> handler);
 #endif
 
@@ -288,8 +284,6 @@ public:
     void open_bookmark_in_new_window(String const& bookmark_id, IsPrivate);
 
     Main::Arguments const& command_line_arguments() const { return m_arguments; }
-
-    ChildIdentity add_child_process(Process&&);
 
     // FIXME: Should these methods be part of Application, instead of deferring to ProcessManager?
 #if defined(AK_OS_MACH)
@@ -666,9 +660,6 @@ private:
     OwnPtr<Core::TimeZoneWatcher> m_time_zone_watcher;
 
     Core::EventLoop* m_event_loop { nullptr };
-#if defined(AK_OS_WINDOWS)
-    OwnPtr<IPC::HandleBrokerServer> m_handle_broker_server;
-#endif
     OwnPtr<ProcessManager> m_process_manager;
 
     RefPtr<Action> m_reload_action;
