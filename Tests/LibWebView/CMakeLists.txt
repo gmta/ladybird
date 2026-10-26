@@ -30,7 +30,7 @@ set(TEST_SOURCES
 )
 
 if (APPLE OR LINUX)
-    list(APPEND TEST_SOURCES TestCrashReport.cpp TestCrashReportReview.cpp TestCrashReportStore.cpp TestFontService.cpp TestRendererFontService.cpp)
+    list(APPEND TEST_SOURCES TestCrashReport.cpp TestCrashReportReview.cpp TestCrashReportStore.cpp TestFontService.cpp TestProcessManager.cpp TestRendererFontService.cpp)
 endif()
 
 if (APPLE)
@@ -58,6 +58,9 @@ foreach(source IN LISTS TEST_SOURCES)
     set(test_libraries LibDatabase LibWebView LibURL)
     if (source STREQUAL "TestProfile.cpp" OR source STREQUAL "TestDownloadSegmentation.cpp")
         list(APPEND test_libraries LibHTTP)
+    endif()
+    if (source STREQUAL "TestProcessManager.cpp")
+        list(APPEND test_libraries LibIPC)
     endif()
     if (source STREQUAL "TestFontService.cpp")
         list(APPEND test_libraries LibFileSystem LibIPC LibGfx)
