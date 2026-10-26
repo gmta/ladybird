@@ -14,6 +14,7 @@
 #include <LibHTTP/Cache/Utilities.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/HelperProcess.h>
+#include <LibWebView/ProcessManager.h>
 #include <LibWebView/RequestServerManager.h>
 #include <LibWebView/RequestServerSiteBindings.h>
 #include <LibWebView/WebContentClient.h>
@@ -48,6 +49,21 @@ RequestServerManager& RequestServerManager::the()
 RequestServerManager::RequestServerManager()
     : m_maximum_site_instances(Application::request_server_options().maximum_site_request_servers)
 {
+    Application::process_manager().set_lost_handler(ProcessType::RequestServer, [this](Process& process) {
+        auto control_client = process.client<Requests::RequestControlClient>();
+        if (!control_client)
+            return;
+        for (auto& instance : m_instances) {
+            if (instance->m_control_client != control_client)
+                continue;
+            // NB: Recovering the instance spawns a process and talks to it, so it waits for the current task to end.
+            Core::deferred_invoke([weak_instance = instance->make_weak_ptr()] {
+                if (auto instance = weak_instance.strong_ref())
+                    the().did_lose_process(*instance);
+            });
+            return;
+        }
+    });
 }
 
 RequestServerManager::~RequestServerManager() = default;
@@ -128,10 +144,6 @@ ErrorOr<void> RequestServerManager::launch_process(RequestServerInstance& instan
     control_client->on_client_disconnected = [weak_instance](int client_id) {
         if (auto instance = weak_instance.strong_ref())
             the().client_disconnected(*instance, client_id);
-    };
-    control_client->on_request_server_died = [weak_instance] {
-        if (auto instance = weak_instance.strong_ref())
-            the().did_lose_process(*instance);
     };
     control_client->on_disk_cache_size_changed = [weak_instance](u64 size) {
         if (auto instance = weak_instance.strong_ref())

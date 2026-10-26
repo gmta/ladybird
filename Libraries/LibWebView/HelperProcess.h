@@ -47,6 +47,7 @@ WEBVIEW_API ErrorOr<ImageDecoderConnection> launch_image_decoder_process();
 // Hands the client its ImageDecoder. If that decoder dies while the client is still connected, the client gets a new one.
 WEBVIEW_API void connect_to_image_decoder(WebContentClient&, ImageDecoderConnection);
 WEBVIEW_API void connect_to_image_decoder(WebWorkerClient&, ImageDecoderConnection);
+WEBVIEW_API void replace_lost_image_decoder(Process const&);
 
 struct RequestServerClientConnection {
     IPC::TransportHandle handle;

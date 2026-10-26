@@ -45,6 +45,9 @@ public:
 
     explicit ProcessManager(NonnullOwnPtr<ProcessLauncher>);
 
+    void set_lost_handler(ProcessType, Function<void(Process&)>);
+    void set_exit_handler(ProcessType, Function<void(Process&)>);
+
     template<typename ClientType, typename... ClientArguments>
     ErrorOr<SpawnedClient<ClientType>> spawn(ProcessType, Core::ProcessSpawnOptions const&, bool capture_output, ClientArguments&&...);
 
@@ -74,12 +77,16 @@ public:
 private:
     // Gives the process its child ID and starts watching for its exit.
     ChildIdentity add_process(Process&&);
+    void did_lose(Process&);
+    void did_exit(pid_t, Optional<int> exit_status);
     void verify_event_loop() const;
 
     NonnullOwnPtr<ProcessLauncher> m_launcher;
+    HashMap<ProcessType, Function<void(Process&)>> m_lost_handlers;
+    HashMap<ProcessType, Function<void(Process&)>> m_exit_handlers;
 
     Core::Platform::ProcessStatistics m_statistics;
-    HashMap<u64, Process> m_processes;
+    HashMap<u64, NonnullOwnPtr<Process>> m_processes;
     // NB: Exit notifications and statistics name processes by PID.
     HashMap<pid_t, u64> m_child_ids_by_pid;
     HashMap<u64, RefPtr<Core::Timer>> m_forced_exit_timers;

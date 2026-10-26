@@ -23,7 +23,6 @@ class WEBVIEW_API CompositorClient final
 public:
     explicit CompositorClient(NonnullOwnPtr<IPC::Transport>);
 
-    Function<void()> on_death;
     Function<void(Optional<Gfx::GpuDeviceIdentity>)> on_gpu_device_identity_reported;
 
 private:

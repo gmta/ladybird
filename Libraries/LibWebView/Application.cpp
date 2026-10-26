@@ -231,8 +231,8 @@ Application::~Application()
 
     m_autocomplete_service.clear();
 
-    if (m_compositor_client)
-        m_compositor_client->on_death = nullptr;
+    // A Compositor that is lost from here on is not recovered.
+    m_compositor_client = nullptr;
     if (m_compositor_presentation_client)
         m_compositor_presentation_client->on_death = nullptr;
 
@@ -258,7 +258,7 @@ Application::~Application()
 
     m_spare_web_content_process = nullptr;
 
-    // Connection die() handlers use the process manager, so destroy the processes while it is still reachable.
+    // Lost handlers use the process manager, so destroy the processes while it is still reachable.
     if (m_process_manager)
         m_process_manager->remove_all_processes();
     m_process_manager = nullptr;
@@ -1709,6 +1709,7 @@ ErrorOr<void> Application::launch_services()
     m_process_manager->on_process_exited = [this](Process&& process, Optional<int> exit_status) {
         process_did_exit(move(process), exit_status);
     };
+    register_process_handlers();
 
     Optional<ByteString> history_database_directory;
     bool should_remove_unreferenced_favicons = false;
@@ -1899,9 +1900,6 @@ ErrorOr<void> Application::launch_compositor_process()
 {
     VERIFY(!m_compositor_client);
     m_compositor_client = TRY(WebView::launch_compositor_process());
-    m_compositor_client->on_death = [this]() {
-        handle_compositor_process_death();
-    };
     m_compositor_client->on_gpu_device_identity_reported = [this](Optional<Gfx::GpuDeviceIdentity> identity) {
         compositor_reported_gpu_device_identity(move(identity));
     };
@@ -2110,9 +2108,41 @@ void Application::configure_request_server_control_client(Requests::RequestContr
     TabPerformanceMonitor::configure(control_client);
 }
 
-void Application::set_image_decoder_exit_handler(u64 child_id, Function<void()> handler)
+void Application::register_process_handlers()
 {
-    m_image_decoder_exit_handlers.set(child_id, move(handler));
+    m_process_manager->set_lost_handler(ProcessType::Compositor, [this](Process& process) {
+        // The Compositor we stopped using, including at teardown, is not recovered.
+        if (!m_compositor_client || process.client<CompositorClient>() != m_compositor_client)
+            return;
+        Core::deferred_invoke([this] {
+            handle_compositor_process_death();
+        });
+    });
+
+    m_process_manager->set_lost_handler(ProcessType::WebContent, [](Process& process) {
+        if (auto client = process.client<WebContentClient>())
+            client->did_lose_process();
+    });
+    m_process_manager->set_exit_handler(ProcessType::WebContent, [this](Process& process) {
+        auto client = process.client<WebContentClient>();
+        if (!client)
+            return;
+        if (auto const& report_name = process.saved_crash_report_name(); !report_name.is_empty()) {
+            client->did_save_crash_report(report_name);
+            if (client->has_crashed_views())
+                process.set_crash_report_is_shown();
+        }
+        m_web_content_clients.remove(client.release_nonnull());
+    });
+
+    m_process_manager->set_lost_handler(ProcessType::WebWorker, [](Process& process) {
+        if (auto client = process.client<WebWorkerClient>())
+            client->did_lose_process();
+    });
+
+    m_process_manager->set_lost_handler(ProcessType::ImageDecoder, [](Process& process) {
+        replace_lost_image_decoder(process);
+    });
 }
 
 ErrorOr<void> Application::launch_devtools_server()
@@ -2268,60 +2298,12 @@ void Application::process_did_exit(Process&& process, Optional<int>)
     dbgln_if(WEBVIEW_PROCESS_DEBUG, "Process {} died, type: {}", process.pid(), process_name_from_type(process.type()));
 
     auto const& report_name = process.saved_crash_report_name();
-    auto crash_is_shown_in_tab = false;
-
-    switch (process.type()) {
-    case ProcessType::Compositor:
-        if (auto client = process.client<CompositorClient>()) {
-            if (auto on_death = move(client->on_death))
-                on_death();
-        }
-        break;
-    case ProcessType::ImageDecoder:
-        if (auto handler = m_image_decoder_exit_handlers.take(process.child_id()); handler.has_value())
-            (*handler)();
-        break;
-    case ProcessType::MediaServer:
-        // The connection's holder launches a new MediaServer when it next connects a client.
-        break;
-    case ProcessType::AudioServer:
-        // The connection's holder launches a new AudioServer when it next connects a client; the streams of the old
-        // one report their loss and reopen.
-        break;
-    case ProcessType::VideoDecoderServer:
-        // The MediaServer it served asks for a new one once its decoders notice the loss.
-        break;
-    case ProcessType::RequestServer:
-        if (auto client = process.client<Requests::RequestControlClient>()) {
-            dbgln_if(WEBVIEW_PROCESS_DEBUG, "Restart request server");
-            if (auto on_request_server_died = move(client->on_request_server_died))
-                on_request_server_died();
-        }
-        break;
-    case ProcessType::WebContent:
-        if (auto client = process.client<WebContentClient>()) {
-            client->did_lose_process();
-            if (!report_name.is_empty()) {
-                client->did_save_crash_report(report_name);
-                crash_is_shown_in_tab = client->has_crashed_views();
-            }
-            m_web_content_clients.remove(client.release_nonnull());
-        }
-        break;
-    case ProcessType::WebWorker:
-        dbgln_if(WEBVIEW_PROCESS_DEBUG, "WebWorker {} died, not sure what to do.", process.pid());
-        break;
-    case ProcessType::Browser:
-        dbgln("Invalid process type to be dying: Browser");
-        VERIFY_NOT_REACHED();
-    }
-
     if (report_name.is_empty())
         return;
 
     // The tab's crash screen is this report's one automatic prompt, so it is not offered again. Every other crash is
     // hidden from the user, so its report is offered right away.
-    if (!crash_is_shown_in_tab) {
+    if (!process.crash_report_is_shown()) {
         offer_crash_report(report_name);
     } else if (!browser_options().headless_mode.has_value()) {
         if (auto result = CrashReportStore::the().mark_seen(report_name); result.is_error())

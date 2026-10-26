@@ -36,6 +36,8 @@ public:
     WebWorkerClient(NonnullOwnPtr<IPC::Transport>, IsPrivate, Web::HTML::WorkerAgentId agent_id);
     ~WebWorkerClient();
 
+    void did_lose_process();
+
     RefPtr<BrowsingSession> session() const { return m_session.strong_ref(); }
     IsPrivate is_private() const { return m_is_private; }
     RequestServerSiteBindings& request_server_site_bindings() { return m_request_server_site_bindings; }

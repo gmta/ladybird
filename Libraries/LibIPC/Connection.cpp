@@ -68,7 +68,12 @@ void ConnectionBase::shutdown()
     if (m_died)
         return;
     m_died = true;
+
+    // die() can release the last reference to this connection, so the callback is taken out first.
+    auto shutdown_callback = move(on_shutdown);
     die();
+    if (shutdown_callback)
+        shutdown_callback();
 }
 
 void ConnectionBase::shutdown_with_error(Error const& error)

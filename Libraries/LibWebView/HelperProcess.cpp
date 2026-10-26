@@ -408,21 +408,37 @@ static void connect_client_to_image_decoder(ClientType& client, ImageDecoderConn
     VERIFY(process.has_value());
     process->set_owner_child_id(client.child_id());
     client.async_connect_to_image_decoder(decoder.handle);
+}
 
-    // A decoder exits by itself once its client is gone. One that dies before then is replaced, so a crash costs the
-    // client the images it was decoding at the time rather than every image after it.
-    Application::the().set_image_decoder_exit_handler(decoder.child_id, [weak_client = client.template make_weak_ptr<ClientType>()] {
-        auto client = weak_client.strong_ref();
-        if (!client || !client->is_open())
-            return;
+template<typename ClientType>
+static void replace_image_decoder_of(RefPtr<ClientType> client)
+{
+    if (!client || !client->is_open())
+        return;
 
-        auto new_decoder = launch_image_decoder_process();
-        if (new_decoder.is_error()) {
-            dbgln("Failed to replace a crashed image decoder: {}", new_decoder.error());
-            return;
-        }
-        connect_client_to_image_decoder(*client, new_decoder.release_value());
-    });
+    auto new_decoder = launch_image_decoder_process();
+    if (new_decoder.is_error()) {
+        dbgln("Failed to replace a crashed image decoder: {}", new_decoder.error());
+        return;
+    }
+    connect_client_to_image_decoder(*client, new_decoder.release_value());
+}
+
+// A decoder exits by itself once its client is gone. One that dies before then is replaced, so a crash costs the client
+// the images it was decoding at the time rather than every image after it.
+void replace_lost_image_decoder(Process const& decoder)
+{
+    auto owner_child_id = decoder.owner_child_id();
+    if (!owner_child_id.has_value())
+        return;
+    auto owner = Application::process_manager().find_child(*owner_child_id);
+    if (!owner.has_value())
+        return;
+
+    if (owner->type() == ProcessType::WebContent)
+        replace_image_decoder_of(owner->client<WebContentClient>());
+    else if (owner->type() == ProcessType::WebWorker)
+        replace_image_decoder_of(owner->client<WebWorkerClient>());
 }
 
 void connect_to_image_decoder(WebContentClient& client, ImageDecoderConnection decoder)
@@ -708,6 +724,7 @@ static ErrorOr<IPC::TransportHandle> connect_new_video_decoder_server_client(Ref
 
 ErrorOr<MediaServerClientConnection> connect_new_media_server_client(RefPtr<MediaClient::Client>& controller, Function<ErrorOr<IPC::TransportHandle>()> connect_audio_server)
 {
+    // The connection's holder launches a new MediaServer when it next connects a client.
     if (!controller || !controller->is_open()) {
         controller = TRY(launch_media_server_process());
         controller->on_request_audio_server_connection = move(connect_audio_server);

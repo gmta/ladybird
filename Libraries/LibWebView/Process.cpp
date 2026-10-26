@@ -62,9 +62,12 @@ void Process::save_crash_report(Optional<int> exit_status)
 
 Process::~Process()
 {
-    // shutdown() can release the connection's last owner while dispatching die().
-    if (auto connection = m_connection.strong_ref())
+    // shutdown() can release the connection's last owner while dispatching die(). The process is no longer tracked, so
+    // nobody hears of the loss.
+    if (auto connection = m_connection.strong_ref()) {
+        connection->on_shutdown = nullptr;
         connection->shutdown();
+    }
 }
 
 Vector<ByteString> Process::helper_process_environment(ProcessType type)

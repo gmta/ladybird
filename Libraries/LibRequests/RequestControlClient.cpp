@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
-#include <LibCore/EventLoop.h>
 #include <LibRequests/RequestControlClient.h>
 
 namespace Requests {
@@ -28,12 +27,6 @@ void RequestControlClient::die()
     m_pending_cache_size_estimations.clear();
     m_pending_clear_cache_requests.clear();
     m_pending_cache_access_profile_requests.clear();
-
-    if (auto request_server_died_callback = move(on_request_server_died)) {
-        Core::deferred_invoke([request_server_died_callback = move(request_server_died_callback)]() mutable {
-            request_server_died_callback();
-        });
-    }
 }
 
 void RequestControlClient::network_usage(Vector<NetworkUsage> usage, u64 interval_microseconds)

@@ -1431,7 +1431,7 @@ static ErrorOr<int> run_tests(Core::AnonymousBuffer const& theme, Web::DevicePix
 static void handle_signal(int signal)
 {
     // Quit our event loop. This makes `::exec()` return as soon as possible, and signals to WebView::Application that
-    // we should no longer automatically restart processes in `::process_did_exit()`.
+    // we should no longer automatically restart lost processes.
     Core::EventLoop::current().quit(0);
 
     StringView signal_name = "signal received"sv;

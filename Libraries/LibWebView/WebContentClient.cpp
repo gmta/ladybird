@@ -176,9 +176,9 @@ void WebContentClient::gamepad_stop_effects(Web::Gamepad::GamepadHandle handle)
     GamepadManager::the().stop_effects(*this, handle);
 }
 
+// The browser carries on without the process: ProcessManager reports the loss, which calls did_lose_process().
 void WebContentClient::die()
 {
-    did_lose_process();
 }
 
 void WebContentClient::did_misbehave(StringView message_name, StringView reason)

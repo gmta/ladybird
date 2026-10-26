@@ -31,6 +31,8 @@ class WEBVIEW_API Process {
     AK_MAKE_DEFAULT_MOVABLE(Process);
 
 public:
+    AK_ALLOC_WITH_KMALLOC;
+
     Process(ProcessType, Core::Process, ProcessOutputCapture, IPC::ConnectionBase* connection);
     static Process for_browser();
     ~Process();
@@ -62,6 +64,11 @@ public:
 #endif
     void save_crash_report(Optional<int> exit_status);
     ByteString const& saved_crash_report_name() const { return m_saved_crash_report_name; }
+    bool crash_report_is_shown() const { return m_crash_report_is_shown; }
+    void set_crash_report_is_shown() { m_crash_report_is_shown = true; }
+
+    bool was_lost() const { return m_was_lost; }
+    void did_lose(Badge<ProcessManager>) { m_was_lost = true; }
 
     pid_t pid() const { return m_pid; }
     u64 child_id() const { return m_child_id; }
@@ -85,6 +92,8 @@ public:
 private:
     OwnPtr<CrashReport> m_crash_report;
     ByteString m_saved_crash_report_name;
+    bool m_crash_report_is_shown { false };
+    bool m_was_lost { false };
 
 #if defined(AK_OS_LINUX)
 

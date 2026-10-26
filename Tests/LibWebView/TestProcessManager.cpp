@@ -6,6 +6,7 @@
 
 #include <LibCore/EventLoop.h>
 #include <LibCore/System.h>
+#include <LibRequests/RequestControlClient.h>
 #include <LibTest/TestCase.h>
 #include <LibWebView/ProcessManager.h>
 #include <Tests/LibWebView/TestProcessLauncher.h>
@@ -62,4 +63,72 @@ TEST_CASE(an_exit_removes_the_helper_and_reports_it)
     EXPECT_EQ(exited_status, 0);
     EXPECT(!manager->find_child(spawned.identity.child_id).has_value());
     EXPECT(!manager->find_process(spawned.identity.pid).has_value());
+}
+
+struct LossCounts {
+    size_t lost { 0 };
+    size_t exited { 0 };
+};
+
+static void count_losses(WebView::ProcessManager& manager, WebView::ProcessType type, LossCounts& counts)
+{
+    manager.set_lost_handler(type, [&](WebView::Process&) { ++counts.lost; });
+    manager.set_exit_handler(type, [&](WebView::Process&) { ++counts.exited; });
+}
+
+TEST_CASE(a_helper_whose_connection_closes_first_is_lost_once)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    LossCounts counts;
+    count_losses(*manager, WebView::ProcessType::RequestServer, counts);
+
+    auto spawned = MUST(manager->spawn<Requests::RequestControlClient>(WebView::ProcessType::RequestServer, { .executable = "/usr/bin/true" }, false));
+    (void)Core::System::waitpid(spawned.identity.pid);
+
+    spawned.client->shutdown();
+    EXPECT_EQ(counts.lost, 1u);
+    EXPECT_EQ(counts.exited, 0u);
+    EXPECT(manager->find_child(spawned.identity.child_id)->was_lost());
+
+    launcher.simulate_exit(spawned.identity.pid, 0);
+    EXPECT_EQ(counts.lost, 1u);
+    EXPECT_EQ(counts.exited, 1u);
+}
+
+TEST_CASE(a_helper_that_exits_first_is_lost_on_exit)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    LossCounts counts;
+    count_losses(*manager, WebView::ProcessType::RequestServer, counts);
+
+    auto spawned = MUST(manager->spawn<Requests::RequestControlClient>(WebView::ProcessType::RequestServer, { .executable = "/usr/bin/true" }, false));
+    (void)Core::System::waitpid(spawned.identity.pid);
+
+    launcher.simulate_exit(spawned.identity.pid, 0);
+    EXPECT_EQ(counts.lost, 1u);
+    EXPECT_EQ(counts.exited, 1u);
+
+    spawned.client->shutdown();
+    EXPECT_EQ(counts.lost, 1u);
+}
+
+TEST_CASE(exits_while_shutting_down_are_not_handled)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    LossCounts counts;
+    count_losses(*manager, WebView::ProcessType::ImageDecoder, counts);
+    auto spawned = spawn_helper(*manager, WebView::ProcessType::ImageDecoder);
+
+    bool reported = false;
+    manager->on_process_exited = [&](WebView::Process&&, Optional<int>) { reported = true; };
+    event_loop.quit(0);
+    launcher.simulate_exit(spawned.identity.pid, 0);
+
+    EXPECT_EQ(counts.lost, 0u);
+    EXPECT_EQ(counts.exited, 0u);
+    EXPECT(reported);
+    EXPECT(!manager->find_child(spawned.identity.child_id).has_value());
 }

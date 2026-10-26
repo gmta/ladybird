@@ -9,6 +9,7 @@
 #pragma once
 
 #include <AK/Forward.h>
+#include <AK/Function.h>
 #include <AK/Queue.h>
 #include <AK/ThreadID.h>
 #include <LibCore/EventReceiver.h>
@@ -31,6 +32,8 @@ public:
 
     void shutdown();
     virtual void die() { }
+
+    Function<void()> on_shutdown;
 
     // Tells the connection that its peer owns this process — i.e. that the process exists only to serve that peer, and
     // that die() ends it. Such a process has nothing left to do once that peer has closed the connection. So, the

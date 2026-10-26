@@ -214,8 +214,6 @@ public:
 
     static ProcessManager& process_manager() { return *the().m_process_manager; }
 
-    // Runs the handler when the ImageDecoder with the given child ID exits.
-    void set_image_decoder_exit_handler(u64 child_id, Function<void()>);
 #if defined(AK_OS_MACOS)
     void set_browser_process_transport_handler(Function<void(NonnullOwnPtr<IPC::Transport>)> handler);
 #endif
@@ -410,7 +408,8 @@ protected:
 
     ErrorOr<void> initialize(Main::Arguments const&);
 
-    virtual void process_did_exit(Process&&, Optional<int> exit_status);
+    void process_did_exit(Process&&, Optional<int> exit_status);
+    void register_process_handlers();
 
     virtual void create_platform_arguments(Core::ArgsParser&) { }
     virtual void create_platform_options(BrowserOptions&, RequestServerOptions&, WebContentOptions&) { }
@@ -620,7 +619,6 @@ private:
     WebDriverSessionConfig m_webdriver_session_config;
 
     OwnPtr<RequestServerManager> m_request_server_manager;
-    HashMap<u64, Function<void()>> m_image_decoder_exit_handlers;
     RefPtr<CompositorClient> m_compositor_client;
     RefPtr<CompositorPresentationClient> m_compositor_presentation_client;
     u64 m_compositor_presentation_id { 0 };

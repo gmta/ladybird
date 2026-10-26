@@ -6,8 +6,6 @@
 
 #include <LibWebView/CompositorClient.h>
 
-#include <LibCore/EventLoop.h>
-
 namespace WebView {
 
 CompositorClient::CompositorClient(NonnullOwnPtr<IPC::Transport> transport)
@@ -15,13 +13,9 @@ CompositorClient::CompositorClient(NonnullOwnPtr<IPC::Transport> transport)
 {
 }
 
+// The browser carries on without the Compositor: ProcessManager reports the loss, and the Compositor is restarted.
 void CompositorClient::die()
 {
-    if (auto callback = move(on_death)) {
-        Core::deferred_invoke([callback = move(callback)]() mutable {
-            callback();
-        });
-    }
 }
 
 void CompositorClient::gpu_device_identity_reported(Optional<Gfx::GpuDeviceIdentity> identity)

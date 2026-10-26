@@ -49,6 +49,7 @@ class NavigationLoader;
 class OutOfProcessWebView;
 class PictureInPictureManager;
 class PictureInPictureWindow;
+class Process;
 class ProcessManager;
 class RequestServerInstance;
 class RequestServerManager;

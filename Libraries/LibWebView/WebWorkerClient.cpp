@@ -47,7 +47,12 @@ void WebWorkerClient::terminate_process()
     (void)Application::process_manager().terminate_child(child_id(), Core::Process::TerminationMode::Forceful);
 }
 
+// The browser carries on without the worker: ProcessManager reports the loss, which calls did_lose_process().
 void WebWorkerClient::die()
+{
+}
+
+void WebWorkerClient::did_lose_process()
 {
     remove_blob_url_entries();
     WorkerProcessManager::the().worker_did_die(m_agent_id);

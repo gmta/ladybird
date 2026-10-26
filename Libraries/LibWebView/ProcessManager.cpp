@@ -69,13 +69,7 @@ ProcessManager::ProcessManager(NonnullOwnPtr<ProcessLauncher> launcher)
     , m_launcher(move(launcher))
 {
     m_launcher->on_exit = [this](pid_t pid, Optional<int> exit_status) {
-        auto child_id = m_child_ids_by_pid.get(pid);
-        if (!child_id.has_value())
-            return;
-        if (auto process = remove_process(*child_id); process.has_value()) {
-            process->save_crash_report(exit_status);
-            on_process_exited(process.release_value(), exit_status);
-        }
+        did_exit(pid, exit_status);
     };
 
     add_process(Process::for_browser());
@@ -94,13 +88,15 @@ Optional<Process&> ProcessManager::find_process(pid_t pid)
     auto child_id = m_child_ids_by_pid.get(pid);
     if (!child_id.has_value())
         return {};
-    return m_processes.get(*child_id);
+    return find_child(*child_id);
 }
 
 Optional<Process&> ProcessManager::find_child(u64 child_id)
 {
     verify_event_loop();
-    return m_processes.get(child_id);
+    if (auto process = m_processes.get(child_id); process.has_value())
+        return **process;
+    return {};
 }
 
 ErrorOr<SpawnedTransport> ProcessManager::spawn_with_transport(ProcessType type, Core::ProcessSpawnOptions const& options, bool capture_output)
@@ -108,6 +104,50 @@ ErrorOr<SpawnedTransport> ProcessManager::spawn_with_transport(ProcessType type,
     auto launched = TRY(m_launcher->launch(type, options, capture_output));
     auto identity = add_process(Process { type, move(launched.process), move(launched.output_capture), nullptr });
     return SpawnedTransport { identity, move(launched.transport) };
+}
+
+void ProcessManager::set_lost_handler(ProcessType type, Function<void(Process&)> handler)
+{
+    verify_event_loop();
+    m_lost_handlers.set(type, move(handler));
+}
+
+void ProcessManager::set_exit_handler(ProcessType type, Function<void(Process&)> handler)
+{
+    verify_event_loop();
+    m_exit_handlers.set(type, move(handler));
+}
+
+// A helper is lost once, when the first of its connection closing and its exit is noticed.
+void ProcessManager::did_lose(Process& process)
+{
+    if (process.was_lost())
+        return;
+    process.did_lose({});
+
+    if (auto handler = m_lost_handlers.get(process.type()); handler.has_value())
+        (*handler)(process);
+}
+
+void ProcessManager::did_exit(pid_t pid, Optional<int> exit_status)
+{
+    auto child_id = m_child_ids_by_pid.get(pid);
+    if (!child_id.has_value())
+        return;
+    auto process = remove_process(*child_id);
+    if (!process.has_value())
+        return;
+
+    // NB: A helper that exits while we shut down is expected to, so only its crash report is kept.
+    auto is_shutting_down = Core::EventLoop::current().was_exit_requested();
+    if (!is_shutting_down)
+        did_lose(*process);
+    process->save_crash_report(exit_status);
+    if (!is_shutting_down) {
+        if (auto handler = m_exit_handlers.get(process->type()); handler.has_value())
+            (*handler)(*process);
+    }
+    on_process_exited(process.release_value(), exit_status);
 }
 
 ChildIdentity ProcessManager::add_process(WebView::Process&& process)
@@ -120,8 +160,16 @@ ChildIdentity ProcessManager::add_process(WebView::Process&& process)
         child_id = m_next_child_id++;
     }
     process.did_register({}, child_id);
+    if (auto connection = process.client<IPC::ConnectionBase>()) {
+        connection->on_shutdown = [this, child_id] {
+            if (auto process = find_child(child_id); process.has_value())
+                did_lose(*process);
+        };
+    }
     on_process_added(process);
-    VERIFY(m_processes.set(child_id, move(process)) == AK::HashSetResult::InsertedNewEntry);
+    // NB: Records stay where they are while the table changes, so a callback that spawns a process cannot move the
+    //     record it was given.
+    VERIFY(m_processes.set(child_id, make<Process>(move(process))) == AK::HashSetResult::InsertedNewEntry);
     VERIFY(m_child_ids_by_pid.set(pid, child_id) == AK::HashSetResult::InsertedNewEntry);
     m_statistics.processes.append(make<Core::Platform::ProcessInfo>(pid));
     m_launcher->watch_for_exit(pid);
@@ -144,7 +192,7 @@ void ProcessManager::for_each_process(Function<void(Process&)> callback)
 {
     verify_event_loop();
     for (auto& entry : m_processes)
-        callback(entry.value);
+        callback(*entry.value);
 }
 
 void ProcessManager::for_each_process_statistics(Function<void(Process&, Core::Platform::ProcessInfo const&)> callback)
@@ -179,33 +227,33 @@ Optional<Process> ProcessManager::remove_process(u64 child_id)
     auto process = m_processes.take(child_id);
     if (!process.has_value())
         return {};
-    auto pid = process->pid();
+    auto pid = (*process)->pid();
     m_child_ids_by_pid.remove(pid);
     m_statistics.processes.remove_first_matching([&](auto const& info) {
         return (info->pid == pid);
     });
-    return process;
+    return move(*process.release_value());
 }
 
 void ProcessManager::remove_all_processes()
 {
     verify_event_loop();
 
-    // NB: Shutting down a connection runs its die() handler, which looks up its process, for example to end a worker
-    //     that did not notice the connection closing. Shut the connections down while the table is intact.
+    // NB: Shutting down a connection runs the helper's lost handler, which looks up its process, for example to end a
+    //     worker that did not notice the connection closing. Shut the connections down while the table is intact.
     Vector<u64> child_ids;
     child_ids.ensure_capacity(m_processes.size());
     for (auto const& entry : m_processes)
         child_ids.unchecked_append(entry.key);
     for (auto child_id : child_ids) {
-        auto process = m_processes.get(child_id);
+        auto process = find_child(child_id);
         if (!process.has_value())
             continue;
         if (auto connection = process->client<IPC::ConnectionBase>())
             connection->shutdown();
     }
 
-    // Destroying a process may run a die() handler too, so take the processes out first. Lookups then see an empty
+    // Destroying a process shuts its connection down too, so take the processes out first. Lookups then see an empty
     // table rather than one being destroyed.
     m_child_ids_by_pid.clear();
     auto processes = move(m_processes);
@@ -229,7 +277,7 @@ void ProcessManager::force_exit_after_timeout(u64 child_id, int timeout_ms)
 
     auto timer = Core::Timer::create_single_shot(AK::Duration::from_milliseconds(timeout_ms), [this, child_id] {
         m_forced_exit_timers.remove(child_id);
-        auto process = m_processes.get(child_id);
+        auto process = find_child(child_id);
         if (!process.has_value())
             return;
 

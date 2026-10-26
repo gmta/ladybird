@@ -38,7 +38,6 @@ public:
     Function<void(int client_id)> on_client_disconnected;
     Function<String(int client_id, URL::URL const&, Optional<HTTP::Cookie::PartitionContext> const&)> on_retrieve_http_cookie;
     Function<void(int client_id, URL::URL const&, Optional<HTTP::Cookie::PartitionContext> const&, Vector<HTTP::Cookie::ParsedCookie> const&, Optional<HTTP::HSTS::ParsedHSTSPolicy> const&)> on_store_response_cookies_and_hsts_policy;
-    Function<void()> on_request_server_died;
     Function<void(u64 size)> on_disk_cache_size_changed;
 
 private:
