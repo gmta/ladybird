@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibWebCommon/HTML/BrowsingContext.h>
 #include <LibWebView/BlobURLStore.h>
 #include <LibWebView/CanonicalBrowsingContext.h>
 #include <LibWebView/CanonicalBrowsingContextGroup.h>
@@ -67,6 +68,10 @@ void CanonicalDocument::set_host(RefPtr<WebContentPage> host)
     m_host = move(host);
     if (m_host) {
         m_relevant_global_object->agent().set_hosting_process_if_unset(m_host->client());
+        // An about:blank document of an opaque origin, as the browser's UI makes between documents, is empty, and only
+        // the agent it was made for can reach it. A process that has hosted nothing else holds no content.
+        if (!Web::HTML::url_matches_about_blank(m_creation_url) || !m_origin.is_opaque())
+            m_host->client().set_has_hosted_content();
         // The process makes the document's requests through the RequestServer of the document's top-level site.
         m_host->client().request_server_site_bindings().bind_sites_of(*this);
     }

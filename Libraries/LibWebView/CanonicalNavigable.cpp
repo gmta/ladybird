@@ -736,6 +736,16 @@ void CanonicalNavigable::hand_pending_webdriver_commands_to(WebContentPage& new_
         view->move_pending_webdriver_commands_to_new_host({}, id(), *old_host, new_host);
 }
 
+static bool holds_nothing_but(WebContentClient& process, WebContentPage const& page)
+{
+    bool holds_another_page = false;
+    process.for_each_page([&](WebContentPage& candidate) {
+        holds_another_page = &candidate != &page;
+        return holds_another_page ? IterationDecision::Break : IterationDecision::Continue;
+    });
+    return !holds_another_page;
+}
+
 RefPtr<WebContentClient> CanonicalNavigable::process_to_host_for_site_isolation(CanonicalDocument const& document, Optional<URL::Origin> const& initiator_origin) const
 {
     RefPtr<WebContentPage> page_holding_navigable = parent() ? reporting_page() : top_level_traversable().page_hosting(*this);
@@ -770,6 +780,11 @@ RefPtr<WebContentClient> CanonicalNavigable::process_to_host_for_site_isolation(
     if (!parent() && active_document().is_initial_about_blank() && active_document().origin().is_opaque() && &document.browsing_context() == &active_browsing_context())
         return process_holding_navigable;
 
+    // Likewise, a traversable's next document takes a process that has hosted no content and holds nothing but the
+    // traversable. Such a process is one the about:blank the browser's UI makes between documents came with.
+    if (!parent() && process_holding_navigable && !process_holding_navigable->has_hosted_content() && holds_nothing_but(*process_holding_navigable, *page_holding_navigable))
+        return process_holding_navigable;
+
     return nullptr;
 }
 
@@ -786,6 +801,11 @@ RefPtr<WebContentClient> CanonicalNavigable::process_to_host(CanonicalDocument c
     //     WebUI documents too, and that process may then read local files or speak for the WebUI for as long as it lives.
     if (site_isolation_mode() == SiteIsolationMode::Disabled)
         return process;
+
+    // A process that has hosted no content becomes whatever process its first content makes it.
+    if (process && !process->has_hosted_content())
+        return process;
+
     auto process_has_hosted_local_file_content = process && process->has_hosted_local_file_content();
     auto process_has_hosted_web_ui = process && process->hosted_web_ui().has_value();
 
