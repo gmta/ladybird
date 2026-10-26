@@ -187,6 +187,12 @@ static ErrorOr<ChildIdentity> launch_helper_process(StringView server_name, Vect
 
     if (browser_options.debug_helper_processes.contains_slow(process_type))
         arguments.append("--wait-for-debugger"sv);
+    if (browser_options.disable_sandbox == DisableSandbox::Yes)
+        arguments.append("--disable-sandbox"sv);
+    if (auto server = mach_server_name(); server.has_value()) {
+        arguments.append("--mach-server-name"sv);
+        arguments.append(server.value());
+    }
 
     for (auto [i, path] : enumerate(candidate_server_paths)) {
         auto process_arguments = arguments;
@@ -337,8 +343,6 @@ ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsP
         arguments.append("--disable-scrollbar-painting"sv);
     if (web_content_options.file_scheme_urls_have_tuple_origins == FileSchemeUrlsHaveTupleOrigins::Yes)
         arguments.append("--tuple-file-origins"sv);
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
 
     if (auto const maybe_echo_server_port = web_content_options.echo_server_port; maybe_echo_server_port.has_value()) {
         arguments.append("--echo-server-port"sv);
@@ -357,10 +361,6 @@ ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsP
 
     if (web_content_options.proxy_autoconfig_url.has_value())
         arguments.append(ByteString::formatted("--proxy-autoconfig-url={}", *web_content_options.proxy_autoconfig_url));
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
-    }
 
     auto client = TRY(launch_server_process<WebView::WebContentClient>("WebContent"sv, move(arguments), is_private, initial_page_id, root_navigable_id));
     TRY(connect_to_font_service(*client));
@@ -379,20 +379,10 @@ ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsP
 
 ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
 {
-    auto const& browser_options = WebView::Application::browser_options();
-
-    Vector<ByteString> arguments;
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
-    }
-
     // The decoder parses untrusted images for one client, so it must not see the images of any other. The Browser
     // does not talk to it, and hands its end of the transport to the client.
     OwnPtr<IPC::Transport> transport;
-    auto identity = TRY(launch_helper_process("ImageDecoder"sv, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<ChildIdentity> {
+    auto identity = TRY(launch_helper_process("ImageDecoder"sv, {}, [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<ChildIdentity> {
         auto spawned = TRY(Application::process_manager().spawn_with_transport(ProcessType::ImageDecoder, options, capture_output));
         transport = move(spawned.transport);
         return spawned.identity;
@@ -458,29 +448,13 @@ ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_process()
     Vector<ByteString> arguments;
     if (browser_options.headless_mode.has_value())
         arguments.append("--headless"sv);
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
-    }
 
     return launch_server_process<AudioServerControlClient>("AudioServer"sv, arguments);
 }
 
 ErrorOr<NonnullRefPtr<MediaClient::Client>> launch_media_server_process()
 {
-    auto const& browser_options = WebView::Application::browser_options();
-
-    Vector<ByteString> arguments;
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
-    }
-
-    return launch_server_process<MediaClient::Client>("MediaServer"sv, arguments);
+    return launch_server_process<MediaClient::Client>("MediaServer"sv, {});
 }
 
 static NeverDestroyed<Vector<WeakPtr<VideoDecoderServerControlClient>>> s_video_decoder_servers;
@@ -490,17 +464,11 @@ ErrorOr<NonnullRefPtr<VideoDecoderServerControlClient>> launch_video_decoder_ser
     auto const& browser_options = WebView::Application::browser_options();
 
     Vector<ByteString> arguments;
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
     if (browser_options.force_video_decoder_server == ForceVideoDecoderServer::Yes)
         arguments.append("--host-software-decoders"sv);
     if (gpu_device_identity.has_value()) {
         arguments.append("--gpu-device"sv);
         arguments.append(gpu_device_identity->to_byte_string());
-    }
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
     }
 
     auto server = TRY(launch_server_process<VideoDecoderServerControlClient>("VideoDecoderServer"sv, arguments));
@@ -520,7 +488,6 @@ void shut_down_video_decoder_servers()
 
 ErrorOr<NonnullRefPtr<WebView::CompositorClient>> launch_compositor_process()
 {
-    auto const& browser_options = WebView::Application::browser_options();
     auto const& web_content_options = WebView::Application::web_content_options();
 
     Vector<ByteString> arguments;
@@ -531,18 +498,12 @@ ErrorOr<NonnullRefPtr<WebView::CompositorClient>> launch_compositor_process()
     }
     arguments.append("--resource-root"sv);
     arguments.append(s_ladybird_resource_root);
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
     if (web_content_options.is_test_mode == WebView::IsTestMode::Yes)
         arguments.append("--test-mode"sv);
     if (web_content_options.force_cpu_painting == WebView::ForceCPUPainting::Yes)
         arguments.append("--force-cpu-painting"sv);
     if (web_content_options.force_fontconfig == WebView::ForceFontconfig::Yes)
         arguments.append("--force-fontconfig"sv);
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
-    }
 
     auto client = TRY(launch_server_process<WebView::CompositorClient>("Compositor"sv, move(arguments)));
     TRY(connect_to_font_service(*client));
@@ -551,13 +512,10 @@ ErrorOr<NonnullRefPtr<WebView::CompositorClient>> launch_compositor_process()
 
 ErrorOr<NonnullRefPtr<WebWorkerClient>> launch_web_worker_process(Web::HTML::AgentType type, IsPrivate is_private, Web::HTML::WorkerAgentId agent_id)
 {
-    auto const& browser_options = WebView::Application::browser_options();
     auto const& web_content_options = WebView::Application::web_content_options();
 
     Vector<ByteString> arguments;
 
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
     if (web_content_options.is_test_mode == WebView::IsTestMode::Yes)
         arguments.append("--test-mode"sv);
     if (web_content_options.expose_experimental_interfaces == WebView::ExposeExperimentalInterfaces::Yes)
@@ -582,11 +540,6 @@ ErrorOr<NonnullRefPtr<WebWorkerClient>> launch_web_worker_process(Web::HTML::Age
         break;
     default:
         VERIFY_NOT_REACHED();
-    }
-
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
     }
 
     auto client = TRY(launch_server_process<WebWorkerClient>("WebWorker"sv, move(arguments), is_private, agent_id));
@@ -614,7 +567,6 @@ void apply_dns_settings(Requests::RequestControlClient& client)
 
 ErrorOr<NonnullRefPtr<Requests::RequestControlClient>> launch_request_server_process(ByteString const& cache_path, Optional<Utf16String> const& site, bool sites_have_their_own, HTTPDiskCacheMode http_disk_cache_mode)
 {
-    auto const& browser_options = Application::browser_options();
     auto const& request_server_options = Application::request_server_options();
 
     Vector<ByteString> arguments;
@@ -629,8 +581,6 @@ ErrorOr<NonnullRefPtr<Requests::RequestControlClient>> launch_request_server_pro
         arguments.append("--sites-have-their-own"sv);
     }
 
-    if (browser_options.disable_sandbox == DisableSandbox::Yes)
-        arguments.append("--disable-sandbox"sv);
     for (auto const& certificate : request_server_options.certificates)
         arguments.append(ByteString::formatted("--certificate={}", certificate));
 
@@ -646,11 +596,6 @@ ErrorOr<NonnullRefPtr<Requests::RequestControlClient>> launch_request_server_pro
     case HTTPDiskCacheMode::Testing:
         arguments.append("testing"sv);
         break;
-    }
-
-    if (auto server = mach_server_name(); server.has_value()) {
-        arguments.append("--mach-server-name"sv);
-        arguments.append(server.value());
     }
 
     if (request_server_options.resource_substitution_map_path.has_value())
