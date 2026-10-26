@@ -635,8 +635,6 @@ private:
     };
     CompositorRecoveryState m_compositor_recovery_state { CompositorRecoveryState::Idle };
 
-    // Every WebContent client, from its launch until its process exits. A page keeps no hold on its client.
-    HashTable<NonnullRefPtr<WebContentClient>> m_web_content_clients;
     u64 m_next_page_or_compositor_context_id { 1 };
     u64 m_next_cross_process_id_namespace { 1 };
     Web::HTML::CrossProcessIdAllocator m_ui_process_cross_process_id_allocator;

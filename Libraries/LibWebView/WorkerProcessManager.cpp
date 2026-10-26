@@ -6,12 +6,12 @@
 
 #include <AK/ScopeGuard.h>
 #include <LibCore/EventLoop.h>
-#include <LibCore/Timer.h>
 #include <LibIPC/File.h>
 #include <LibWebView/Application.h>
 #include <LibWebView/CanonicalEnvironmentSettingsObject.h>
 #include <LibWebView/CanonicalNavigable.h>
 #include <LibWebView/HelperProcess.h>
+#include <LibWebView/ProcessManager.h>
 #include <LibWebView/RequestServerManager.h>
 #include <LibWebView/Utilities.h>
 #include <LibWebView/ViewImplementation.h>
@@ -24,7 +24,7 @@ namespace WebView {
 // Generous enough for a site that starts a worker per CPU core, as compute-heavy sites do.
 static constexpr size_t maximum_worker_count_per_top_level_site = 64;
 
-static constexpr auto worker_exit_grace_period = AK::Duration::from_seconds(5);
+static constexpr int worker_exit_grace_period_ms = 5000;
 
 WorkerProcessManager& WorkerProcessManager::the()
 {
@@ -190,6 +190,7 @@ Web::HTML::WorkerAgentId WorkerProcessManager::start_worker_agent(Owner owner, O
     auto agent_id = ++m_next_agent_id;
     auto client_or_error = [&]() -> ErrorOr<NonnullRefPtr<WebWorkerClient>> {
         auto client = TRY(launch_web_worker_process(request.agent_type, is_private, agent_id));
+        ArmedScopeGuard shut_down_on_failure { [&] { Application::process_manager().shut_down(*client); } };
 
         // The worker's RequestServer client uses the cookies of the session the worker itself belongs to.
         auto session = client->session();
@@ -217,6 +218,7 @@ Web::HTML::WorkerAgentId WorkerProcessManager::start_worker_agent(Owner owner, O
 
         if (auto compositor_handle = Application::the().connect_new_compositor_canvas_client(); !compositor_handle.is_error())
             client->async_connect_to_compositor(compositor_handle.release_value());
+        shut_down_on_failure.disarm();
         return client;
     }();
     // A worker the system cannot give a process fails to load, as one whose script cannot be fetched does.
@@ -665,23 +667,13 @@ void WorkerProcessManager::remove_agent(Web::HTML::WorkerAgentId agent_id, Agent
 
     // NB: A worker busy running script handles no request to close, so its process is terminated if it has not exited
     //     in time. Until it exits, it counts toward the workers of its top-level site.
-    auto termination_timer = Core::Timer::create_single_shot(worker_exit_grace_period, [client = agent.client] {
-        if (client->is_open())
-            client->terminate_process();
-    });
-    termination_timer->start();
-    m_exiting_workers.append({ agent.client, agent.is_private, move(agent.top_level_origin), move(termination_timer) });
+    Application::process_manager().force_exit_after_timeout(agent.client->child_id(), worker_exit_grace_period_ms);
+    m_exiting_workers.append({ agent.client->child_id(), agent.is_private, move(agent.top_level_origin) });
 }
 
 void WorkerProcessManager::worker_process_did_exit(WebWorkerClient& client)
 {
-    Vector<ExitingWorker> exited_workers;
-    for (size_t i = m_exiting_workers.size(); i > 0; --i) {
-        if (m_exiting_workers[i - 1].client.ptr() == &client)
-            exited_workers.append(m_exiting_workers.take(i - 1));
-    }
-    // NB: The client is still tearing down its connection, so the last references to it go once it is done.
-    Core::deferred_invoke([exited_workers = move(exited_workers)] { });
+    m_exiting_workers.remove_all_matching([&](auto const& exiting_worker) { return exiting_worker.child_id == client.child_id(); });
 }
 
 bool WorkerProcessManager::is_same_owner(Owner const& owner, Owner const& identity)

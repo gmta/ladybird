@@ -24,11 +24,11 @@
 
 namespace WebView {
 
-Process::Process(ProcessType type, Core::Process process, ProcessOutputCapture output_capture, IPC::ConnectionBase* connection)
+Process::Process(ProcessType type, Core::Process process, ProcessOutputCapture output_capture, RefPtr<IPC::ConnectionBase> connection)
     : m_pid(process.pid())
     , m_process(move(process))
     , m_type(type)
-    , m_connection(connection)
+    , m_connection(move(connection))
     , m_output_capture(move(output_capture))
 {
 }
@@ -62,11 +62,10 @@ void Process::save_crash_report(Optional<int> exit_status)
 
 Process::~Process()
 {
-    // shutdown() can release the connection's last owner while dispatching die(). The process is no longer tracked, so
-    // nobody hears of the loss.
-    if (auto connection = m_connection.strong_ref()) {
-        connection->on_shutdown = nullptr;
-        connection->shutdown();
+    // The process is no longer tracked, so nobody hears of the loss.
+    if (m_connection) {
+        m_connection->on_shutdown = nullptr;
+        m_connection->shutdown();
     }
 }
 

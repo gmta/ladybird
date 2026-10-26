@@ -114,6 +114,66 @@ TEST_CASE(a_helper_that_exits_first_is_lost_on_exit)
     EXPECT_EQ(counts.lost, 1u);
 }
 
+TEST_CASE(a_helper_keeps_its_client_until_it_exits)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+
+    WeakPtr<Requests::RequestControlClient> weak_client;
+    pid_t pid = -1;
+    {
+        auto spawned = MUST(manager->spawn<Requests::RequestControlClient>(WebView::ProcessType::RequestServer, { .executable = "/usr/bin/true" }, false));
+        (void)Core::System::waitpid(spawned.identity.pid);
+        weak_client = spawned.client->make_weak_ptr<Requests::RequestControlClient>();
+        pid = spawned.identity.pid;
+    }
+
+    EXPECT(weak_client);
+    EXPECT(weak_client->is_open());
+
+    launcher.simulate_exit(pid, 0);
+    EXPECT(!weak_client);
+}
+
+TEST_CASE(a_helper_that_is_shut_down_is_not_lost)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    LossCounts counts;
+    count_losses(*manager, WebView::ProcessType::RequestServer, counts);
+
+    auto spawned = MUST(manager->spawn<Requests::RequestControlClient>(WebView::ProcessType::RequestServer, { .executable = "/usr/bin/true" }, false));
+    (void)Core::System::waitpid(spawned.identity.pid);
+
+    manager->shut_down(*spawned.client);
+    EXPECT(!spawned.client->is_open());
+    EXPECT_EQ(counts.lost, 0u);
+
+    launcher.simulate_exit(spawned.identity.pid, 0);
+    EXPECT_EQ(counts.lost, 0u);
+    EXPECT_EQ(counts.exited, 1u);
+}
+
+TEST_CASE(helpers_end_along_with_their_owner)
+{
+    Core::EventLoop event_loop;
+    auto [launcher, manager] = create_manager();
+    LossCounts counts;
+    count_losses(*manager, WebView::ProcessType::MediaServer, counts);
+
+    auto owner = spawn_helper(*manager, WebView::ProcessType::WebContent);
+    auto helper = MUST(manager->spawn<Requests::RequestControlClient>(WebView::ProcessType::MediaServer, { .executable = "/usr/bin/true" }, false));
+    (void)Core::System::waitpid(helper.identity.pid);
+    auto other = MUST(manager->spawn<Requests::RequestControlClient>(WebView::ProcessType::MediaServer, { .executable = "/usr/bin/true" }, false));
+    (void)Core::System::waitpid(other.identity.pid);
+    manager->find_child(helper.identity.child_id)->set_owner_child_id(owner.identity.child_id);
+
+    launcher.simulate_exit(owner.identity.pid, 0);
+    EXPECT(!helper.client->is_open());
+    EXPECT(other.client->is_open());
+    EXPECT_EQ(counts.lost, 0u);
+}
+
 TEST_CASE(exits_while_shutting_down_are_not_handled)
 {
     Core::EventLoop event_loop;

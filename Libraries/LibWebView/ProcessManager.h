@@ -31,7 +31,6 @@ WEBVIEW_API StringView process_name_from_type(ProcessType type);
 
 struct PooledProcess {
     u64 child_id { 0 };
-    RefPtr<IPC::ConnectionBase> connection;
     Optional<IPC::TransportHandle> transport;
 };
 
@@ -87,6 +86,7 @@ public:
     Optional<Process&> find_child(u64 child_id);
     ErrorOr<void> terminate_child(u64 child_id, Core::Process::TerminationMode);
     void cancel_forced_exit(u64 child_id);
+    void shut_down(IPC::ConnectionBase&);
     void force_exit_after_timeout(u64 child_id, int timeout_ms);
 
 #if defined(AK_OS_MACH)
@@ -104,6 +104,7 @@ private:
     ChildIdentity add_process(Process&&);
     void did_lose(Process&);
     void did_exit(pid_t, Optional<int> exit_status);
+    void shut_down(Process&);
     bool is_usable(PooledProcess const&);
     void schedule_pool_refill(ProcessType);
     void refill_pool(ProcessType);
@@ -141,8 +142,8 @@ private:
 template<typename ClientType>
 RefPtr<ClientType> ProcessManager::take_client_from_pool(ProcessType type)
 {
-    if (auto pooled = take_from_pool(type); pooled.has_value() && pooled->connection)
-        return as<ClientType>(*pooled->connection);
+    if (auto pooled = take_from_pool(type); pooled.has_value())
+        return find_child(pooled->child_id)->template client<ClientType>();
     return {};
 }
 
@@ -151,7 +152,7 @@ ErrorOr<SpawnedClient<ClientType>> ProcessManager::spawn(ProcessType type, Core:
 {
     auto launched = TRY(m_launcher->launch(type, options, capture_output));
     auto client = adopt_ref(*new ClientType { move(launched.transport), forward<ClientArguments>(client_arguments)... });
-    auto identity = add_process(Process { type, move(launched.process), move(launched.output_capture), client.ptr() });
+    auto identity = add_process(Process { type, move(launched.process), move(launched.output_capture), client });
     return SpawnedClient<ClientType> { identity, move(client) };
 }
 

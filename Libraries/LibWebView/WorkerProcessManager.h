@@ -17,7 +17,6 @@
 #include <AK/Vector.h>
 #include <AK/WeakPtr.h>
 #include <AK/kmalloc.h>
-#include <LibCore/Forward.h>
 #include <LibURL/Origin.h>
 #include <LibWebCommon/HTML/BroadcastChannelMessage.h>
 #include <LibWebCommon/HTML/WorkerAgentTypes.h>
@@ -153,10 +152,9 @@ private:
     // A worker whose agent is gone counts toward the workers of its top-level site until its process exits, or until its
     // connection closes, which ends its process.
     struct ExitingWorker {
-        NonnullRefPtr<WebWorkerClient> client;
+        u64 child_id { 0 };
         IsPrivate is_private { IsPrivate::No };
         Optional<URL::Origin> top_level_origin;
-        RefPtr<Core::Timer> termination_timer;
     };
     Vector<ExitingWorker> m_exiting_workers;
 

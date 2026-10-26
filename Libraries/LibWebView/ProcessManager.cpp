@@ -190,7 +190,11 @@ void ProcessManager::clear_pools()
 
 bool ProcessManager::is_usable(PooledProcess const& pooled)
 {
-    return find_child(pooled.child_id).has_value() && (!pooled.connection || pooled.connection->is_open());
+    auto process = find_child(pooled.child_id);
+    if (!process.has_value() || process->was_shut_down())
+        return false;
+    auto connection = process->client<IPC::ConnectionBase>();
+    return !connection || connection->is_open();
 }
 
 void ProcessManager::schedule_pool_refill(ProcessType type)
@@ -247,7 +251,7 @@ bool ProcessManager::may_launch(ProcessType type, u64 owner_child_id)
 // A helper is lost once, when the first of its connection closing and its exit is noticed.
 void ProcessManager::did_lose(Process& process)
 {
-    if (process.was_lost())
+    if (process.was_lost() || process.was_shut_down())
         return;
     process.did_lose({});
 
@@ -280,6 +284,18 @@ void ProcessManager::did_exit(pid_t pid, Optional<int> exit_status)
         if (auto handler = m_exit_handlers.get(process->type()); handler.has_value())
             (*handler)(*process);
     }
+
+    // A helper serves its owner alone, so it ends along with it.
+    Vector<u64> helper_child_ids;
+    for (auto const& [helper_child_id, helper] : m_processes) {
+        if (helper->owner_child_id() == child_id)
+            helper_child_ids.append(helper_child_id);
+    }
+    for (auto helper_child_id : helper_child_ids) {
+        if (auto helper = find_child(helper_child_id); helper.has_value())
+            shut_down(*helper);
+    }
+
     on_process_exited(process.release_value(), exit_status);
 }
 
@@ -391,6 +407,31 @@ void ProcessManager::remove_all_processes()
     m_child_ids_by_pid.clear();
     auto processes = move(m_processes);
     processes.clear();
+}
+
+// Ends a helper that is no longer needed. Its connection closes, which the helper takes as its cue to exit, and the
+// helper is not reported as lost.
+void ProcessManager::shut_down(IPC::ConnectionBase& connection)
+{
+    verify_event_loop();
+    for (auto& [child_id, process] : m_processes) {
+        if (process->client<IPC::ConnectionBase>().ptr() == &connection) {
+            shut_down(*process);
+            return;
+        }
+    }
+    connection.shutdown();
+}
+
+void ProcessManager::shut_down(Process& process)
+{
+    if (process.was_shut_down())
+        return;
+    process.did_shut_down({});
+
+    // NB: A helper whose transport we handed to another process ends once that process closes its end.
+    if (auto connection = process.client<IPC::ConnectionBase>())
+        connection->shutdown();
 }
 
 void ProcessManager::cancel_forced_exit(u64 child_id)

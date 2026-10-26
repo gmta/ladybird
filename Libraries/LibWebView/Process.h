@@ -9,7 +9,6 @@
 #include <AK/Badge.h>
 #include <AK/RefPtr.h>
 #include <AK/Utf16String.h>
-#include <AK/WeakPtr.h>
 #include <LibCore/File.h>
 #include <LibCore/Process.h>
 #include <LibIPC/Connection.h>
@@ -33,7 +32,7 @@ class WEBVIEW_API Process {
 public:
     AK_ALLOC_WITH_KMALLOC;
 
-    Process(ProcessType, Core::Process, ProcessOutputCapture, IPC::ConnectionBase* connection);
+    Process(ProcessType, Core::Process, ProcessOutputCapture, RefPtr<IPC::ConnectionBase> connection);
     static Process for_browser();
     ~Process();
 
@@ -51,8 +50,8 @@ public:
     template<typename ConnectionFromClient>
     RefPtr<ConnectionFromClient> client()
     {
-        if (auto strong_connection = m_connection.strong_ref())
-            return as<ConnectionFromClient>(*strong_connection);
+        if (m_connection)
+            return as<ConnectionFromClient>(*m_connection);
         return {};
     }
 
@@ -69,6 +68,8 @@ public:
 
     bool was_lost() const { return m_was_lost; }
     void did_lose(Badge<ProcessManager>) { m_was_lost = true; }
+    bool was_shut_down() const { return m_was_shut_down; }
+    void did_shut_down(Badge<ProcessManager>) { m_was_shut_down = true; }
 
     pid_t pid() const { return m_pid; }
     u64 child_id() const { return m_child_id; }
@@ -94,6 +95,7 @@ private:
     ByteString m_saved_crash_report_name;
     bool m_crash_report_is_shown { false };
     bool m_was_lost { false };
+    bool m_was_shut_down { false };
 
 #if defined(AK_OS_LINUX)
 
@@ -110,7 +112,7 @@ private:
     Optional<Utf16String> m_title;
     Optional<URL::URL> m_site_url;
     Optional<u64> m_owner_child_id;
-    WeakPtr<IPC::ConnectionBase> m_connection;
+    RefPtr<IPC::ConnectionBase> m_connection;
     ProcessOutputCapture m_output_capture;
 };
 

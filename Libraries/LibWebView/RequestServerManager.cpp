@@ -6,6 +6,7 @@
 
 #include <AK/LexicalPath.h>
 #include <AK/QuickSort.h>
+#include <AK/ScopeGuard.h>
 #include <AK/StringBuilder.h>
 #include <LibCore/DirIterator.h>
 #include <LibCore/EventLoop.h>
@@ -160,11 +161,13 @@ ErrorOr<void> RequestServerManager::launch_process(RequestServerInstance& instan
     instance.m_control_client = move(control_client);
     instance.m_ui_client = nullptr;
 
+    ArmedScopeGuard shut_down_on_failure { [&] { Application::process_manager().shut_down(*instance.m_control_client); } };
     auto connection = TRY(connect_new_client(instance, instance.session(), RequestServer::SiteBinding::Unrestricted));
     auto transport = TRY(connection.handle.create_transport());
     auto ui_client = make_ref_counted<Requests::RequestClient>(move(transport));
     instance.m_ui_client = move(ui_client);
 
+    shut_down_on_failure.disarm();
     return {};
 }
 
@@ -247,7 +250,11 @@ void RequestServerManager::did_lose_process(RequestServerInstance& instance)
 void RequestServerManager::retire(RequestServerInstance& instance)
 {
     instance.m_retired = true;
-    // The process exits once its last client is gone; dropping the control connection and the UI client sees to that.
+    // The process exits once its last client is gone; shutting the control connection and the UI client down sees to
+    // that.
+    Application::process_manager().shut_down(*instance.m_control_client);
+    if (instance.m_ui_client)
+        instance.m_ui_client->shutdown();
     m_instances.remove_first_matching([&](auto const& candidate) { return candidate.ptr() == &instance; });
 
     if (m_dormant_site_caches.has_value() && instance.site().has_value() && instance.session().is_private() == IsPrivate::No && !is_live_cache_path(instance.cache_path()))

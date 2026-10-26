@@ -1165,7 +1165,10 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::boot_web_content_client(Is
     auto session = session_for_new_view(is_private);
 
     auto client = TRY(WebView::launch_web_content_process(is_private));
-    TRY(connect_web_content_to_compositor(*client));
+    if (auto result = connect_web_content_to_compositor(*client); result.is_error()) {
+        m_process_manager->shut_down(*client);
+        return result.release_error();
+    }
 
     // NB: The process sets up its resource loader once it has a RequestServer, so this comes first.
     TRY(client->request_server_site_bindings().connect(session));
@@ -1206,8 +1209,6 @@ ErrorOr<void> Application::assign_initial_page(WebContentClient& client, Web::Pa
 
     if (!navigable_to_adopt.has_value())
         client.set_initial_top_level_history_entry({}, move(initial_history_entry), initial_document_id);
-
-    m_web_content_clients.set(client);
     return {};
 }
 
@@ -1628,7 +1629,7 @@ void Application::keep_web_content_processes_ready()
 
     m_process_manager->set_pool(ProcessType::WebContent, 1, [this]() -> ErrorOr<PooledProcess> {
         auto client = TRY(boot_web_content_client(IsPrivate::No));
-        return PooledProcess { .child_id = client->child_id(), .connection = move(client), .transport = {} };
+        return PooledProcess { .child_id = client->child_id(), .transport = {} };
     });
 }
 
@@ -2133,7 +2134,7 @@ void Application::register_process_handlers()
         if (auto client = process.client<WebContentClient>())
             client->did_lose_process();
     });
-    m_process_manager->set_exit_handler(ProcessType::WebContent, [this](Process& process) {
+    m_process_manager->set_exit_handler(ProcessType::WebContent, [](Process& process) {
         auto client = process.client<WebContentClient>();
         if (!client)
             return;
@@ -2142,7 +2143,6 @@ void Application::register_process_handlers()
             if (client->has_crashed_views())
                 process.set_crash_report_is_shown();
         }
-        m_web_content_clients.remove(client.release_nonnull());
     });
 
     m_process_manager->set_lost_handler(ProcessType::WebWorker, [](Process& process) {

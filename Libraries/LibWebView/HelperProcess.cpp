@@ -11,6 +11,8 @@
 #include <LibCore/File.h>
 #include <LibCore/Process.h>
 #include <LibCore/System.h>
+#include <LibGfx/GpuDeviceIdentity.h>
+#include <LibMediaClient/Client.h>
 #include <LibSandbox/ConnectBroker.h>
 #include <LibURL/Parser.h>
 #include <LibWebView/Application.h>
@@ -290,7 +292,7 @@ static ErrorOr<ChildIdentity> launch_helper_process(StringView server_name, Vect
 }
 
 template<typename ClientType, typename... ClientArguments>
-static ErrorOr<NonnullRefPtr<ClientType>> launch_server_process(
+static ErrorOr<SpawnedClient<ClientType>> launch_server_process(
     StringView server_name,
     Vector<ByteString> arguments,
     ClientArguments&&... client_arguments)
@@ -304,7 +306,16 @@ static ErrorOr<NonnullRefPtr<ClientType>> launch_server_process(
 
     if constexpr (requires { client->set_child_identity(ChildIdentity {}); })
         client->set_child_identity(identity);
-    return client.release_nonnull();
+    return SpawnedClient<ClientType> { identity, client.release_nonnull() };
+}
+
+// A helper that serves one process alone ends along with it.
+template<typename ClientType>
+static ErrorOr<SpawnedClient<ClientType>> launch_server_process_for_owner(StringView server_name, Vector<ByteString> arguments, u64 owner_child_id)
+{
+    auto spawned = TRY(launch_server_process<ClientType>(server_name, move(arguments)));
+    Application::process_manager().find_child(spawned.identity.child_id)->set_owner_child_id(owner_child_id);
+    return spawned;
 }
 
 // Gives a new process its one connection to the font service. This is the first message it gets, so that every font
@@ -362,7 +373,8 @@ ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsP
     if (web_content_options.proxy_autoconfig_url.has_value())
         arguments.append(ByteString::formatted("--proxy-autoconfig-url={}", *web_content_options.proxy_autoconfig_url));
 
-    auto client = TRY(launch_server_process<WebView::WebContentClient>("WebContent"sv, move(arguments), is_private));
+    auto client = TRY(launch_server_process<WebView::WebContentClient>("WebContent"sv, move(arguments), is_private)).client;
+    ArmedScopeGuard shut_down_on_failure { [&] { Application::process_manager().shut_down(*client); } };
     TRY(connect_to_font_service(*client));
 
     // The test-only messages live on their own endpoint pair, over a transport that only exists in test mode.
@@ -374,6 +386,7 @@ ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsP
 
     if (auto system_font_family = WebView::Application::the().system_font_family(); system_font_family.has_value())
         client->async_set_system_font_family(system_font_family.release_value());
+    shut_down_on_failure.disarm();
     return client;
 }
 
@@ -409,7 +422,7 @@ void keep_image_decoders_ready()
 {
     Application::process_manager().set_pool(ProcessType::ImageDecoder, 1, []() -> ErrorOr<PooledProcess> {
         auto decoder = TRY(launch_image_decoder_process());
-        return PooledProcess { .child_id = decoder.child_id, .connection = nullptr, .transport = move(decoder.handle) };
+        return PooledProcess { .child_id = decoder.child_id, .transport = move(decoder.handle) };
     });
 }
 
@@ -448,7 +461,7 @@ void connect_image_decoder(WebWorkerClient& requester)
     connect_image_decoder_to(requester);
 }
 
-ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_process()
+static ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_process(u64 owner_child_id)
 {
     auto const& browser_options = WebView::Application::browser_options();
 
@@ -456,17 +469,17 @@ ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_process()
     if (browser_options.headless_mode.has_value())
         arguments.append("--headless"sv);
 
-    return launch_server_process<AudioServerControlClient>("AudioServer"sv, arguments);
+    return TRY(launch_server_process_for_owner<AudioServerControlClient>("AudioServer"sv, move(arguments), owner_child_id)).client;
 }
 
-ErrorOr<NonnullRefPtr<MediaClient::Client>> launch_media_server_process()
+static ErrorOr<SpawnedClient<MediaClient::Client>> launch_media_server_process(u64 owner_child_id)
 {
-    return launch_server_process<MediaClient::Client>("MediaServer"sv, {});
+    return launch_server_process_for_owner<MediaClient::Client>("MediaServer"sv, {}, owner_child_id);
 }
 
 static NeverDestroyed<Vector<WeakPtr<VideoDecoderServerControlClient>>> s_video_decoder_servers;
 
-ErrorOr<NonnullRefPtr<VideoDecoderServerControlClient>> launch_video_decoder_server_process(Optional<Gfx::GpuDeviceIdentity> const& gpu_device_identity)
+static ErrorOr<NonnullRefPtr<VideoDecoderServerControlClient>> launch_video_decoder_server_process(Optional<Gfx::GpuDeviceIdentity> const& gpu_device_identity, u64 owner_child_id)
 {
     auto const& browser_options = WebView::Application::browser_options();
 
@@ -478,7 +491,7 @@ ErrorOr<NonnullRefPtr<VideoDecoderServerControlClient>> launch_video_decoder_ser
         arguments.append(gpu_device_identity->to_byte_string());
     }
 
-    auto server = TRY(launch_server_process<VideoDecoderServerControlClient>("VideoDecoderServer"sv, arguments));
+    auto server = TRY(launch_server_process_for_owner<VideoDecoderServerControlClient>("VideoDecoderServer"sv, move(arguments), owner_child_id)).client;
     s_video_decoder_servers->remove_all_matching([](auto const& weak_server) { return !weak_server; });
     s_video_decoder_servers->append(server->make_weak_ptr<VideoDecoderServerControlClient>());
     return server;
@@ -512,8 +525,10 @@ ErrorOr<NonnullRefPtr<WebView::CompositorClient>> launch_compositor_process()
     if (web_content_options.force_fontconfig == WebView::ForceFontconfig::Yes)
         arguments.append("--force-fontconfig"sv);
 
-    auto client = TRY(launch_server_process<WebView::CompositorClient>("Compositor"sv, move(arguments)));
+    auto client = TRY(launch_server_process<WebView::CompositorClient>("Compositor"sv, move(arguments))).client;
+    ArmedScopeGuard shut_down_on_failure { [&] { Application::process_manager().shut_down(*client); } };
     TRY(connect_to_font_service(*client));
+    shut_down_on_failure.disarm();
     return client;
 }
 
@@ -549,10 +564,12 @@ ErrorOr<NonnullRefPtr<WebWorkerClient>> launch_web_worker_process(Web::HTML::Age
         VERIFY_NOT_REACHED();
     }
 
-    auto client = TRY(launch_server_process<WebWorkerClient>("WebWorker"sv, move(arguments), is_private, agent_id));
+    auto client = TRY(launch_server_process<WebWorkerClient>("WebWorker"sv, move(arguments), is_private, agent_id)).client;
+    ArmedScopeGuard shut_down_on_failure { [&] { Application::process_manager().shut_down(*client); } };
     TRY(connect_to_font_service(*client));
     if (auto system_font_family = WebView::Application::the().system_font_family(); system_font_family.has_value())
         client->async_set_system_font_family(system_font_family.release_value());
+    shut_down_on_failure.disarm();
     return client;
 }
 
@@ -608,14 +625,10 @@ ErrorOr<NonnullRefPtr<Requests::RequestControlClient>> launch_request_server_pro
     if (request_server_options.resource_substitution_map_path.has_value())
         arguments.append(ByteString::formatted("--resource-map={}", *request_server_options.resource_substitution_map_path));
 
-    RefPtr<Requests::RequestControlClient> client;
-    TRY(launch_helper_process("RequestServer"sv, move(arguments), [&](Core::ProcessSpawnOptions const& options, bool capture_output) -> ErrorOr<ChildIdentity> {
-        auto spawned = TRY(Application::process_manager().spawn<Requests::RequestControlClient>(ProcessType::RequestServer, options, capture_output));
-        if (site.has_value())
-            Application::process_manager().find_child(spawned.identity.child_id)->set_site_url(URL::Parser::basic_parse(*site));
-        client = move(spawned.client);
-        return spawned.identity;
-    }));
+    auto spawned = TRY(launch_server_process<Requests::RequestControlClient>("RequestServer"sv, move(arguments)));
+    if (site.has_value())
+        Application::process_manager().find_child(spawned.identity.child_id)->set_site_url(URL::Parser::basic_parse(*site));
+    auto client = move(spawned.client);
 
     auto const& browsing_data_settings = Application::settings().browsing_data_settings();
     client->async_set_disk_cache_settings(browsing_data_settings.disk_cache_settings);
@@ -623,7 +636,7 @@ ErrorOr<NonnullRefPtr<Requests::RequestControlClient>> launch_request_server_pro
     if (!Application::settings().dns_settings().has<SystemDNS>())
         apply_dns_settings(*client);
 
-    return client.release_nonnull();
+    return client;
 }
 
 ErrorOr<RequestServerClientConnection> connect_new_request_server_client(BrowsingSession& session, RequestServer::SiteBinding site_binding)
@@ -650,7 +663,7 @@ ErrorOr<void> ensure_audio_server_is_running(RefPtr<AudioServerControlClient>& c
 {
     if (!controller || !controller->is_open()) {
         TRY(count_relaunch(ProcessType::AudioServer, !controller.is_null(), owner_child_id));
-        controller = TRY(launch_audio_server_process());
+        controller = TRY(launch_audio_server_process(owner_child_id));
     }
     return {};
 }
@@ -677,7 +690,7 @@ static ErrorOr<IPC::TransportHandle> connect_new_video_decoder_server_client(Ref
 {
     if (!controller || !controller->is_open()) {
         TRY(count_relaunch(ProcessType::VideoDecoderServer, !controller.is_null(), owner_child_id));
-        controller = TRY(launch_video_decoder_server_process(gpu_device_identity));
+        controller = TRY(launch_video_decoder_server_process(gpu_device_identity, owner_child_id));
     }
 
     auto response = controller->send_sync_but_allow_failure<Messages::VideoDecoderServerControl::ConnectNewClient>();
@@ -691,13 +704,14 @@ ErrorOr<MediaServerClientConnection> connect_new_media_server_client(RefPtr<Medi
     // The connection's holder launches a new MediaServer when it next connects a client.
     if (!controller || !controller->is_open()) {
         TRY(count_relaunch(ProcessType::MediaServer, !controller.is_null(), owner_child_id));
-        controller = TRY(launch_media_server_process());
+        auto [identity, server] = TRY(launch_media_server_process(owner_child_id));
+        controller = move(server);
         controller->on_request_audio_server_connection = move(connect_audio_server);
-        // Each MediaServer has a VideoDecoderServer of its own, which lives as long as the controller holding it. The
-        // server is launched once the Compositor has named the GPU that hardware decoders must output to.
-        controller->on_request_video_decoder_server_connection = [video_decoder_server = make_ref_counted<VideoDecoderServerHolder>(), owner_child_id](auto answer) {
-            Application::the().when_compositor_gpu_device_identity_is_known([video_decoder_server, owner_child_id, answer = move(answer)](auto const& gpu_device_identity) {
-                answer(connect_new_video_decoder_server_client(video_decoder_server->controller, gpu_device_identity, owner_child_id));
+        // Each MediaServer has a VideoDecoderServer of its own, which ends along with it. The server is launched once
+        // the Compositor has named the GPU that hardware decoders must output to.
+        controller->on_request_video_decoder_server_connection = [video_decoder_server = make_ref_counted<VideoDecoderServerHolder>(), media_server_child_id = identity.child_id](auto answer) {
+            Application::the().when_compositor_gpu_device_identity_is_known([video_decoder_server, media_server_child_id, answer = move(answer)](auto const& gpu_device_identity) {
+                answer(connect_new_video_decoder_server_client(video_decoder_server->controller, gpu_device_identity, media_server_child_id));
             });
         };
     }
