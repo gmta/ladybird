@@ -112,7 +112,6 @@ struct Test {
     bool did_start_test { false };
     bool did_finish_test { false };
     bool did_finish_loading { false };
-    bool did_inject_js { false };
 
     Vector<RefTestExpectation> ref_test_expectations {};
     size_t ref_test_expectation_index { 0 };

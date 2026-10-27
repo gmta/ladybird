@@ -687,30 +687,7 @@ static void run_ref_test(TestWebView& view, TestRunContext& context, Test& test,
 {
     auto test_index = test.index;
 
-    view.on_load_finish = [&view, &context, test_index, url](auto const& loaded_url) {
-        auto& test = context.tests[test_index];
-
-        // We don't want subframe loads to trigger this.
-        if (!test.ref_test_expectations.is_empty()) {
-            VERIFY(test.ref_test_expectation_index < test.ref_test_expectations.size());
-
-            // Match against the expectation URL.
-            auto const& expectation_url = test.ref_test_expectations[test.ref_test_expectation_index].url;
-            if (!expectation_url.equals(loaded_url, URL::ExcludeFragment::Yes))
-                return;
-        } else {
-            // Match against the test URL.
-            if (!url.equals(loaded_url, URL::ExcludeFragment::Yes))
-                return;
-        }
-
-        if (!test.did_inject_js) {
-            test.did_inject_js = true;
-            view.run_javascript(wait_for_reftest_completion);
-        }
-    };
-
-    view.on_test_finish = [&view, &context, test_index, url](auto const&) {
+    auto take_screenshot = [&view, &context, test_index, url]() {
         auto& test = context.tests[test_index];
         if (test.actual_screenshot) {
             // The reference has finished loading; take another screenshot and move on to handling the result.
@@ -732,7 +709,8 @@ static void run_ref_test(TestWebView& view, TestRunContext& context, Test& test,
                 }
 
                 test.expectation_screenshot.clear();
-                test.did_inject_js = false;
+                test.did_finish_loading = false;
+                test.did_finish_test = false;
                 view.load(test.ref_test_expectations[test.ref_test_expectation_index].url);
             });
         } else {
@@ -743,6 +721,42 @@ static void run_ref_test(TestWebView& view, TestRunContext& context, Test& test,
                 view.run_javascript("internals.loadReferenceTestMetadata();"_string);
             });
         }
+    };
+
+    view.on_load_finish = [&view, &context, test_index, url, take_screenshot](auto const& loaded_url) {
+        auto& test = context.tests[test_index];
+
+        // We don't want subframe loads to trigger this.
+        if (!test.ref_test_expectations.is_empty()) {
+            VERIFY(test.ref_test_expectation_index < test.ref_test_expectations.size());
+
+            // Match against the expectation URL.
+            auto const& expectation_url = test.ref_test_expectations[test.ref_test_expectation_index].url;
+            if (!expectation_url.equals(loaded_url, URL::ExcludeFragment::Yes))
+                return;
+        } else {
+            // Match against the test URL.
+            if (!url.equals(loaded_url, URL::ExcludeFragment::Yes))
+                return;
+        }
+
+        if (test.did_finish_loading)
+            return;
+        test.did_finish_loading = true;
+        view.run_javascript(wait_for_reftest_completion);
+
+        if (test.did_finish_test)
+            take_screenshot();
+    };
+
+    // A page can signal that it is done before its load event, while images that hold that event back are still being
+    // decoded, so the screenshot waits for both.
+    view.on_test_finish = [&context, test_index, take_screenshot](auto const&) {
+        auto& test = context.tests[test_index];
+        test.did_finish_test = true;
+
+        if (test.did_finish_loading)
+            take_screenshot();
     };
 
     view.on_reference_test_metadata = [&view, &context, test_index](JsonValue const& metadata) {
@@ -795,8 +809,9 @@ static void run_ref_test(TestWebView& view, TestRunContext& context, Test& test,
             return;
         }
 
-        // Clear flag so we can inject the JS into the reference page.
-        test.did_inject_js = false;
+        // Clear the flags so we inject the JS into the reference page and wait for it as well.
+        test.did_finish_loading = false;
+        test.did_finish_test = false;
         view.load(test.ref_test_expectations[test.ref_test_expectation_index].url);
     };
 
@@ -864,19 +879,7 @@ static void run_screenshot_test(TestWebView& view, TestRunContext& context, Test
             view.on_test_complete({ test_index, result.value() });
     };
 
-    view.on_load_finish = [&view, &context, test_index, url](auto const& loaded_url) {
-        // We don't want subframe loads to trigger this.
-        if (!url.equals(loaded_url, URL::ExcludeFragment::Yes))
-            return;
-
-        auto& test = context.tests[test_index];
-        if (!test.did_inject_js) {
-            test.did_inject_js = true;
-            view.run_javascript(wait_for_reftest_completion);
-        }
-    };
-
-    view.on_test_finish = [&view, &context, test_index, on_test_complete = move(on_test_complete)](auto const&) {
+    auto take_screenshot = [&view, &context, test_index, on_test_complete = move(on_test_complete)]() {
         // Take a screenshot of the rendered test page.
         view.take_screenshot()->when_resolved([&view, &context, test_index, on_test_complete = move(on_test_complete)](RefPtr<Gfx::Bitmap const> screenshot) {
             context.tests[test_index].actual_screenshot = move(screenshot);
@@ -907,6 +910,31 @@ static void run_screenshot_test(TestWebView& view, TestRunContext& context, Test
                 on_test_complete();
             };
         });
+    };
+
+    view.on_load_finish = [&view, &context, test_index, url, take_screenshot](auto const& loaded_url) {
+        // We don't want subframe loads to trigger this.
+        if (!url.equals(loaded_url, URL::ExcludeFragment::Yes))
+            return;
+
+        auto& test = context.tests[test_index];
+        if (test.did_finish_loading)
+            return;
+        test.did_finish_loading = true;
+        view.run_javascript(wait_for_reftest_completion);
+
+        if (test.did_finish_test)
+            take_screenshot();
+    };
+
+    // A page can signal that it is done before its load event, while images that hold that event back are still being
+    // decoded, so the screenshot waits for both.
+    view.on_test_finish = [&context, test_index, take_screenshot](auto const&) {
+        auto& test = context.tests[test_index];
+        test.did_finish_test = true;
+
+        if (test.did_finish_loading)
+            take_screenshot();
     };
 
     view.load(url);
