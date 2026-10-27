@@ -64,11 +64,15 @@ def run_test(webdriver_binary, process_name):
             )
             assert status == 200, body
             session = payload["value"]["sessionId"]
+            url = "data:text/html,<title>PRIVATE_CRASH_TITLE</title>PRIVATE_CRASH_CONTENT"
+            if process_name == "ImageDecoder":
+                # A page only gets an image decoder once it has an image to decode.
+                url += "<img src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'>"
             status, _, body = webdriver_helpers.request(
                 port,
                 "POST",
                 f"/session/{session}/url",
-                {"url": "data:text/html,<title>PRIVATE_CRASH_TITLE</title>PRIVATE_CRASH_CONTENT"},
+                {"url": url},
             )
             assert status == 200, body
             if process_name == "WebContent":

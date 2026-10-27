@@ -43,6 +43,8 @@ public:
 
     pid_t pid() const { return m_child_identity.pid; }
     u64 child_id() const { return m_child_identity.child_id; }
+    size_t image_decoder_launch_count() const { return m_image_decoder_launch_count; }
+    void did_launch_image_decoder() { ++m_image_decoder_launch_count; }
     void terminate_process();
 
     Optional<CanonicalEnvironmentSettingsObject const&> hosted_environment(Web::HTML::EnvironmentId const& environment_id) const;
@@ -59,6 +61,7 @@ public:
     virtual Messages::WebWorkerClient::DidRequestBlobUrlEntryResponse did_request_blob_url_entry(Utf16String url, Optional<URL::BlobURLEntry::Token> token) override;
     virtual void did_request_file(ByteString path, i32 request_id) override;
     virtual Messages::WebWorkerClient::DidIsKnownHstsHostResponse did_is_known_hsts_host(String domain) override;
+    virtual void request_image_decoder_connection() override;
     virtual Messages::WebWorkerClient::RequestMediaServerConnectionResponse request_media_server_connection() override;
     virtual void did_post_broadcast_channel_message(Web::HTML::PostedBroadcastChannelMessage) override;
     virtual Messages::WebWorkerClient::StartWorkerAgentResponse start_worker_agent(Web::HTML::WorkerAgentStartRequest request) override;
@@ -74,6 +77,7 @@ private:
     RequestServerSiteBindings m_request_server_site_bindings;
 
     ChildIdentity m_child_identity;
+    size_t m_image_decoder_launch_count { 0 };
     Web::HTML::WorkerAgentId m_agent_id { 0 };
 
     // The controller connections to the MediaServer and AudioServer spawned for this process, from its first media use

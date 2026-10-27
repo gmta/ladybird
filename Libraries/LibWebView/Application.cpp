@@ -1144,7 +1144,6 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(
 {
     // The client's WebContentClient picks up this same session when it is created.
     auto session = session_for_new_view(is_private);
-    auto image_decoder = TRY(launch_image_decoder_process());
 
     auto cross_process_id_allocator = allocate_cross_process_id_allocator();
     auto root_navigable_id = navigable_to_adopt.has_value() ? *navigable_to_adopt : cross_process_id_allocator.allocate();
@@ -1173,7 +1172,6 @@ ErrorOr<NonnullRefPtr<WebContentClient>> Application::create_web_content_client(
 
     TRY(client->request_server_site_bindings().connect(session));
     client->async_set_site_compatibility_data(m_site_compatibility_data);
-    connect_to_image_decoder(*client, move(image_decoder));
 
     // NB: A WebDriver BiDi session gives its state to every process hosting web content when it changes.
     if (auto* webdriver_bidi = WebDriverBiDi::the(); webdriver_bidi && webdriver_bidi->session_state().is_active)
@@ -2103,11 +2101,6 @@ void Application::configure_request_server_control_client(Requests::RequestContr
     TabPerformanceMonitor::configure(control_client);
 }
 
-void Application::set_image_decoder_exit_handler(u64 child_id, Function<void()> handler)
-{
-    m_image_decoder_exit_handlers.set(child_id, move(handler));
-}
-
 ErrorOr<void> Application::launch_devtools_server()
 {
     VERIFY(!m_devtools);
@@ -2282,8 +2275,7 @@ void Application::process_did_exit(Process&& process, Optional<int>)
         }
         break;
     case ProcessType::ImageDecoder:
-        if (auto handler = m_image_decoder_exit_handlers.take(process.child_id()); handler.has_value())
-            (*handler)();
+        // The process it served asks for a new one once it next has an image to decode.
         break;
     case ProcessType::MediaServer:
         // The connection's holder launches a new MediaServer when it next connects a client.

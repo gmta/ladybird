@@ -37,7 +37,7 @@ void ConnectionFromClient::simulate_request_server_connection_loss_and_reconnect
     connect_to_request_server(move(replacement_handle), client_id, move(top_level_site));
 }
 
-void ConnectionFromClient::connect_to_image_decoder(IPC::TransportHandle handle)
+void ConnectionFromClient::connect_to_image_decoder(Optional<IPC::TransportHandle> handle)
 {
     if (on_image_decoder_connection)
         on_image_decoder_connection(handle);

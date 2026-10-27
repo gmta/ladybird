@@ -377,7 +377,13 @@ ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_process(IsP
     return client;
 }
 
-ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
+struct ImageDecoderConnection {
+    IPC::TransportHandle handle;
+    u64 child_id { 0 };
+};
+
+// Launches an ImageDecoder that serves a single renderer or worker, which talks to it over the returned handle.
+static ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
 {
     auto const& browser_options = WebView::Application::browser_options();
 
@@ -401,38 +407,45 @@ ErrorOr<ImageDecoderConnection> launch_image_decoder_process()
     return ImageDecoderConnection { TRY(transport->release_for_transfer()), identity.child_id };
 }
 
+// A process whose decoder keeps crashing goes on without images, so that neither a crafted image nor a compromised
+// process can make us launch decoders without end.
+static constexpr size_t maximum_image_decoder_launches_per_process = 6;
+
+// A process asks for its decoder once it first has an image to decode, and again once it has lost it. It has at most one
+// decoder: a request while it still has one ends that one, as the process only asks again once it no longer reaches it.
 template<typename ClientType>
-static void connect_client_to_image_decoder(ClientType& client, ImageDecoderConnection decoder)
+static void connect_image_decoder_to(ClientType& client)
 {
-    auto process = Application::process_manager().find_child(decoder.child_id);
-    VERIFY(process.has_value());
-    process->set_owner_child_id(client.child_id());
-    client.async_connect_to_image_decoder(decoder.handle);
-
-    // A decoder exits by itself once its client is gone. One that dies before then is replaced, so a crash costs the
-    // client the images it was decoding at the time rather than every image after it.
-    Application::the().set_image_decoder_exit_handler(decoder.child_id, [weak_client = client.template make_weak_ptr<ClientType>()] {
-        auto client = weak_client.strong_ref();
-        if (!client || !client->is_open())
-            return;
-
-        auto new_decoder = launch_image_decoder_process();
-        if (new_decoder.is_error()) {
-            dbgln("Failed to replace a crashed image decoder: {}", new_decoder.error());
-            return;
-        }
-        connect_client_to_image_decoder(*client, new_decoder.release_value());
+    auto& process_manager = Application::process_manager();
+    process_manager.for_each_process([&](Process& process) {
+        if (process.type() == ProcessType::ImageDecoder && process.owner_child_id() == client.child_id())
+            (void)process_manager.terminate_child(process.child_id(), Core::Process::TerminationMode::Forceful);
     });
+
+    if (client.image_decoder_launch_count() >= maximum_image_decoder_launches_per_process) {
+        client.async_connect_to_image_decoder({});
+        return;
+    }
+    client.did_launch_image_decoder();
+
+    auto decoder = launch_image_decoder_process();
+    if (decoder.is_error()) {
+        dbgln("Unable to launch an image decoder: {}", decoder.error());
+        client.async_connect_to_image_decoder({});
+        return;
+    }
+    process_manager.find_child(decoder.value().child_id)->set_owner_child_id(client.child_id());
+    client.async_connect_to_image_decoder(move(decoder.value().handle));
 }
 
-void connect_to_image_decoder(WebContentClient& client, ImageDecoderConnection decoder)
+void connect_image_decoder(WebContentClient& client)
 {
-    connect_client_to_image_decoder(client, move(decoder));
+    connect_image_decoder_to(client);
 }
 
-void connect_to_image_decoder(WebWorkerClient& client, ImageDecoderConnection decoder)
+void connect_image_decoder(WebWorkerClient& client)
 {
-    connect_client_to_image_decoder(client, move(decoder));
+    connect_image_decoder_to(client);
 }
 
 ErrorOr<NonnullRefPtr<AudioServerControlClient>> launch_audio_server_process()

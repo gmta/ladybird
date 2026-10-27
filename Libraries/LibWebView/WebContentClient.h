@@ -168,6 +168,8 @@ public:
 
     pid_t pid() const { return m_child_identity.pid; }
     u64 child_id() const { return m_child_identity.child_id; }
+    size_t image_decoder_launch_count() const { return m_image_decoder_launch_count; }
+    void did_launch_image_decoder() { ++m_image_decoder_launch_count; }
     void set_child_identity(ChildIdentity identity) { m_child_identity = identity; }
 
 private:
@@ -206,6 +208,7 @@ private:
     virtual void did_update_cookie(HTTP::Cookie::Cookie) override;
     virtual Messages::WebContentClient::DidIsKnownHstsHostResponse did_is_known_hsts_host(String) override;
     virtual Messages::WebContentClient::DidLoseRequestServerConnectionResponse did_lose_request_server_connection(Optional<Utf16String> top_level_site) override;
+    virtual void request_image_decoder_connection() override;
     virtual Messages::WebContentClient::RequestMediaServerConnectionResponse request_media_server_connection() override;
     virtual Messages::WebContentClient::RequestAudioServerConnectionResponse request_audio_server_connection() override;
     virtual void request_video_presentation_channel() override;
@@ -241,6 +244,7 @@ private:
     Web::HTML::CrossProcessId m_initial_top_level_document_id;
 
     ChildIdentity m_child_identity;
+    size_t m_image_decoder_launch_count { 0 };
 
     ErrorOr<IPC::TransportHandle> connect_audio_server_client();
     ErrorOr<void> ensure_audio_server_controller();
