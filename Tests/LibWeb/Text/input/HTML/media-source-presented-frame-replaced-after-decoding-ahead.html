@@ -20,14 +20,12 @@
         await timeout(500);
 
         // Frames are at multiples of 0.1, so this keeps the presented frame at 5.5 and the next at 5.6.
-        await appendWithinWindow(sourceBuffer, blue, 5.65, 8);
+        await appendWithinWindow(sourceBuffer, blue, 5.65);
         println(`after replacing ahead: ${samplePresentedFrame(video)}`);
 
         await video.play();
         await waitForCondition(() => video.currentTime >= 6.05, 200, 10);
-        // Only the stream is printed, since whether stale frames get presented is timing-dependent.
-        const sample = await samplePresentedFrameOnceItMatches(video, "blue 1");
-        println(`playing past 6: ${sample.split(" ")[0]}`);
+        println(`playing past 6: ${await samplePresentedColorOnceItMatches(video, "blue")}`);
         video.pause();
     });
 </script>
