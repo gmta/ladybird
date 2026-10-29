@@ -7,17 +7,22 @@
 #pragma once
 
 #include <AK/Function.h>
+#include <AK/HashMap.h>
 #include <AK/Optional.h>
+#include <AK/OwnPtr.h>
 #include <Compositor/CanvasHost.h>
 #include <Compositor/CompositorState.h>
 #include <Compositor/CompositorWebContentClientEndpoint.h>
 #include <Compositor/CompositorWebContentServerEndpoint.h>
 #include <Compositor/RenderClockConnection.h>
 #include <Compositor/VideoFrameHolds.h>
+#include <Compositor/WebGLHost.h>
 #include <LibCompositing/DisplayList/DisplayList.h>
 #include <LibCompositing/DisplayList/DisplayListResourceStorage.h>
 #include <LibCompositing/WebGL/Types.h>
 #include <LibCore/AnonymousBuffer.h>
+#include <LibCore/Forward.h>
+#include <LibGfx/Forward.h>
 #include <LibGfx/Size.h>
 #include <LibIPC/ConnectionFromClient.h>
 #include <LibMedia/VideoPresentation/VideoPresentationClientConnection.h>
@@ -30,7 +35,7 @@ class ConnectionFromWebContent final
     C_OBJECT(ConnectionFromWebContent);
 
 public:
-    virtual ~ConnectionFromWebContent() override = default;
+    virtual ~ConnectionFromWebContent() override;
     void notify_compositor_lost();
     void set_on_death(Function<void(ConnectionFromWebContent&)> handler) { m_on_death = move(handler); }
 
@@ -38,10 +43,16 @@ public:
     void install_video_presentation_channel(IPC::TransportHandle);
     void install_render_clock_channel(IPC::TransportHandle);
 
+    void did_present_webgl_canvas(Compositing::CanvasId, WebGLPresentedBuffer);
+    void did_destroy_webgl_canvas(Compositing::CanvasId);
+    void did_complete_webgl_job(u64 job);
+
 private:
     explicit ConnectionFromWebContent(NonnullOwnPtr<IPC::Transport>, NonnullRefPtr<CompositorState>, int client_id);
 
     virtual void die() override;
+    virtual DispatchDecision dispatch_decision_for(IPC::Message const&) override;
+    virtual void forward_message(NonnullOwnPtr<IPC::Message>) override;
 
     virtual void add_video_sink(Media::VideoSinkHandle, NonnullRefPtr<Compositing::VideoFramePresentationPage>) override;
     virtual void remove_video_sink(Media::VideoSinkHandle) override;
@@ -110,6 +121,18 @@ private:
     virtual Compositing::CanvasSurfaceOwnerId canvas_surface_owner_id() const override { return m_canvas_host.canvas_surface_owner_id(); }
     bool context_is_owned_by_this_connection(Web::CompositorContextId);
 
+    struct WebGLBufferSurface {
+        NonnullRefPtr<Gfx::PaintingSurface> surface;
+        OwnPtr<Gfx::SharedImageBuffer> shared_image_buffer;
+    };
+    struct WebGLCanvasBuffers {
+        HashMap<u64, WebGLBufferSurface> surfaces;
+        Optional<u64> presented_buffer_id;
+    };
+    void retire_webgl_buffer(Compositing::CanvasId, u64 buffer_id);
+    void release_webgl_buffer(Compositing::CanvasId, u64 buffer_id);
+    void tear_down_webgl();
+
     NonnullRefPtr<CompositorState> m_compositor_state;
     VideoFrameHolds m_video_frame_holds;
     CanvasHost m_canvas_host;
@@ -127,6 +150,16 @@ private:
     // The presentation client end of this WebContent's video presentation channel (connect-only for now).
     RefPtr<Media::VideoPresentationClientConnection> m_video_presentation_connection;
     RefPtr<RenderClockConnection> m_render_clock_connection;
+
+    NonnullRefPtr<WebGLHostChannel> m_webgl_channel;
+    WebGLHost* m_webgl_host { nullptr };
+    u64 m_webgl_jobs_forwarded { 0 };
+    u64 m_webgl_jobs_completed { 0 };
+    u64 m_webgl_job_awaited { 0 };
+    bool m_dispatch_awaits_webgl { false };
+    HashMap<Compositing::CanvasId, WebGLCanvasBuffers> m_webgl_canvases;
+    size_t m_pending_webgl_buffer_releases { 0 };
+    RefPtr<Core::Timer> m_webgl_buffer_release_timer;
 };
 
 }

@@ -8,6 +8,7 @@
 
 #include <AK/NonnullOwnPtr.h>
 #include <AK/NonnullRefPtr.h>
+#include <AK/Optional.h>
 #include <AK/OwnPtr.h>
 #include <AK/RefPtr.h>
 #include <AK/Vector.h>
@@ -59,6 +60,18 @@ public:
     RefPtr<Gfx::PaintingSurface> drawing_buffer_surface();
     RefPtr<Gfx::PaintingSurface> presented_surface();
 
+    struct PresentedBuffer {
+        u64 id { 0 };
+        NonnullRefPtr<Gfx::PaintingSurface> surface;
+        RefPtr<Gfx::Bitmap> bitmap;
+#ifdef AK_OS_MACOS
+        Gfx::SharedImageBuffer const* shared_image_buffer { nullptr };
+#endif
+    };
+    Optional<PresentedBuffer> presented_buffer();
+    void release_presented_buffer(u64 id);
+    bool has_buffer(u64 id) const;
+
     u32 default_framebuffer() const;
     u32 default_renderbuffer() const;
 
@@ -107,6 +120,7 @@ private:
 #if defined(ENABLE_WEBGL_CPU_PAINTING_SURFACE)
     void allocate_cpu_painting_surface(ColorBuffer&);
     void copy_default_framebuffer_to_cpu_painting_surface();
+    NonnullRefPtr<Gfx::Bitmap> read_default_framebuffer_into_bitmap();
 #endif
 };
 

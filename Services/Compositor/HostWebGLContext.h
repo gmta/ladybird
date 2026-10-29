@@ -51,9 +51,10 @@ public:
     Gfx::ShareableBitmap read_back_drawing_buffer(Gfx::IntRect);
     Compositing::WebGL::ReadPixelsResult read_pixels_robust_angle(Compositing::WebGL::GLint x, Compositing::WebGL::GLint y, Compositing::WebGL::GLsizei width, Compositing::WebGL::GLsizei height, Compositing::WebGL::GLenum format, Compositing::WebGL::GLenum type, Compositing::WebGL::GLsizei buf_size, Core::AnonymousBuffer pixels);
     bool read_buffer_sub_data(Compositing::WebGL::GLenum target, Compositing::WebGL::GLintptr offset, Compositing::WebGL::GLintptr size, Core::AnonymousBuffer data);
-    ErrorOr<NonnullRefPtr<Gfx::PaintingSurface>> prepare_for_compositing(bool preserve_drawing_buffer);
+    ErrorOr<OpenGLContext::PresentedBuffer> prepare_for_compositing(bool preserve_drawing_buffer);
+    void release_presented_buffer(u64 id) { m_gl_context->release_presented_buffer(id); }
+    bool has_buffer(u64 id) const { return m_gl_context->has_buffer(id); }
     void clear_drawing_buffer();
-    RefPtr<Gfx::PaintingSurface> presented_surface();
 
     OpenGLContext& gl_context() { return *m_gl_context; }
 

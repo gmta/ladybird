@@ -36,7 +36,9 @@ set(SOURCES
     VideoFrameHolds.cpp
     VideoFrameSkia.cpp
     VSyncScheduler.cpp
+    WebGLHost.cpp
     WebGLObjectMap.cpp
+    WebGLThread.cpp
     WheelGestureRouting.cpp
 )
 
@@ -82,7 +84,7 @@ target_include_directories(compositorservice PRIVATE ${LADYBIRD_SOURCE_DIR}/Serv
 target_link_libraries(Compositor PRIVATE compositorservice LibCore LibMain LibSandbox)
 # ANGLE must precede Skia so macOS GLES symbols bind to ANGLE rather than the
 # OpenGL framework pulled in by Skia.
-target_link_libraries(compositorservice PRIVATE LibCore LibGfx LibIPC LibMedia LibCompositing ${ANGLE_TARGETS} skia)
+target_link_libraries(compositorservice PRIVATE LibCore LibGfx LibIPC LibMedia LibCompositing LibThreading ${ANGLE_TARGETS} skia)
 
 if (HAS_VULKAN)
     target_sources(compositorservice PRIVATE SkiaVulkanMemoryAllocator.cpp)

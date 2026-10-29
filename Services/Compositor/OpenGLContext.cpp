@@ -21,6 +21,7 @@ extern "C" {
 #include <EGL/eglext_angle.h>
 }
 
+#include <AK/Atomic.h>
 #include <AK/HashMap.h>
 #include <AK/OwnPtr.h>
 #include <AK/String.h>
@@ -55,6 +56,9 @@ namespace Compositor {
 using namespace Compositing::WebGL;
 
 struct OpenGLContext::ColorBuffer {
+    u64 id { 0 };
+    // The compositor reads a buffer from when it is presented until it hands it back, and nothing draws into it then.
+    bool is_held_for_compositing { false };
     RefPtr<Gfx::PaintingSurface> painting_surface;
 #ifdef AK_OS_MACOS
     OwnPtr<Gfx::SharedImageBuffer> shared_image_buffer;
@@ -82,16 +86,17 @@ struct OpenGLContext::Impl {
     Optional<bool> supports_copy_texture {};
 
     // A shared drawing buffer is composited straight from GPU memory, so presenting moves the default framebuffer
-    // to another color buffer instead of letting the page draw over the frame being composited. Besides the
-    // presented buffer and the one being drawn, a third holds the frame presented before, which a raster submitted
-    // before the latest present may still be reading on the GPU. The CPU painting surface is a copy made when
-    // presenting, so it only uses the first.
-    Array<ColorBuffer, 3> color_buffers {};
+    // to another color buffer instead of letting the page draw over the frame being composited. The compositor holds
+    // the presented buffers it may still read, so there are as many as it holds, plus the one being drawn. The CPU
+    // painting surface only uses the first, and presents a copy of it.
+    Vector<ColorBuffer, 3> color_buffers {};
     // What Skia draws for an upload into one of the page's textures, at the size of the latest upload.
     ColorBuffer upload_color_buffer {};
     Gfx::IntSize upload_color_buffer_size {};
     size_t drawing_color_buffer_index { 0 };
     Optional<size_t> presented_color_buffer_index {};
+    // What the CPU painting surface presented last, which nothing draws into again.
+    Optional<PresentedBuffer> presented_cpu_buffer {};
 
 #ifdef USE_VULKAN_DMABUF_IMAGES
     struct {
@@ -107,6 +112,7 @@ OpenGLContext::OpenGLContext(RefPtr<Gfx::SkiaBackendContext> skia_backend_contex
     , m_webgl_version(webgl_version)
     , m_drawing_buffer_options(drawing_buffer_options)
 {
+    m_impl->color_buffers.resize(1);
 }
 
 OpenGLContext::~OpenGLContext()
@@ -133,12 +139,16 @@ void OpenGLContext::free_surface_resources()
         m_impl->depth_buffer = 0;
     }
 
+    // NB: The compositor keeps its own reference to each buffer it holds, so those stay alive until it hands them back.
     for (auto& color_buffer : m_impl->color_buffers)
         free_color_buffer(color_buffer);
+    m_impl->color_buffers.clear();
+    m_impl->color_buffers.resize(1);
     free_color_buffer(m_impl->upload_color_buffer);
     m_impl->upload_color_buffer_size = {};
     m_impl->drawing_color_buffer_index = 0;
     m_impl->presented_color_buffer_index.clear();
+    m_impl->presented_cpu_buffer.clear();
 #endif
 }
 
@@ -170,6 +180,8 @@ void OpenGLContext::free_color_buffer([[maybe_unused]] ColorBuffer& color_buffer
 #    ifdef AK_OS_MACOS
     color_buffer.shared_image_buffer = nullptr;
 #    endif
+    color_buffer.id = 0;
+    color_buffer.is_held_for_compositing = false;
 #endif
 }
 
@@ -195,6 +207,13 @@ static EGLConfig get_egl_config(EGLDisplay display)
     configs.resize(number_of_configs);
     eglChooseConfig(display, config_attribs, configs.data(), number_of_configs, &number_of_configs);
     return number_of_configs > 0 ? configs[0] : EGL_NO_CONFIG_KHR;
+}
+
+// Buffer IDs are unique within the process, so a released ID never names a later buffer.
+static u64 allocate_presented_buffer_id()
+{
+    static Atomic<u64> s_next_presented_buffer_id { 1 };
+    return s_next_presented_buffer_id.fetch_add(1);
 }
 
 static bool extension_list_contains(GLenum list, StringView extension)
@@ -629,7 +648,11 @@ void OpenGLContext::copy_default_framebuffer_to_cpu_painting_surface()
     VERIFY(m_impl->uses_cpu_painting_surface);
     auto& painting_surface = m_impl->color_buffers[m_impl->drawing_color_buffer_index].painting_surface;
     VERIFY(painting_surface);
+    painting_surface->write_from_bitmap(read_default_framebuffer_into_bitmap());
+}
 
+NonnullRefPtr<Gfx::Bitmap> OpenGLContext::read_default_framebuffer_into_bitmap()
+{
     auto bitmap = MUST(Gfx::Bitmap::create(Gfx::BitmapFormat::RGBA8888, Gfx::AlphaType::Premultiplied, m_size));
 
     GLenum framebuffer_target = GL_FRAMEBUFFER;
@@ -694,7 +717,7 @@ void OpenGLContext::copy_default_framebuffer_to_cpu_painting_surface()
     if (m_webgl_version == WebGLVersion::WebGL2)
         glReadBuffer(original_read_buffer);
 
-    painting_surface->write_from_bitmap(*bitmap);
+    return bitmap;
 }
 #endif
 
@@ -797,32 +820,110 @@ void OpenGLContext::flush_drawing_buffer()
 void OpenGLContext::present_drawing_buffer([[maybe_unused]] bool preserve_drawing_buffer)
 {
 #ifdef ENABLE_WEBGL
+#    if defined(ENABLE_WEBGL_CPU_PAINTING_SURFACE)
+    if (m_impl->uses_cpu_painting_surface) {
+        make_current();
+        glFinish();
+        // The copy is the compositor's to read, so the next present makes another one instead of drawing over it.
+        auto bitmap = read_default_framebuffer_into_bitmap();
+        m_impl->presented_cpu_buffer = PresentedBuffer {
+            .id = allocate_presented_buffer_id(),
+            .surface = Gfx::PaintingSurface::wrap_bitmap(*bitmap),
+            .bitmap = bitmap,
+#        ifdef AK_OS_MACOS
+            .shared_image_buffer = nullptr,
+#        endif
+        };
+        return;
+    }
+#    endif
+
     flush_drawing_buffer();
 
     auto presented_index = m_impl->drawing_color_buffer_index;
     m_impl->presented_color_buffer_index = presented_index;
-    if (m_impl->uses_cpu_painting_surface)
-        return;
 
     // The page drew into the shared image behind Skia's back, so drop any snapshot Skia cached of it.
     auto& presented_color_buffer = m_impl->color_buffers[presented_index];
     presented_color_buffer.painting_surface->notify_content_will_change();
+    presented_color_buffer.is_held_for_compositing = true;
 
-    auto next_index = (presented_index + 1) % m_impl->color_buffers.size();
-    auto& next_color_buffer = m_impl->color_buffers[next_index];
     // NB: Without a second color buffer the page keeps drawing into the presented one, which a frame composited
     //     while it draws can catch half drawn.
     if (preserve_drawing_buffer && !supports_copy_texture())
         return;
+
+    Optional<size_t> next_index;
+    for (size_t index = 0; index < m_impl->color_buffers.size(); ++index) {
+        if (!m_impl->color_buffers[index].is_held_for_compositing) {
+            next_index = index;
+            break;
+        }
+    }
+    if (!next_index.has_value()) {
+        next_index = m_impl->color_buffers.size();
+        m_impl->color_buffers.append({});
+    }
+    // NB: Appending may have moved the buffers.
+    auto& next_color_buffer = m_impl->color_buffers[*next_index];
+    auto const& source_color_buffer = m_impl->color_buffers[presented_index];
     if (!next_color_buffer.is_allocated() && !allocate_color_buffer(next_color_buffer))
         return;
 
     if (preserve_drawing_buffer) {
-        glCopySubTextureCHROMIUM(presented_color_buffer.texture, 0, color_buffer_texture_target(), next_color_buffer.texture, 0,
+        glCopySubTextureCHROMIUM(source_color_buffer.texture, 0, color_buffer_texture_target(), next_color_buffer.texture, 0,
             0, 0, 0, 0, m_size.width(), m_size.height(), GL_FALSE, GL_FALSE, GL_FALSE);
     }
     attach_color_buffer_to_default_framebuffer(next_color_buffer);
-    m_impl->drawing_color_buffer_index = next_index;
+    m_impl->drawing_color_buffer_index = *next_index;
+#endif
+}
+
+Optional<OpenGLContext::PresentedBuffer> OpenGLContext::presented_buffer()
+{
+#ifdef ENABLE_WEBGL
+    if (m_impl->uses_cpu_painting_surface)
+        return m_impl->presented_cpu_buffer;
+    if (!m_impl->presented_color_buffer_index.has_value())
+        return {};
+    auto const& color_buffer = m_impl->color_buffers[*m_impl->presented_color_buffer_index];
+    if (!color_buffer.painting_surface)
+        return {};
+    return PresentedBuffer {
+        .id = color_buffer.id,
+        .surface = *color_buffer.painting_surface,
+        .bitmap = {},
+#    ifdef AK_OS_MACOS
+        .shared_image_buffer = color_buffer.shared_image_buffer.ptr(),
+#    endif
+    };
+#else
+    return {};
+#endif
+}
+
+// The compositor has finished reading the buffer, so the page may draw into it again.
+void OpenGLContext::release_presented_buffer([[maybe_unused]] u64 id)
+{
+#ifdef ENABLE_WEBGL
+    // A buffer freed since it was presented, such as by a resize, has nothing left to release.
+    for (auto& color_buffer : m_impl->color_buffers) {
+        if (color_buffer.id == id) {
+            color_buffer.is_held_for_compositing = false;
+            return;
+        }
+    }
+#endif
+}
+
+bool OpenGLContext::has_buffer([[maybe_unused]] u64 id) const
+{
+#ifdef ENABLE_WEBGL
+    if (m_impl->uses_cpu_painting_surface)
+        return m_impl->presented_cpu_buffer.has_value() && m_impl->presented_cpu_buffer->id == id;
+    return any_of(m_impl->color_buffers, [id](auto const& color_buffer) { return color_buffer.id == id; });
+#else
+    return false;
 #endif
 }
 
@@ -836,11 +937,18 @@ bool OpenGLContext::allocate_shared_color_buffer([[maybe_unused]] ColorBuffer& c
 {
 #    if defined(AK_OS_MACOS)
     allocate_iosurface_color_buffer(color_buffer, size, origin);
+    color_buffer.id = allocate_presented_buffer_id();
     return true;
 #    elif defined(USE_VULKAN_DMABUF_IMAGES)
-    return allocate_vkimage_color_buffer(color_buffer, size, origin);
+    if (!allocate_vkimage_color_buffer(color_buffer, size, origin))
+        return false;
+    color_buffer.id = allocate_presented_buffer_id();
+    return true;
 #    elif defined(USE_DIRECTX)
-    return allocate_d3d_color_buffer(color_buffer, size, origin);
+    if (!allocate_d3d_color_buffer(color_buffer, size, origin))
+        return false;
+    color_buffer.id = allocate_presented_buffer_id();
+    return true;
 #    else
     return false;
 #    endif
@@ -963,9 +1071,9 @@ RefPtr<Gfx::PaintingSurface> OpenGLContext::drawing_buffer_surface()
 
 RefPtr<Gfx::PaintingSurface> OpenGLContext::presented_surface()
 {
-    if (!m_impl->presented_color_buffer_index.has_value())
-        return nullptr;
-    return m_impl->color_buffers[*m_impl->presented_color_buffer_index].painting_surface;
+    if (auto buffer = presented_buffer(); buffer.has_value())
+        return buffer->surface;
+    return nullptr;
 }
 
 u32 OpenGLContext::default_renderbuffer() const

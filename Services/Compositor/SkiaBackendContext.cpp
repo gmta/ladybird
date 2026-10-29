@@ -101,6 +101,18 @@ void SkiaBackendContext::flush_and_submit_async(PaintingSurface& surface, Functi
     perform_post_flush_cleanup();
 }
 
+// The callback runs once the GPU has finished everything this context recorded so far, as check_async_work_completion()
+// finds.
+void SkiaBackendContext::submit_with_completion_callback(Function<void()>&& callback)
+{
+    auto& context = *sk_context();
+    GrFlushInfo flush_info {};
+    flush_info.fFinishedProc = invoke_async_flush_callback;
+    flush_info.fFinishedContext = new Function<void()>(move(callback));
+    context.flush(flush_info);
+    VERIFY(context.submit(GrSyncCpu::kNo));
+}
+
 void SkiaBackendContext::perform_post_flush_cleanup()
 {
     auto* context = sk_context();

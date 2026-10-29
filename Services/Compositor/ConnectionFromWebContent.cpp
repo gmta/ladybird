@@ -4,15 +4,21 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/AnyOf.h>
 #include <AK/Debug.h>
 #include <AK/Math.h>
 #include <Compositor/ConnectionFromWebContent.h>
+#include <Compositor/PaintingSurface.h>
 #include <Compositor/RasterizeDisplayList.h>
+#include <Compositor/SkiaBackendContext.h>
+#include <Compositor/WebGLThread.h>
 #include <LibCompositing/DisplayList/Canvas2DTape.h>
 #include <LibCompositing/WebGL/WebGLSharedCommandBuffer.h>
 #include <LibCore/ElapsedTimer.h>
 #include <LibCore/Environment.h>
+#include <LibCore/Timer.h>
 #include <LibGfx/ColorSpace.h>
+#include <LibGfx/SharedImageBuffer.h>
 #include <LibWebCommon/Page/InputEvent.h>
 
 namespace Compositor {
@@ -21,15 +27,201 @@ ConnectionFromWebContent::ConnectionFromWebContent(NonnullOwnPtr<IPC::Transport>
     : IPC::ConnectionFromClient<CompositorWebContentClientEndpoint, CompositorWebContentServerEndpoint>(*this, move(transport), client_id)
     , m_compositor_state(move(compositor_state))
     , m_canvas_host(m_compositor_state->skia_backend_context(), m_compositor_state->canvas_surface_registry(), m_video_frame_holds)
+    , m_webgl_channel(WebGLHostChannel::create(*this, this->transport(), !WebGLThread::the()))
 {
+    auto* webgl_thread = WebGLThread::the();
+    auto skia_backend_context_for_webgl = webgl_thread ? webgl_thread->skia_backend_context() : m_compositor_state->skia_backend_context();
+    m_webgl_host = new WebGLHost(move(skia_backend_context_for_webgl), webgl_thread != nullptr, m_compositor_state->canvas_surface_registry(), m_video_frame_holds, m_webgl_channel);
+}
+
+ConnectionFromWebContent::~ConnectionFromWebContent()
+{
+    tear_down_webgl();
 }
 
 void ConnectionFromWebContent::die()
 {
     auto protector = NonnullRefPtr { *this };
+    tear_down_webgl();
     m_compositor_state->destroy_contexts_for_web_content_client(*this);
     if (m_on_death)
         m_on_death(*this);
+}
+
+void ConnectionFromWebContent::tear_down_webgl()
+{
+    auto* webgl_host = exchange(m_webgl_host, nullptr);
+    if (!webgl_host)
+        return;
+    m_webgl_channel->detach();
+
+    // The host goes away on the thread it runs on, after the jobs already handed to it.
+    if (auto* webgl_thread = WebGLThread::the())
+        webgl_thread->post([webgl_host] { delete webgl_host; });
+    else
+        delete webgl_host;
+
+    for (auto const& canvas_id : m_webgl_canvases.keys())
+        m_compositor_state->canvas_surface_registry().remove_canvas_surface(canvas_id);
+    m_webgl_canvases.clear();
+    if (m_webgl_buffer_release_timer)
+        m_webgl_buffer_release_timer->stop();
+}
+
+// WebGL runs on the WebGL thread, if there is one, so that its work never holds up the frames this thread presents. Its
+// messages go there in the order they came in. A later message that may read what WebGL drew, or release a video frame
+// one of its uploads named, waits until WebGL is done with the jobs before it.
+ConnectionFromWebContent::DispatchDecision ConnectionFromWebContent::dispatch_decision_for(IPC::Message const& message)
+{
+    namespace ServerMessages = Messages::CompositorWebContentServer;
+
+    if (WebGLHost::handles_message(message))
+        return DispatchDecision::Forward;
+    if (message.message_id() == static_cast<int>(ServerMessages::MessageID::DestroyCanvasContext)) {
+        if (!m_canvas_host.has_context(static_cast<ServerMessages::DestroyCanvasContext const&>(message).canvas_id()))
+            return DispatchDecision::Forward;
+    }
+    if (message.message_id() == static_cast<int>(ServerMessages::MessageID::GetCanvasPixels)) {
+        if (!m_canvas_host.has_context(static_cast<ServerMessages::GetCanvasPixels const&>(message).canvas_id()))
+            return DispatchDecision::Forward;
+    }
+
+    if (m_webgl_jobs_completed < m_webgl_job_awaited) {
+        m_dispatch_awaits_webgl = true;
+        return DispatchDecision::Defer;
+    }
+    return DispatchDecision::Dispatch;
+}
+
+static bool must_complete_before_later_messages(IPC::Message const& message)
+{
+    namespace ServerMessages = Messages::CompositorWebContentServer;
+
+    auto names_video_frame = [](Vector<Compositing::WebGL::ImageSourceFrame> const& frames) {
+        return any_of(frames, [](auto const& frame) { return frame.template has<Compositing::CapturedVideoFrame>(); });
+    };
+    switch (message.message_id()) {
+    case static_cast<int>(ServerMessages::MessageID::WebglPresentCanvas):
+    case static_cast<int>(ServerMessages::MessageID::DestroyCanvasContext):
+        return true;
+    case static_cast<int>(ServerMessages::MessageID::WebglCommands):
+        return names_video_frame(static_cast<ServerMessages::WebglCommands const&>(message).frames());
+    case static_cast<int>(ServerMessages::MessageID::WebglCommandsFromSharedBuffer):
+        return names_video_frame(static_cast<ServerMessages::WebglCommandsFromSharedBuffer const&>(message).frames());
+    default:
+        return false;
+    }
+}
+
+void ConnectionFromWebContent::forward_message(NonnullOwnPtr<IPC::Message> message)
+{
+    if (!m_webgl_host)
+        return;
+
+    auto job = ++m_webgl_jobs_forwarded;
+    auto is_awaited = must_complete_before_later_messages(*message);
+    if (is_awaited)
+        m_webgl_job_awaited = job;
+
+    auto run = [webgl_host = m_webgl_host, channel = m_webgl_channel, message = move(message), job, is_awaited]() mutable {
+        webgl_host->handle(move(message));
+        if (is_awaited) {
+            channel->run_on_main_thread([job](ConnectionFromWebContent& connection) {
+                connection.did_complete_webgl_job(job);
+            });
+        }
+    };
+    if (auto* webgl_thread = WebGLThread::the())
+        webgl_thread->post(move(run));
+    else
+        run();
+}
+
+void ConnectionFromWebContent::did_complete_webgl_job(u64 job)
+{
+    m_webgl_jobs_completed = max(m_webgl_jobs_completed, job);
+    if (m_dispatch_awaits_webgl && m_webgl_jobs_completed >= m_webgl_job_awaited) {
+        m_dispatch_awaits_webgl = false;
+        resume_dispatch();
+    }
+}
+
+void ConnectionFromWebContent::did_present_webgl_canvas(Compositing::CanvasId canvas_id, WebGLPresentedBuffer buffer)
+{
+    auto& canvas = m_webgl_canvases.ensure(canvas_id);
+    for (auto buffer_id : buffer.freed_buffer_ids)
+        canvas.surfaces.remove(buffer_id);
+    if (buffer.content.has_value()) {
+        auto surface = buffer.content->visit(
+            [&](NonnullRefPtr<Gfx::PaintingSurface>& surface) -> WebGLBufferSurface {
+                return WebGLBufferSurface { move(surface), nullptr };
+            },
+            [&](NonnullOwnPtr<Gfx::SharedImageBuffer>& shared_image_buffer) -> WebGLBufferSurface {
+#ifdef AK_OS_MACOS
+                auto surface = Gfx::PaintingSurface::create_from_shared_image_buffer(*shared_image_buffer, *m_compositor_state->skia_backend_context(), Gfx::PaintingSurface::Origin::BottomLeft);
+                return WebGLBufferSurface { move(surface), move(shared_image_buffer) };
+#else
+                (void)shared_image_buffer;
+                VERIFY_NOT_REACHED();
+#endif
+            });
+        canvas.surfaces.set(buffer.id, move(surface));
+    }
+
+    if (canvas.presented_buffer_id.has_value() && *canvas.presented_buffer_id != buffer.id)
+        retire_webgl_buffer(canvas_id, *canvas.presented_buffer_id);
+    canvas.presented_buffer_id = buffer.id;
+
+    // WebGL drew into the buffer behind the back of this surface, so drop any snapshot Skia cached of it.
+    auto& surface = canvas.surfaces.get(buffer.id)->surface;
+    surface->notify_content_will_change();
+    m_compositor_state->canvas_surface_registry().set_canvas_surface(m_canvas_host.canvas_surface_owner_id(), canvas_id, surface);
+}
+
+void ConnectionFromWebContent::did_destroy_webgl_canvas(Compositing::CanvasId canvas_id)
+{
+    if (m_webgl_canvases.remove(canvas_id))
+        m_compositor_state->canvas_surface_registry().remove_canvas_surface(canvas_id);
+}
+
+// The page may draw into a buffer again once nothing reads it, which the GPU may still do for frames already submitted.
+void ConnectionFromWebContent::retire_webgl_buffer(Compositing::CanvasId canvas_id, u64 buffer_id)
+{
+    auto skia_backend_context = m_compositor_state->skia_backend_context();
+    if (!skia_backend_context) {
+        release_webgl_buffer(canvas_id, buffer_id);
+        return;
+    }
+
+    ++m_pending_webgl_buffer_releases;
+    skia_backend_context->submit_with_completion_callback([weak_this = make_weak_ptr<ConnectionFromWebContent>(), canvas_id, buffer_id] {
+        auto strong_this = weak_this.strong_ref();
+        if (!strong_this)
+            return;
+        --strong_this->m_pending_webgl_buffer_releases;
+        strong_this->release_webgl_buffer(canvas_id, buffer_id);
+    });
+
+    if (!m_webgl_buffer_release_timer) {
+        m_webgl_buffer_release_timer = Core::Timer::create_repeating(AK::Duration::from_milliseconds(4), [this, skia_backend_context] {
+            skia_backend_context->check_async_work_completion();
+            if (m_pending_webgl_buffer_releases == 0)
+                m_webgl_buffer_release_timer->stop();
+        });
+    }
+    if (!m_webgl_buffer_release_timer->is_active())
+        m_webgl_buffer_release_timer->start();
+}
+
+void ConnectionFromWebContent::release_webgl_buffer(Compositing::CanvasId canvas_id, u64 buffer_id)
+{
+    auto* webgl_host = m_webgl_host;
+    if (!webgl_host)
+        return;
+    if (auto* webgl_thread = WebGLThread::the())
+        webgl_thread->post([webgl_host, canvas_id, buffer_id] { webgl_host->release_presented_buffer(canvas_id, buffer_id); });
+    else
+        webgl_host->release_presented_buffer(canvas_id, buffer_id);
 }
 
 void ConnectionFromWebContent::install_video_presentation_channel(IPC::TransportHandle handle)
@@ -380,6 +572,10 @@ void ConnectionFromWebContent::commit_placeholder_canvas(Compositing::CanvasId c
     RefPtr<Gfx::PaintingSurface> source_surface;
     if (source_canvas_id.has_value()) {
         source_surface = m_canvas_host.presented_surface(*source_canvas_id);
+        if (!source_surface) {
+            if (auto canvas = m_webgl_canvases.get(*source_canvas_id); canvas.has_value() && canvas->presented_buffer_id.has_value())
+                source_surface = canvas->surfaces.get(*canvas->presented_buffer_id)->surface;
+        }
         if (!source_surface)
             return;
     }
@@ -397,79 +593,55 @@ void ConnectionFromWebContent::placeholder_canvas_committed(Compositing::CanvasI
     async_placeholder_canvas_committed(canvas_id, size, origin_clean);
 }
 
-Messages::CompositorWebContentServer::CreateWebglContextResponse ConnectionFromWebContent::create_webgl_context(Compositing::WebGL::WebGLVersion webgl_version, Gfx::IntSize size, bool depth, bool stencil, bool antialias)
+// NB: WebGL messages go to the WebGL host as they come in; see dispatch_decision_for().
+Messages::CompositorWebContentServer::CreateWebglContextResponse ConnectionFromWebContent::create_webgl_context(Compositing::WebGL::WebGLVersion, Gfx::IntSize, bool, bool, bool)
 {
-    auto result = m_canvas_host.create_webgl_context(webgl_version, size, depth, stencil, antialias);
-    return { result.success, result.canvas_id, move(result.supported_extensions) };
+    VERIFY_NOT_REACHED();
 }
 
-void ConnectionFromWebContent::webgl_set_command_buffer(Compositing::CanvasId canvas_id, Core::AnonymousBuffer command_buffer)
+void ConnectionFromWebContent::webgl_set_command_buffer(Compositing::CanvasId, Core::AnonymousBuffer)
 {
-    auto shared_command_buffer = Compositing::WebGL::WebGLSharedCommandBuffer::adopt_received_buffer(move(command_buffer));
-    if (!shared_command_buffer.has_value()) {
-        did_misbehave("WebContent sent an invalid WebGL shared command buffer");
-        return;
-    }
-
-    m_canvas_host.set_webgl_shared_command_buffer(canvas_id, shared_command_buffer.release_value());
+    VERIFY_NOT_REACHED();
 }
 
-void ConnectionFromWebContent::webgl_commands_from_shared_buffer(Compositing::CanvasId canvas_id, u64 offset, u64 size_in_bytes, u64 flush_sequence_number, Vector<Compositing::WebGL::ImageSourceFrame> frames)
+void ConnectionFromWebContent::webgl_commands_from_shared_buffer(Compositing::CanvasId, u64, u64, u64, Vector<Compositing::WebGL::ImageSourceFrame>)
 {
-    if (!m_canvas_host.execute_webgl_commands_from_shared_buffer(canvas_id, offset, size_in_bytes, flush_sequence_number, frames))
-        did_misbehave("WebContent published an invalid WebGL shared command buffer range");
+    VERIFY_NOT_REACHED();
 }
 
 void ConnectionFromWebContent::webgl_drain_command_buffer(Compositing::CanvasId)
 {
-    // The empty reply is the point: it proves every earlier message on this connection,
-    // including all published command ranges, has already been processed.
+    VERIFY_NOT_REACHED();
 }
 
-void ConnectionFromWebContent::webgl_commands(Compositing::CanvasId canvas_id, Core::AnonymousBuffer commands, Vector<Compositing::WebGL::ImageSourceFrame> frames)
+void ConnectionFromWebContent::webgl_commands(Compositing::CanvasId, Core::AnonymousBuffer, Vector<Compositing::WebGL::ImageSourceFrame>)
 {
-    if (!commands.is_valid()) {
-        did_misbehave("WebContent sent an invalid WebGL command buffer");
-        return;
-    }
-
-    m_canvas_host.execute_webgl_commands(canvas_id, commands.bytes(), frames);
+    VERIFY_NOT_REACHED();
 }
 
-void ConnectionFromWebContent::webgl_present_canvas(Compositing::CanvasId canvas_id, bool preserve_drawing_buffer)
+void ConnectionFromWebContent::webgl_present_canvas(Compositing::CanvasId, bool)
 {
-    m_canvas_host.present_webgl_canvas(canvas_id, preserve_drawing_buffer);
+    VERIFY_NOT_REACHED();
 }
 
-void ConnectionFromWebContent::webgl_clear_drawing_buffer(Compositing::CanvasId canvas_id)
+void ConnectionFromWebContent::webgl_clear_drawing_buffer(Compositing::CanvasId)
 {
-    m_canvas_host.clear_webgl_drawing_buffer(canvas_id);
+    VERIFY_NOT_REACHED();
 }
 
-Messages::CompositorWebContentServer::WebglSyncCallResponse ConnectionFromWebContent::webgl_sync_call(Compositing::CanvasId canvas_id, ByteBuffer request)
+Messages::CompositorWebContentServer::WebglSyncCallResponse ConnectionFromWebContent::webgl_sync_call(Compositing::CanvasId, ByteBuffer)
 {
-    return MUST(m_canvas_host.execute_webgl_sync_call(canvas_id, move(request)));
+    VERIFY_NOT_REACHED();
 }
 
-Messages::CompositorWebContentServer::WebglReadPixelsResponse ConnectionFromWebContent::webgl_read_pixels(Compositing::CanvasId canvas_id, i32 x, i32 y, i32 width, i32 height, u32 format, u32 type, i32 buf_size, Core::AnonymousBuffer pixels)
+Messages::CompositorWebContentServer::WebglReadPixelsResponse ConnectionFromWebContent::webgl_read_pixels(Compositing::CanvasId, i32, i32, i32, i32, u32, u32, i32, Core::AnonymousBuffer)
 {
-    if (buf_size < 0 || (buf_size > 0 && (!pixels.is_valid() || pixels.size() < static_cast<size_t>(buf_size)))) {
-        did_misbehave("WebContent sent an invalid WebGL readPixels buffer");
-        return { 0, 0, 0 };
-    }
-
-    auto result = m_canvas_host.webgl_read_pixels_robust_angle(canvas_id, x, y, width, height, format, type, buf_size, move(pixels));
-    return { result.length, result.columns, result.rows };
+    VERIFY_NOT_REACHED();
 }
 
-Messages::CompositorWebContentServer::WebglReadBufferSubDataResponse ConnectionFromWebContent::webgl_read_buffer_sub_data(Compositing::CanvasId canvas_id, u32 target, i64 offset, i64 size, Core::AnonymousBuffer data)
+Messages::CompositorWebContentServer::WebglReadBufferSubDataResponse ConnectionFromWebContent::webgl_read_buffer_sub_data(Compositing::CanvasId, u32, i64, i64, Core::AnonymousBuffer)
 {
-    if (size < 0 || (size > 0 && (!data.is_valid() || data.size() < static_cast<size_t>(size)))) {
-        did_misbehave("WebContent sent an invalid WebGL buffer readback target");
-        return { false };
-    }
-
-    return { m_canvas_host.webgl_read_buffer_sub_data(canvas_id, target, offset, size, move(data)) };
+    VERIFY_NOT_REACHED();
 }
 
 void ConnectionFromWebContent::invalidate_keyboard_scroll_state(Web::CompositorContextId context_id, u64 generation)

@@ -24,5 +24,9 @@ class CompositorState;
 class DisplayListPlayerSkia;
 class DisplayListRasterCache;
 class OwnedCanvasSurfaces;
+class VideoFrameHolds;
+class WebGLHost;
+class WebGLHostChannel;
+class WebGLThread;
 
 }

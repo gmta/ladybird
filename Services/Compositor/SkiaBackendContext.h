@@ -61,6 +61,7 @@ public:
 
     void flush_and_submit(PaintingSurface&);
     void flush_and_submit_async(PaintingSurface&, Function<void()>&&);
+    void submit_with_completion_callback(Function<void()>&&);
     void check_async_work_completion();
     size_t resource_cache_bytes() const;
     virtual GrDirectContext* sk_context() const = 0;

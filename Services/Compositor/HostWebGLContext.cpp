@@ -303,25 +303,25 @@ ErrorOr<ByteBuffer> HostWebGLContext::execute_sync_call(ReadonlyBytes request)
     return handle_webgl_sync_call(*m_gl_context, m_objects, request);
 }
 
-ErrorOr<NonnullRefPtr<Gfx::PaintingSurface>> HostWebGLContext::prepare_for_compositing(bool preserve_drawing_buffer)
+ErrorOr<OpenGLContext::PresentedBuffer> HostWebGLContext::prepare_for_compositing(bool preserve_drawing_buffer)
 {
     // Nothing ran since the last present, so that frame is still the canvas content. The drawing buffer holds
     // whatever an earlier frame left in it until the deferred clear.
     if (m_needs_clear_before_next_frame) {
-        if (auto presented_surface = m_gl_context->presented_surface())
-            return presented_surface.release_nonnull();
+        if (auto presented_buffer = m_gl_context->presented_buffer(); presented_buffer.has_value())
+            return presented_buffer.release_value();
     }
 
     m_gl_context->present_drawing_buffer(preserve_drawing_buffer);
 
-    auto presented_surface = m_gl_context->presented_surface();
-    if (!presented_surface)
+    auto presented_buffer = m_gl_context->presented_buffer();
+    if (!presented_buffer.has_value())
         return Error::from_string_literal("WebGL context has no drawing buffer");
 
     if (!preserve_drawing_buffer)
         m_needs_clear_before_next_frame = true;
 
-    return presented_surface.release_nonnull();
+    return presented_buffer.release_value();
 }
 
 void HostWebGLContext::clear_drawing_buffer()
@@ -329,11 +329,6 @@ void HostWebGLContext::clear_drawing_buffer()
     m_gl_context->make_current();
     m_gl_context->clear_buffer_to_default_values();
     m_needs_clear_before_next_frame = false;
-}
-
-RefPtr<Gfx::PaintingSurface> HostWebGLContext::presented_surface()
-{
-    return m_gl_context->presented_surface();
 }
 
 Gfx::ShareableBitmap HostWebGLContext::read_back_drawing_buffer(Gfx::IntRect rect)

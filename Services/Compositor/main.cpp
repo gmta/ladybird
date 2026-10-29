@@ -10,6 +10,7 @@
 #include <Compositor/Sandbox.h>
 #include <Compositor/ScrollbarController.h>
 #include <Compositor/SkiaBackendContext.h>
+#include <Compositor/WebGLThread.h>
 #include <LibCore/ArgsParser.h>
 #include <LibCore/CrashHandler.h>
 #include <LibCore/EventLoop.h>
@@ -112,6 +113,9 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
     auto skia_backend_context = Gfx::SkiaBackendContext::the_main_thread_context();
 
     auto& event_loop = Core::EventLoop::initialize_for_current_thread();
+
+    // The WebGL thread makes its GPU context before the sandbox closes off the device.
+    Compositor::WebGLThread::start_if_supported(skia_backend_context);
 
     if (!disable_sandbox)
         TRY(Compositor::apply_sandbox(mach_server_name, cache_path, resource_root));
