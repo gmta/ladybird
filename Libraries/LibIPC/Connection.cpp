@@ -112,12 +112,33 @@ void ConnectionBase::handle_messages()
     auto messages = move(m_unprocessed_messages);
     m_dispatching_message_batches.append(messages.span());
     ScopeGuard remove_batch = [&] { m_dispatching_message_batches.take_last(); };
-    for (auto& message : messages) {
+    for (size_t i = 0; i < messages.size(); ++i) {
+        auto& message = messages[i];
         if (!message)
             continue;
-        auto current_message = message.release_nonnull();
-        if (current_message->endpoint_magic() != m_local_endpoint_magic)
+        if (message->endpoint_magic() != m_local_endpoint_magic) {
+            message = nullptr;
             continue;
+        }
+
+        auto decision = dispatch_decision_for(*message);
+        if (decision == DispatchDecision::Defer) {
+            // The deferred message and those after it wait, in order, ahead of what arrived since.
+            Vector<OwnPtr<Message>> deferred_messages;
+            for (size_t j = i; j < messages.size(); ++j) {
+                if (messages[j])
+                    deferred_messages.append(move(messages[j]));
+            }
+            deferred_messages.extend(move(m_unprocessed_messages));
+            m_unprocessed_messages = move(deferred_messages);
+            return;
+        }
+
+        auto current_message = message.release_nonnull();
+        if (decision == DispatchDecision::Forward) {
+            forward_message(move(current_message));
+            continue;
+        }
 
         if (!is_open()) {
             // NB: A peer that owns this process has closed the connection, so there's nothing left to do here but shut
@@ -143,6 +164,16 @@ void ConnectionBase::handle_messages()
                 dbgln("IPC::ConnectionBase::handle_messages: {}", post_result.error());
         }
     }
+}
+
+void ConnectionBase::resume_dispatch()
+{
+    VERIFY(m_owner_thread_id.is_current_thread());
+    if (m_unprocessed_messages.is_empty())
+        return;
+    deferred_invoke([this] {
+        handle_messages();
+    });
 }
 
 void ConnectionBase::wait_for_transport_to_become_readable()

@@ -72,6 +72,15 @@ public:
     }
 
 protected:
+    enum class DispatchDecision {
+        Dispatch,
+        Forward,
+        Defer,
+    };
+    virtual DispatchDecision dispatch_decision_for(Message const&) { return DispatchDecision::Dispatch; }
+    virtual void forward_message(NonnullOwnPtr<Message>) { VERIFY_NOT_REACHED(); }
+    void resume_dispatch();
+
     template<typename MessageType>
     OwnPtr<MessageType> wait_for_specific_endpoint_message()
     {
