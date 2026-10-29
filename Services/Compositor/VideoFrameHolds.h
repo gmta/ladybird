@@ -8,6 +8,7 @@
 
 #include <AK/Error.h>
 #include <AK/HashMap.h>
+#include <AK/Mutex.h>
 #include <AK/NonnullRefPtr.h>
 #include <AK/RefPtr.h>
 #include <LibCompositing/Video/VideoFramePresentationPage.h>
@@ -44,6 +45,9 @@ private:
     };
 
     void retire_current_generation(Media::VideoSinkHandle, Sink&, u64 next_generation);
+    void add_frame_counts_locked(Media::VideoSinkHandle, Media::DisplayingVideoSinkFrameCounts new_frame_counts);
+
+    mutable Mutex m_mutex;
 
     HashMap<Media::VideoSinkHandle, Sink> m_sinks;
     HashMap<Media::VideoSinkHandle, HashMap<u64, RetainedFrame>> m_retained_frames;

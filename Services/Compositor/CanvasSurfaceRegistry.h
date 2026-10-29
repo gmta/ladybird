@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/Atomic.h>
 #include <AK/HashMap.h>
 #include <AK/Noncopyable.h>
 #include <AK/NonnullRefPtr.h>
@@ -19,7 +20,7 @@ namespace Compositor {
 //     draw (and then read back) the canvases of another.
 class CanvasSurfaceRegistry {
     AK_MAKE_NONCOPYABLE(CanvasSurfaceRegistry);
-    AK_MAKE_DEFAULT_MOVABLE(CanvasSurfaceRegistry);
+    AK_MAKE_NONMOVABLE(CanvasSurfaceRegistry);
 
 public:
     CanvasSurfaceRegistry() = default;
@@ -37,9 +38,7 @@ public:
 
     Compositing::CanvasId reserve_canvas_ids(u64 count)
     {
-        auto first = Compositing::CanvasId { m_next_canvas_id };
-        m_next_canvas_id += count;
-        return first;
+        return Compositing::CanvasId { m_next_canvas_id.fetch_add(count) };
     }
 
     void set_canvas_surface(Compositing::CanvasSurfaceOwnerId owner_id, Compositing::CanvasId id, NonnullRefPtr<Gfx::PaintingSurface> surface)
@@ -82,7 +81,7 @@ private:
     }
 
     u64 m_next_owner_id { 1 };
-    u64 m_next_canvas_id { 1 };
+    Atomic<u64> m_next_canvas_id { 1 };
     u64 m_last_content_generation { 0 };
     HashMap<Compositing::CanvasId, Entry> m_entries;
 };

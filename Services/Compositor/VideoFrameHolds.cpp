@@ -14,6 +14,7 @@ using Compositing::VideoFramePresentationPage;
 
 void VideoFrameHolds::add_sink(Media::VideoSinkHandle handle, NonnullRefPtr<VideoFramePresentationPage> page)
 {
+    MutexLocker locker(m_mutex);
     // WebContent may already hold generation 0.
     if (auto sink = m_sinks.get(handle); sink.has_value())
         retire_current_generation(handle, *sink, VideoFramePresentationPage::retired_generation);
@@ -22,6 +23,7 @@ void VideoFrameHolds::add_sink(Media::VideoSinkHandle handle, NonnullRefPtr<Vide
 
 void VideoFrameHolds::remove_sink(Media::VideoSinkHandle handle)
 {
+    MutexLocker locker(m_mutex);
     auto sink = m_sinks.get(handle);
     if (!sink.has_value())
         return;
@@ -31,11 +33,12 @@ void VideoFrameHolds::remove_sink(Media::VideoSinkHandle handle)
 
 void VideoFrameHolds::present_frame(Media::VideoSinkHandle handle, RefPtr<Media::VideoFrame> frame, Media::DisplayingVideoSinkFrameCounts new_frame_counts)
 {
+    MutexLocker locker(m_mutex);
     auto sink = m_sinks.get(handle);
     if (!sink.has_value())
         return;
     if (sink->frame == frame) {
-        add_frame_counts(handle, new_frame_counts);
+        add_frame_counts_locked(handle, new_frame_counts);
         return;
     }
     auto next_generation = sink->generation + 1;
@@ -60,6 +63,12 @@ void VideoFrameHolds::present_frame(Media::VideoSinkHandle handle, RefPtr<Media:
 }
 
 void VideoFrameHolds::add_frame_counts(Media::VideoSinkHandle handle, Media::DisplayingVideoSinkFrameCounts new_frame_counts)
+{
+    MutexLocker locker(m_mutex);
+    add_frame_counts_locked(handle, new_frame_counts);
+}
+
+void VideoFrameHolds::add_frame_counts_locked(Media::VideoSinkHandle handle, Media::DisplayingVideoSinkFrameCounts new_frame_counts)
 {
     auto sink = m_sinks.get(handle);
     if (!sink.has_value())
@@ -95,6 +104,7 @@ void VideoFrameHolds::retire_current_generation(Media::VideoSinkHandle handle, S
 
 ErrorOr<void> VideoFrameHolds::release_hold(Media::VideoSinkHandle handle, u64 generation)
 {
+    MutexLocker locker(m_mutex);
     if (auto sink = m_sinks.get(handle); sink.has_value() && sink->generation == generation) {
         if (sink->page->release_hold_if_current(generation) != VideoFramePresentationPage::ReleaseResult::Released)
             return Error::from_string_literal("The current video frame was not held");
@@ -119,6 +129,7 @@ ErrorOr<void> VideoFrameHolds::release_hold(Media::VideoSinkHandle handle, u64 g
 
 RefPtr<Media::VideoFrame> VideoFrameHolds::held_frame(Media::VideoSinkHandle handle, u64 generation) const
 {
+    MutexLocker locker(m_mutex);
     if (auto sink = m_sinks.get(handle); sink.has_value() && sink->generation == generation)
         return sink->frame;
     auto retained_frames = m_retained_frames.get(handle);
