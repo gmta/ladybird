@@ -231,7 +231,7 @@ sk_sp<SkImageFilter> SkiaFilterReader::filter()
                 0, 0, amount, 0, 0,
                 0, 0, 0, 1, 0
             };
-            color_filter = SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kNo);
+            color_filter = SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kYes);
             break;
         }
         case ColorFilterType::Contrast: {
@@ -242,7 +242,7 @@ sk_sp<SkImageFilter> SkiaFilterReader::filter()
                 0, 0, amount, 0, intercept,
                 0, 0, 0, 1, 0
             };
-            color_filter = SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kNo);
+            color_filter = SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kYes);
             break;
         }
         case ColorFilterType::Invert: {
@@ -285,7 +285,7 @@ sk_sp<SkImageFilter> SkiaFilterReader::filter()
                 0.213f - 0.213f * amount, 0.715f - 0.715f * amount, 0.072f + 0.928f * amount, 0, 0,
                 0, 0, 0, 1, 0
             };
-            color_filter = SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kNo);
+            color_filter = SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kYes);
             break;
         }
         default:
@@ -346,7 +346,7 @@ sk_sp<SkImageFilter> SkiaFilterReader::filter()
             a20, a21, a22, 0, 0,
             0, 0, 0, 1, 0
         };
-        return SkImageFilters::ColorFilter(SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kNo), input);
+        return SkImageFilters::ColorFilter(SkColorFilters::Matrix(matrix, SkColorFilters::Clamp::kYes), input);
     }
     case FilterOperationType::Image: {
         auto const& frame = m_image_frame(value<u64>());
